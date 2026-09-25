@@ -12,7 +12,7 @@ function Win({ title, onClose, children, cls = '' }) {
   </div>`;
 }
 
-export function Setup({ habit, onSave, onClose }) {
+export function Setup({ habit, onSave, onClose, backup, onExport, onImport }) {
   const [title, setTitle] = useState(habit?.title ?? '');
   const [character, setCharacter] = useState(habit?.character ?? CHARACTERS[0].id);
   const [saving, setSaving] = useState(false);
@@ -32,6 +32,14 @@ export function Setup({ habit, onSave, onClose }) {
         </button>`)}</div>
       <p class="muted small">매일 인증 사진을 찍으면 벽돌이 한 층 올라가요. ${TOWER_HEIGHT}층이면 탑 완성, 하루 빼먹으면 쌓던 탑이 무너져요.</p>
       <div class="foot"><span /><button class="btn green" disabled=${saving || !title.trim()}>${habit ? '저장' : '시작하기'}</button></div>
+      ${backup && html`<div class="backup">
+        <div class="lbl">백업 <span class="muted small">— 기록과 사진은 이 폰에만 있어요. 가끔 내보내 두세요.</span></div>
+        <span>
+          <button type="button" class="btn blue sm" disabled=${!habit} onClick=${onExport}>내보내기</button>
+          <label class="btn blue sm">${habit ? '가져오기' : '백업에서 복원'}<input type="file" accept="application/json,.json" hidden
+            onChange=${(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onImport(f); }} /></label>
+        </span>
+      </div>`}
     </form>
   </${Win}>`;
 }

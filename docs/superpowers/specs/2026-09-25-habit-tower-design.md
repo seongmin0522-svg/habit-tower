@@ -71,3 +71,10 @@ claude.ai 비공개 Artifact. capabilities: `db`(기록), `assets`(사진). 로�
 - 탑이 화면보다 높으면 가운데 영역 세로 스크롤. 땅은 배경이 아니라 콘텐츠 바닥(`.ground`). 열면 땅이 보이게 맨 아래로.
 - 크루가 드는 벽돌도 같은 크기 + 오늘 사진.
 - 쌓기: 비행 시간 `--fd` = 0.6~1.4s(높이 비례), 카메라가 벽돌 따라 꼭대기로 → 착지 후 1.1s 머묾 → 땅으로 복귀 → 연출 종료(Scene의 `onDone`). 앱 타이머는 안전장치(9s).
+
+## 변경 (2026-09-25): 안드로이드 PWA (폰 전용)
+- `db.js` 모드: claude.ai → Artifact, `?dev` → 인메모리, 그 외 → `localdb.js`(IndexedDB `docs`·`photos` 스토어). 쓰기는 IndexedDB 먼저, 성공 시 메모리 반영. `navigator.storage.persist()` 요청.
+- 사진 Blob을 IndexedDB에 저장, 시작 시 object URL로 매핑.
+- `manifest.webmanifest`(standalone, portrait, 아이콘 192/512 maskable) + `sw.js`(앱 셸·CDN stale-while-revalidate). dev/claude.ai에선 SW 등록 안 함.
+- 백업: 설정 창에 내보내기(JSON: docs + 사진 dataURL) / 가져오기(검증 `validBackup` 후 병합). 경로는 `habit/me`, `days/YYYY-MM-DD`만 허용.
+- 배포: GitHub Pages 공개 저장소 (데이터는 폰에만).

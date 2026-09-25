@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, buddyFor, TOWER_HEIGHT, MONSTERS } from './logic.js';
+import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, TOWER_HEIGHT, MONSTERS } from './logic.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -48,4 +48,15 @@ test('buddyFor evolves every 4 floors', () => {
   assert.equal(MONSTERS.length, 8);
   const id = (n) => buddyFor(n).id;
   assert.deepEqual([0, 1, 4, 5, 28, 29, 30].map(id), ['snail', 'snail', 'snail', 'mushroom', 'golem', 'dragon', 'dragon']);
+});
+
+test('validBackup accepts only known paths and image data URLs', () => {
+  const ok = { version: 1, docs: [['habit/me', { title: 'x' }], ['days/2026-09-25', { assetId: 'p1', at: '' }]], photos: [['p1', 'data:image/jpeg;base64,AAAA']] };
+  assert.equal(validBackup(ok), true);
+  assert.equal(validBackup({ ...ok, version: 2 }), false);
+  assert.equal(validBackup({ ...ok, docs: [['secrets/x', {}]] }), false);
+  assert.equal(validBackup({ ...ok, docs: [['days/2026-9-25', {}]] }), false);
+  assert.equal(validBackup({ ...ok, docs: [['habit/me', 'str']] }), false);
+  assert.equal(validBackup({ ...ok, photos: [['p1', 'javascript:alert(1)']] }), false);
+  assert.equal(validBackup(null), false);
 });

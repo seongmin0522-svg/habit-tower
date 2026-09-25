@@ -5,22 +5,31 @@ import { CHARACTERS } from './ui/sprites.js';
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
 const MAX_TITLE = 40;
-const devUrls = new Map(); // dev only: asset id -> object/data URL
+const devUrls = new Map(); // dev and phone modes: asset id -> object/data URL
 
-// Real assets serve at /_blob/<id> in every view.
+// Where data lives: claude.ai Artifact (db + assets), ?dev (in memory), or the phone (IndexedDB PWA).
+export const MODE = window.claude?.use ? 'artifact' : DEV ? 'dev' : window.indexedDB ? 'local' : 'none';
+
+// Artifact assets serve at /_blob/<id>; dev and phone photos are object URLs.
 export const photoUrl = (id) => devUrls.get(id) ?? `/_blob/${id}`;
 
+let local; // one IndexedDB connection shared by db, assets and backup
+const openLocalOnce = () => (local ??= import('./localdb.js').then((m) => m.openLocal(devUrls)));
+export const localBackup = () => (MODE === 'local' ? openLocalOnce().then((l) => l.backup) : Promise.resolve(null));
+
 export async function connect() {
-  if (window.claude?.use) return window.claude.use('db');
-  if (!DEV) return null;
+  if (MODE === 'artifact') return window.claude.use('db');
+  if (MODE === 'local') return (await openLocalOnce()).db;
+  if (MODE !== 'dev') return null;
   const db = (await import('./devdb.js')).createDevDb();
   await seedDev(db, params.get('seed'));
   return db;
 }
 
 export async function connectAssets() {
-  if (window.claude?.use) return window.claude.use('assets');
-  if (!DEV) return null;
+  if (MODE === 'artifact') return window.claude.use('assets');
+  if (MODE === 'local') return (await openLocalOnce()).assets;
+  if (MODE !== 'dev') return null;
   let n = 0;
   return {
     async upload(blob) {

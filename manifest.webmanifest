@@ -1,0 +1,16 @@
+{
+  "name": "해빗 타워",
+  "short_name": "해빗 타워",
+  "description": "매일 사진으로 인증하고 벽돌을 쌓는 습관 트래커",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1d2b45",
+  "theme_color": "#2a2a2a",
+  "lang": "ko",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

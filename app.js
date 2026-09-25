@@ -1,6 +1,6 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, TOWER_HEIGHT } from './logic.js';
-import { connect, connectAssets, subscribe, makeActions } from './db.js';
+import { connect, connectAssets, subscribe, makeActions, localBackup, MODE } from './db.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
 
@@ -21,9 +21,11 @@ function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const [backup, setBackup] = useState(null);
   useEffect(() => {
     connect().then(setDb, () => setDb(null));
     connectAssets().then(setAssets, () => setAssets(null));
+    localBackup().then(setBackup, () => {});
   }, []);
   useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
   useEffect(() => { const t = setInterval(() => setToday(todayKST()), 60000); return () => clearInterval(t); }, []);
@@ -48,6 +50,20 @@ function App() {
     setTimeout(() => setFall(pf), FALL_MS);
   }, [state.loaded, state.habit, today]);
 
+  const onExport = async () => {
+    try {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(await backup.save());
+      a.download = `habit-tower-backup-${today}.json`;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+    } catch (e) { fail(e); }
+  };
+  const onImport = (file) => backup.restore(file).then((r) => {
+    setModal(null);
+    setToast(`복원 완료: 기록 ${r.days}일 · 사진 ${r.photos}장`);
+  }, fail);
+
   const ackFall = () => actions.ackFall(fall.keys.at(-1)).then(() => { setFall(null); setAnim(null); }, fail);
 
   const onPhoto = async (e) => {
@@ -71,7 +87,7 @@ function App() {
 
   const needSetup = state.loaded && !state.habit;
   return html`
-    ${db === null && html`<div class="banner">저장 안 됨 — claude.ai에서 열어주세요</div>`}
+    ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
     <header class="hud">
       <div class="ttlbox">
         <b>${state.habit?.title ?? '해빗 타워'}</b>
@@ -99,6 +115,7 @@ function App() {
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}
+      backup=${backup} onExport=${onExport} onImport=${onImport}
       onSave=${(f) => actions.setHabit(f).then(() => setModal(null), fail)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${state.days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
@@ -109,3 +126,9 @@ function App() {
 }
 
 render(html`<${App} />`, document.getElementById('app'));
+
+// Installed-app shell: offline start and "앱 설치" in Chrome. Not in claude.ai, ?dev or on localhost,
+// where a cache-first worker would serve yesterday's code during development.
+if (MODE === 'local' && location.hostname !== 'localhost' && 'serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}

@@ -61,3 +61,14 @@ export function pendingFall(days, today, seenFall) {
   const t = past[0];
   return !current && t?.kind === 'fell' && t.keys.at(-1) !== seenFall ? t : null;
 }
+
+// Backup files come from outside the app: accept only our own doc paths, plain-object bodies
+// and image data URLs, so a bad or tampered file can't write anything else.
+const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2})$/;
+const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+export function validBackup(b) {
+  return isPlain(b) && b.version === 1 && Array.isArray(b.docs) && Array.isArray(b.photos)
+    && b.docs.every((d) => Array.isArray(d) && typeof d[0] === 'string' && DOC_PATH.test(d[0]) && isPlain(d[1]))
+    && b.photos.every((p) => Array.isArray(p) && typeof p[0] === 'string' && p[0].length < 100
+      && typeof p[1] === 'string' && p[1].startsWith('data:image/'));
+}
