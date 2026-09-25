@@ -87,6 +87,8 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 @keyframes puff { 0% { opacity: 0; transform: scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.4); } }
 @keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
 /* 30th floor: sparks burst around the flag */
+.stacking .flag { animation: appear 0s 1.9s both; } /* flag goes up when the 30th brick lands */
+@keyframes appear { from { visibility: hidden; } }
 .sparks { position: absolute; left: 50%; top: 50%; }
 .sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out 1.9s both; }
 .sparks i:nth-child(odd) { background: #ff7a5c; }
@@ -95,11 +97,11 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 /* Collapse: tower shakes, each floor tumbles to the ground, crew sees stars (2.6s) */
 .falling .stack { animation: shake .5s; }
 .blk.fall { animation: fall .9s cubic-bezier(.5,0,.9,.6) calc(.5s + var(--delay)) both; }
-.falling .stars { display: block; animation: spin 1s linear 1.3s infinite both; }
+.falling .stars { display: block; animation: appear 0s 1.2s both, spin 1s linear 1.2s infinite; } /* stars once the crew is hit */
 .falling .hero, .falling .mob { animation: dazed .4s ease-out 1.2s both; }
 @keyframes shake { 20%, 60% { transform: translateX(-4px) rotate(-1deg); } 40%, 80% { transform: translateX(4px) rotate(1deg); } }
 @keyframes fall { to { transform: translate(var(--dx), calc(var(--bh) * var(--i) - var(--pile))) rotate(var(--rot)); } }
-@keyframes spin { 0% { opacity: 1; transform: rotate(0); } 100% { opacity: 1; transform: rotate(360deg); } }
+@keyframes spin { to { transform: rotate(360deg); } }
 @keyframes dazed { to { transform: rotate(-14deg) translateY(2px); } }
 
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
