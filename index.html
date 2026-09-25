@@ -123,7 +123,7 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 .falling .stars { display: block; animation: appear 0s 1.2s both, spin 1s linear 1.2s infinite; } /* stars once the crew is hit */
 .falling .hero, .falling .mob { animation: dazed .4s ease-out 1.2s both; }
 @keyframes shake { 20%, 60% { transform: translateX(-4px) rotate(-1deg); } 40%, 80% { transform: translateX(4px) rotate(1deg); } }
-@keyframes fall { to { transform: translate(var(--dx), calc(var(--bh) * var(--i) - var(--pile))) rotate(var(--rot)); } }
+@keyframes fall { to { transform: translate(var(--dx), calc((var(--bh) + 1px) * var(--i) - var(--pile))) rotate(var(--rot)); } } /* 1px = brick gap */
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes dazed { to { transform: rotate(-14deg) translateY(2px); } }
 

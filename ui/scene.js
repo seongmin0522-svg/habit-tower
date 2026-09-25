@@ -39,7 +39,9 @@ function glide(el, to, ms, ease, done) {
   return () => cancelAnimationFrame(id);
 }
 
-const Photo = ({ day }) => day?.assetId && html`<img src=${photoUrl(day.assetId)} alt="" loading="lazy" decoding="async" draggable="false" />`;
+// Lazy by default; eager for bricks that must show their photo the moment they move on screen.
+const Photo = ({ day, eager }) => day?.assetId &&
+  html`<img src=${photoUrl(day.assetId)} alt="" loading=${eager ? 'eager' : 'lazy'} decoding="async" draggable="false" />`;
 
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
 // onDone: the stack sequence (incl. the camera trip) finished.
@@ -92,7 +94,7 @@ export function Scene({ character, keys, days, anim, rubble, onBlock, onDone }) 
 
   return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
     <div class="crew" aria-hidden="true">
-      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }}><${Photo} day=${days[shown.at(-1)]} /></i>
+      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }}><${Photo} day=${days[shown.at(-1)]} eager /></i>
       <span class="mob" title=${buddy.name}><${Monster} id=${buddy.id} px=${3.5} /></span>
       <span class="hero"><${Sprite} id=${character} px=${3.5} /></span>
       <span class="stars">★ ☆ ★</span>
@@ -103,7 +105,7 @@ export function Scene({ character, keys, days, anim, rubble, onBlock, onDone }) 
       <div class="stack">${shown.map((key, i) => html`
         <button key=${key} class=${'blk' + (stacking && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
           style=${{ '--c': TIER[Math.floor(i / 10)], '--i': i, ...(falling ? scatter(i, n) : {}) }}
-          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} /></button>`)}
+          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} /></button>`)}
       </div>
       ${rubble && !n && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
       <div class="base" />
