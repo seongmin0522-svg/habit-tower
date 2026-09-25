@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>해빗 타워</title>
+<style>
+@font-face { font-family: Galmuri11; src: url(fonts/Galmuri11.woff2) format('woff2'); font-display: swap; }
+:root {
+  --frame:#3a3a3a; --frame-dark:#1a1a1a; --title:#e8c85a; --paper:#f4f1e6; --line:#c8c0a4;
+  --ink:#333; --muted:#888; --gold:#ffd24a; --outline:#2b1d14;
+  --b-green:linear-gradient(#8fd35a,#4a9a12); --b-blue:linear-gradient(#7cc0f5,#2f7fce); --b-orange:linear-gradient(#ffcf6a,#f08c10);
+  --sky:linear-gradient(#8fc3ea,#cfe8f7 72%,#9bcf7a 72%,#6fae4f);
+  --bh: clamp(8px, calc((100vh - 340px) / 30), 18px); /* one floor; 30 fit on screen */
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sky:linear-gradient(#1d2b45,#2c3f5e 72%,#2f4a2a 72%,#223820); } }
+:root[data-theme="dark"] { --sky:linear-gradient(#1d2b45,#2c3f5e 72%,#2f4a2a 72%,#223820); }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { min-height: 100vh; background: var(--sky); background-attachment: fixed;
+  font-family: Galmuri11, 'Dotum', '돋움', sans-serif; font-size: 12px; color: var(--ink); }
+#app { min-height: 100vh; display: flex; flex-direction: column; }
+button { font: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+.banner { background: #b8482c; color: #fff; text-align: center; padding: 6px; }
+.muted { color: var(--muted); } .small { font-size: 11px; } .gold { color: var(--gold); font-weight: bold; }
+.center { text-align: center; } .empty { color: var(--muted); text-align: center; padding: 20px; }
+
+/* HUD + bottom bar */
+.hud, .bar { display: flex; align-items: center; gap: 8px; padding: 6px 16px; color: #fff;
+  background: linear-gradient(#4a4a4a,#2a2a2a); border-color: #777; border-style: solid; border-width: 0; }
+.hud { justify-content: space-between; border-bottom-width: 2px; }
+.hud .ttlbox { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
+.hud .ttlbox b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hud > span { display: flex; gap: 4px; flex: none; }
+.bar { justify-content: center; border-top-width: 2px; min-height: 52px; }
+.done { color: #9bf07a; font-weight: bold; font-size: 14px; }
+
+.btn { color: #fff; border-radius: 3px; padding: 2px 8px; font-weight: bold; border: 1px solid; white-space: nowrap; display: inline-block; }
+.btn.green { background: var(--b-green); border-color: #2f6a08; } .btn.blue { background: var(--b-blue); border-color: #1d5a99; }
+.btn.orange { background: var(--b-orange); border-color: #b36200; }
+.btn.big { font-size: 15px; padding: 8px 20px; border-radius: 6px; box-shadow: 0 3px 0 #2f6a08; }
+label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
+.btn:focus-within, .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+/* Scene: crew + tower standing on the grass */
+.stage { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px 6vh; overflow: hidden; }
+.scene { display: flex; align-items: flex-end; gap: 14px; }
+.crew { position: relative; display: flex; align-items: flex-end; gap: 2px; }
+.crew svg { display: block; }
+.crew .mob svg { transform: scaleX(-1); } /* monster art faces left; here it follows the hero */
+.hero, .mob { animation: breathe 1.6s ease-in-out infinite; }
+.mob { animation-delay: .4s; }
+@keyframes breathe { 50% { transform: translateY(-2px); } }
+.carried { display: none; position: absolute; left: 6px; right: 6px; top: -10px; height: 12px;
+  background: #c8643c; border: 1px solid var(--outline); box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
+.stars { display: none; position: absolute; left: 0; right: 0; top: -22px; text-align: center; color: #ffe14d; font-size: 14px; text-shadow: 0 1px 0 #000; }
+
+.tower { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 62px; }
+.stack { display: flex; flex-direction: column-reverse; align-items: center; }
+.blk { display: block; width: 60px; height: var(--bh); margin-top: -1px; padding: 0; background: var(--c); border: 1px solid var(--outline);
+  box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
+.blk:hover, .blk:focus-visible { filter: brightness(1.2); outline: 2px solid #fff; outline-offset: -1px; }
+.base { width: 78px; height: 6px; background: #5a3a22; border: 1px solid var(--outline); border-radius: 2px; }
+.flag { font-size: 22px; line-height: 1; position: relative; }
+.rubble { display: flex; align-items: flex-end; }
+.rubble i { width: 14px; height: 8px; margin: 0 -1px; background: #a7a7a7; border: 1px solid var(--outline); }
+.rubble i:nth-child(2n) { transform: rotate(18deg); } .rubble i:nth-child(3) { transform: translateY(-6px) rotate(-12deg); }
+.plus, .dust { display: none; }
+
+/* Stack: crew walks in carrying one brick together, hops, brick arcs to the top (2.8s total) */
+.stacking .crew { animation: walkin 1.2s ease-out both, hop .35s ease-out 1.2s; }
+.stacking .hero, .stacking .mob { animation: step .3s steps(2) 4; }
+.stacking .carried { display: block; animation: vanish 0s 1.3s forwards; }
+.stacking .blk.new { animation: fly .6s cubic-bezier(.3,.7,.6,1) 1.3s both; }
+.stacking .dust { display: block; position: absolute; top: -8px; width: 70px; height: 16px; border-radius: 50%;
+  background: radial-gradient(#fff9, transparent 70%); animation: puff .6s ease-out 1.9s both; }
+.stacking .plus { display: block; position: absolute; top: -24px; color: #ffe14d; font-weight: bold; font-size: 14px;
+  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000; animation: rise 1s ease-out 1.9s both; }
+@keyframes walkin { from { transform: translateX(-60vw); } }
+@keyframes hop { 50% { transform: translateY(-16px); } }
+@keyframes step { 50% { transform: translateY(-3px); } }
+@keyframes vanish { to { visibility: hidden; } }
+@keyframes fly { 0% { opacity: 0; transform: translate(-80px, calc(var(--bh) * var(--i) - 40px)); }
+  1% { opacity: 1; } 55% { transform: translate(-40px, -50px) rotate(-90deg); } 100% { opacity: 1; transform: none; } }
+@keyframes puff { 0% { opacity: 0; transform: scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.4); } }
+@keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
+/* 30th floor: sparks burst around the flag */
+.sparks { position: absolute; left: 50%; top: 50%; }
+.sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out 1.9s both; }
+.sparks i:nth-child(odd) { background: #ff7a5c; }
+@keyframes spark { 0% { opacity: 1; transform: rotate(var(--a)) translateX(0); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(50px); } }
+
+/* Collapse: tower shakes, each floor tumbles to the ground, crew sees stars (2.6s) */
+.falling .stack { animation: shake .5s; }
+.blk.fall { animation: fall .9s cubic-bezier(.5,0,.9,.6) calc(.5s + var(--delay)) both; }
+.falling .stars { display: block; animation: spin 1s linear 1.3s infinite both; }
+.falling .hero, .falling .mob { animation: dazed .4s ease-out 1.2s both; }
+@keyframes shake { 20%, 60% { transform: translateX(-4px) rotate(-1deg); } 40%, 80% { transform: translateX(4px) rotate(1deg); } }
+@keyframes fall { to { transform: translate(var(--dx), calc(var(--bh) * var(--i) - var(--pile))) rotate(var(--rot)); } }
+@keyframes spin { 0% { opacity: 1; transform: rotate(0); } 100% { opacity: 1; transform: rotate(360deg); } }
+@keyframes dazed { to { transform: rotate(-14deg) translateY(2px); } }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; } }
+
+/* Windows */
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 10; padding: 16px; }
+.win { background: var(--frame); border: 1px solid var(--frame-dark); border-radius: 5px; padding: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  display: flex; flex-direction: column; width: 100%; max-height: 100%; }
+.setup-win { max-width: 330px; } .photo-win { max-width: 560px; } .album-win { max-width: 560px; } .fall-win { max-width: 300px; }
+.ttl { color: var(--title); font-weight: bold; font-size: 11px; text-align: center; padding: 1px 0 3px; position: relative; }
+.ttl .x { position: absolute; right: 2px; top: -2px; background: none; border: 0; color: #ddd; }
+.body { background: var(--paper); border: 1px solid #888; overflow-y: auto; }
+.pad { padding: 10px 12px; line-height: 1.7; } .pad p { margin: 6px 0 0; }
+.foot { display: flex; justify-content: space-between; padding: 6px 0 0; }
+.win > .foot { padding: 4px; }
+label, .lbl { display: block; margin-bottom: 8px; font-weight: bold; }
+input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inherit; border: 1px solid #9a9a9a; background: #fffdf5; padding: 4px 6px; color: var(--ink); }
+.chars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.char { background: #fff; border: 2px solid #3a3a3a; border-radius: 6px; padding: 4px 0; display: flex; flex-direction: column; align-items: center; }
+.char.sel { border-color: #f39a1e; box-shadow: 0 0 0 3px #ffd27a; }
+.photo-win img { display: block; width: 100%; max-height: 75vh; object-fit: contain; background: #222; }
+.big { font-size: 15px; font-weight: bold; }
+.album { padding: 8px 10px; max-height: 75vh; }
+.album section + section { margin-top: 12px; border-top: 1px dotted var(--line); padding-top: 8px; }
+.album h3 { font-size: 12px; margin: 0 0 6px; }
+.thumbs { display: grid; grid-template-columns: repeat(auto-fill, minmax(64px, 1fr)); gap: 4px; }
+.thumbs button { position: relative; padding: 0; border: 1px solid var(--line); background: #ddd; aspect-ratio: 1; overflow: hidden; }
+.thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumbs span { position: absolute; left: 2px; bottom: 1px; color: #fff; font-size: 10px; text-shadow: 0 0 2px #000; }
+.toast { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); background: #2a2a2a; color: #fff; padding: 6px 12px; border-radius: 4px; z-index: 30; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
