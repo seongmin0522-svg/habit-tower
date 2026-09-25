@@ -81,12 +81,14 @@ export function makeActions(db, assets, getState) {
 
     // Upload first, then record the day; a failed upload changes nothing.
     // Retaking today's photo replaces it and deletes the old asset.
-    async certify(file) {
+    // onUploaded fires just before the db write, whose snapshot adds the block.
+    async certify(file, onUploaded) {
       const s = ready();
       if (!assets) throw new Error('사진 저장을 쓸 수 없어요');
       const key = todayKST();
       const old = s.days[key]?.assetId;
       const { id } = await assets.upload(await shrink(file), { type: 'image/jpeg' });
+      onUploaded?.({ retake: !!old });
       try {
         await db.doc(`days/${key}`).set({ assetId: id, at: new Date().toISOString() });
       } catch (e) {

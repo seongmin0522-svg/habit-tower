@@ -37,16 +37,16 @@ function App() {
   const ready = !!actions && state.loaded;
   const fail = (e) => setToast('실패: ' + (e?.message ?? e?.code ?? e));
 
-  // A collapse plays once, the first time the page sees it.
-  const fallChecked = useRef(false);
+  // A collapse plays once, the first time the page sees it — also when midnight passes with the page open.
+  const fallChecked = useRef('');
   useEffect(() => {
-    if (!state.loaded || !state.habit || fallChecked.current) return;
-    fallChecked.current = true;
+    if (!state.loaded || !state.habit || fallChecked.current === today) return;
+    fallChecked.current = today;
     const pf = pendingFall(state.days, today, state.habit.seenFall);
     if (!pf) return;
     setAnim({ kind: 'fall', keys: pf.keys });
     setTimeout(() => setFall(pf), FALL_MS);
-  }, [state.loaded, state.habit]);
+  }, [state.loaded, state.habit, today]);
 
   const ackFall = () => actions.ackFall(fall.keys.at(-1)).then(() => { setFall(null); setAnim(null); }, fail);
 
@@ -55,11 +55,14 @@ function App() {
     e.target.value = '';
     if (!file) return;
     setBusy(true);
+    let t;
     try {
-      const r = await actions.certify(file);
+      // Start the walk-in before the block appears, so it never flashes on top first.
+      const r = await actions.certify(file, ({ retake }) => {
+        if (!retake) { setAnim({ kind: 'stack' }); t = setTimeout(() => setAnim(null), STACK_MS); }
+      });
       if (r.retake) setToast('오늘 사진을 바꿨어요');
-      else { setAnim({ kind: 'stack' }); setTimeout(() => setAnim(null), STACK_MS); }
-    } catch (err) { fail(err); } finally { setBusy(false); }
+    } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
   };
 
   const camera = (label, cls) => html`<label class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
