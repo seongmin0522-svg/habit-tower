@@ -5,7 +5,7 @@ import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const STACK_MS = REDUCED ? 0 : 2800; // matches the CSS stack sequence
+const STACK_MS = REDUCED ? 0 : 3000; // matches the CSS stack sequence
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 
 function App() {

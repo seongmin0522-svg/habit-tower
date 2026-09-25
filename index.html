@@ -46,15 +46,15 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 
 /* Scene: crew + tower standing on the grass */
 .stage { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px 6vh; overflow: hidden; }
-.scene { display: flex; align-items: flex-end; gap: 14px; }
+.scene { position: relative; display: flex; align-items: flex-end; gap: 14px; }
 .crew { position: relative; display: flex; align-items: flex-end; gap: 2px; }
 .crew svg { display: block; }
 .crew .mob svg { transform: scaleX(-1); } /* monster art faces left; here it follows the hero */
 .hero, .mob { animation: breathe 1.6s ease-in-out infinite; }
 .mob { animation-delay: .4s; }
 @keyframes breathe { 50% { transform: translateY(-2px); } }
-.carried { display: none; position: absolute; left: 6px; right: 6px; top: -10px; height: 12px;
-  background: #c8643c; border: 1px solid var(--outline); box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
+.carried { display: none; position: absolute; left: 50%; width: 60px; margin-left: -30px; bottom: calc(100% - 2px); height: var(--bh);
+  background: var(--c); border: 1px solid var(--outline); box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
 .stars { display: none; position: absolute; left: 0; right: 0; top: -22px; text-align: center; color: #ffe14d; font-size: 14px; text-shadow: 0 1px 0 #000; }
 
 .tower { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 62px; }
@@ -69,28 +69,46 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 .rubble i:nth-child(2n) { transform: rotate(18deg); } .rubble i:nth-child(3) { transform: translateY(-6px) rotate(-12deg); }
 .plus, .dust { display: none; }
 
-/* Stack: crew walks in carrying one brick together, hops, brick arcs to the top (2.8s total) */
-.stacking .crew { animation: walkin 1.2s ease-out both, hop .35s ease-out 1.2s; }
-.stacking .hero, .stacking .mob { animation: step .3s steps(2) 4; }
-.stacking .carried { display: block; animation: vanish 0s 1.3s forwards; }
-.stacking .blk.new { animation: fly .6s cubic-bezier(.3,.7,.6,1) 1.3s both; }
-.stacking .dust { display: block; position: absolute; top: -8px; width: 70px; height: 16px; border-radius: 50%;
-  background: radial-gradient(#fff9, transparent 70%); animation: puff .6s ease-out 1.9s both; }
-.stacking .plus { display: block; position: absolute; top: -24px; color: #ffe14d; font-weight: bold; font-size: 14px;
-  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000; animation: rise 1s ease-out 1.9s both; }
-@keyframes walkin { from { transform: translateX(-60vw); } }
-@keyframes hop { 50% { transform: translateY(-16px); } }
-@keyframes step { 50% { transform: translateY(-3px); } }
+/* Stack (3s): crew walks in bobbing with one brick overhead, crouches, jumps and tosses at the peak (1.4s);
+   the brick flies a real parabola from exactly where it was held (--fx/--fy/--fs set in scene.js) and lands at 2.0s. */
+.stacking .crew { transform-origin: 50% 100%; animation: carry 1.65s both, cheer .4s ease-out 2.05s; }
+.stacking .hero, .stacking .mob, .stacking .carried { animation: bob .275s ease-in-out 4 alternate; }
+.stacking .mob { animation-delay: .14s; }
+.stacking .carried { display: block; animation: bob .275s ease-in-out 4 alternate, vanish 0s 1.4s forwards; }
+.stacking .blk.new { animation: appear 0s 1.4s both, fly .6s linear 1.4s both, land .28s ease-out 2s; }
+.stacking .stack { transform-origin: 50% 100%; animation: settle .35s ease-out 2s; }
+.stacking .dust { display: block; position: absolute; top: -8px; width: 80px; height: 18px; border-radius: 50%;
+  background: radial-gradient(#fffa, transparent 70%); animation: puff .6s ease-out 2s both; }
+.stacking .plus { display: block; position: absolute; top: -26px; color: #ffe14d; font-weight: bold; font-size: 14px;
+  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000; animation: rise .9s ease-out 2.05s both; }
+@keyframes carry {
+  0% { transform: translateX(-60vw) rotate(4deg); animation-timing-function: cubic-bezier(.3,.5,.4,1); }
+  67% { transform: translateX(0) rotate(2deg); animation-timing-function: ease-out; }
+  76% { transform: translateY(3px) scale(1.06,.9); animation-timing-function: cubic-bezier(.2,.8,.4,1); }
+  85% { transform: translateY(-20px) scale(.96,1.06); animation-timing-function: cubic-bezier(.6,0,.8,.4); }
+  94% { transform: translateY(2px) scale(1.06,.92); animation-timing-function: ease-out; }
+  100% { transform: none; } }
+@keyframes cheer { 40% { transform: translateY(-10px); } }
+@keyframes bob { to { transform: translateY(-4px); } }
 @keyframes vanish { to { visibility: hidden; } }
-@keyframes fly { 0% { opacity: 0; transform: translate(-80px, calc(var(--bh) * var(--i) - 40px)); }
-  1% { opacity: 1; } 55% { transform: translate(-40px, -50px) rotate(-90deg); } 100% { opacity: 1; transform: none; } }
-@keyframes puff { 0% { opacity: 0; transform: scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.4); } }
+/* x linear, y = parabola: dense stops + linear timing trace the curve; slight tilt, grows from held size to 1 */
+@keyframes fly {
+  0% { transform: translate(var(--fx), var(--fy)) scale(var(--fs)); }
+  20% { transform: translate(calc(var(--fx) * .8), calc(var(--fy) * .8 - 70px * .64)) rotate(-8deg) scale(calc(var(--fs) + (1 - var(--fs)) * .2)); }
+  40% { transform: translate(calc(var(--fx) * .6), calc(var(--fy) * .6 - 70px * .96)) rotate(-14deg) scale(calc(var(--fs) + (1 - var(--fs)) * .4)); }
+  50% { transform: translate(calc(var(--fx) * .5), calc(var(--fy) * .5 - 70px)) rotate(-15deg) scale(calc(var(--fs) + (1 - var(--fs)) * .5)); }
+  60% { transform: translate(calc(var(--fx) * .4), calc(var(--fy) * .4 - 70px * .96)) rotate(-12deg) scale(calc(var(--fs) + (1 - var(--fs)) * .6)); }
+  80% { transform: translate(calc(var(--fx) * .2), calc(var(--fy) * .2 - 70px * .64)) rotate(-6deg) scale(calc(var(--fs) + (1 - var(--fs)) * .8)); }
+  100% { transform: none; } }
+@keyframes land { 35% { transform: scale(1.1,.7); } 70% { transform: scale(.97,1.08); } }
+@keyframes settle { 35% { transform: scaleY(.985); } 70% { transform: scaleY(1.004); } }
+@keyframes puff { 0% { opacity: 0; transform: scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5); } }
 @keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
 /* 30th floor: sparks burst around the flag */
-.stacking .flag { animation: appear 0s 1.9s both; } /* flag goes up when the 30th brick lands */
+.stacking .flag { animation: appear 0s 2s both; } /* flag goes up when the 30th brick lands */
 @keyframes appear { from { visibility: hidden; } }
 .sparks { position: absolute; left: 50%; top: 50%; }
-.sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out 1.9s both; }
+.sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out 2s both; }
 .sparks i:nth-child(odd) { background: #ff7a5c; }
 @keyframes spark { 0% { opacity: 1; transform: rotate(var(--a)) translateX(0); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(50px); } }
 

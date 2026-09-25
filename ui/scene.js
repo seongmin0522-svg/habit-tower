@@ -1,4 +1,4 @@
-import { html } from './h.js';
+import { html, useRef, useLayoutEffect } from './h.js';
 import { Sprite } from './sprites.js';
 import { Monster } from './monsters.js';
 import { TOWER_HEIGHT, buddyFor } from '../logic.js';
@@ -21,9 +21,28 @@ export function Scene({ character, keys, anim, rubble, onBlock }) {
   const shown = falling ? anim.keys : keys;
   const n = shown.length;
   const buddy = buddyFor(n);
-  return html`<div class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
+
+  // Hand-off: the flying brick starts exactly where the crew holds it at the jump's peak.
+  // offset* ignore transforms, so this measures the crew's resting spot even mid-walk.
+  const ref = useRef();
+  useLayoutEffect(() => {
+    const s = ref.current, held = s?.querySelector('.carried'), b = s?.querySelector('.blk.new');
+    if (!stacking || !held || !b) return;
+    // Center of el in scene coordinates, summing the offsetParent chain (any ancestor can become one).
+    const mid = (el) => {
+      let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
+      for (let e = el; e && e !== s; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+      return [x, y];
+    };
+    const [hx, hy] = mid(held), [bx, by] = mid(b);
+    b.style.setProperty('--fx', `${hx - bx}px`);
+    b.style.setProperty('--fy', `${hy - by - 20}px`); // 20px = jump height at the toss
+    b.style.setProperty('--fs', (held.offsetWidth / b.offsetWidth).toFixed(3));
+  }, [stacking, n]);
+
+  return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
     <div class="crew" aria-hidden="true">
-      <i class="carried" />
+      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }} />
       <span class="mob" title=${buddy.name}><${Monster} id=${buddy.id} px=${3.5} /></span>
       <span class="hero"><${Sprite} id=${character} px=${3.5} /></span>
       <span class="stars">★ ☆ ★</span>
