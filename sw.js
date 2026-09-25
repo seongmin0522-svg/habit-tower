@@ -1,7 +1,9 @@
-// Offline shell. Our files: network first, cache as fallback — online launches always get one
-// consistent version (a half-refreshed cache could pair a new app.js with an old scene.js).
-// The CDN bundle is pinned by version, so cache first. Photos are blob: URLs and never pass through here.
-const CACHE = 'habit-tower-v2';
+// Offline shell. Each launch uses ONE source for all our files, so a new app.js never meets an old scene.js:
+// the page request decides — network if it answers within 2.5s, else the whole launch runs from cache
+// (weak signal in a gym basement shouldn't mean a blank screen). The CDN bundle is pinned by version,
+// so cache first. Photos are blob: URLs and never pass through here.
+const CACHE = 'habit-tower-v3';
+const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
   './', 'index.html', 'app.js', 'logic.js', 'db.js', 'localdb.js', 'devdb.js', 'manifest.webmanifest',
@@ -17,13 +19,21 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   e.respondWith(caches.open(CACHE).then(async (c) => {
     const cached = () => c.match(e.request, { ignoreSearch: true });
+    const net = async () => { const r = await fetch(e.request); if (r.ok) c.put(e.request, r.clone()); return r; };
     if (e.request.url.startsWith(CDN)) return (await cached()) ?? fetch(e.request);
-    try {
-      const r = await fetch(e.request);
-      if (r.ok) c.put(e.request, r.clone());
-      return r;
-    } catch {
-      return (await cached()) ?? Response.error();
+    if (e.request.mode === 'navigate') {
+      const slow = new Promise((_, no) => setTimeout(() => no(new Error('slow')), 2500));
+      try {
+        const r = await Promise.race([fetch(e.request), slow]);
+        if (r.ok) c.put(e.request, r.clone()); // only a page that won the race may replace the cached one
+        return r;
+      } catch {
+        const hit = await cached();
+        if (hit) { fromCache.add(e.resultingClientId); return hit; }
+        return net(); // never cached yet: nothing better than waiting
+      }
     }
+    if (fromCache.has(e.clientId)) return (await cached()) ?? net();
+    try { return await net(); } catch { return (await cached()) ?? Response.error(); }
   }));
 });
