@@ -28,7 +28,14 @@ function App() {
     localBackup().then(setBackup, () => {});
   }, []);
   useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
-  useEffect(() => { const t = setInterval(() => setToday(todayKST()), 60000); return () => clearInterval(t); }, []);
+  useEffect(() => {
+    // Timers sleep while the phone app is in the background: re-check the date on return too.
+    const tick = () => setToday(todayKST());
+    const t = setInterval(tick, 60000);
+    const onShow = () => document.visibilityState === 'visible' && tick();
+    document.addEventListener('visibilitychange', onShow);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow); };
+  }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
   const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current), [db, assets]);
 
@@ -86,6 +93,18 @@ function App() {
     ${busy ? '올리는 중…' : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
+
+  // Android back button closes the open window instead of leaving the app.
+  useEffect(() => {
+    if (!modal) return;
+    history.pushState({ win: 1 }, '');
+    const onPop = () => setModal(null);
+    addEventListener('popstate', onPop);
+    return () => {
+      removeEventListener('popstate', onPop);
+      if (history.state?.win) history.back(); // closed by ✕: drop the entry we pushed
+    };
+  }, [!!modal]);
   return html`
     ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
     <header class="hud">
