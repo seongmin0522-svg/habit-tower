@@ -1,7 +1,8 @@
-import { html, useRef, useLayoutEffect } from './h.js';
+import { html, useRef, useLayoutEffect, useEffect } from './h.js';
 import { Sprite } from './sprites.js';
 import { Monster } from './monsters.js';
 import { TOWER_HEIGHT, buddyFor } from '../logic.js';
+import { photoUrl } from '../db.js';
 
 const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
 
@@ -14,8 +15,35 @@ const scatter = (i, n) => ({
   '--delay': `${(n - 1 - i) * 30}ms`, // top floor falls first
 });
 
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+// Center of el in root coordinates, summing the offsetParent chain (offset* ignore transforms,
+// so a mid-walk crew or a mid-flight brick still reports its resting spot).
+const mid = (el, root) => {
+  let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
+  for (let e = el; e && e !== root; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
+  return [x, y];
+};
+
+const easeOut = (p) => 1 - (1 - p) ** 2; // matches the brick's decelerating climb
+const easeInOut = (p) => (p < .5 ? 2 * p * p : 1 - (-2 * p + 2) ** 2 / 2);
+
+// Scroll `el` to `to` over `ms`; returns a cancel function.
+function glide(el, to, ms, ease, done) {
+  const from = el.scrollTop, t0 = performance.now();
+  let id = requestAnimationFrame(function step(now) {
+    const p = Math.min(1, (now - t0) / ms), e = ease(p);
+    el.scrollTop = from + (to - from) * e;
+    if (p < 1) id = requestAnimationFrame(step); else done?.();
+  });
+  return () => cancelAnimationFrame(id);
+}
+
+const Photo = ({ day }) => day?.assetId && html`<img src=${photoUrl(day.assetId)} alt="" loading="lazy" decoding="async" draggable="false" />`;
+
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
-export function Scene({ character, keys, anim, rubble, onBlock }) {
+// onDone: the stack sequence (incl. the camera trip) finished.
+export function Scene({ character, keys, days, anim, rubble, onBlock, onDone }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
@@ -28,21 +56,43 @@ export function Scene({ character, keys, anim, rubble, onBlock }) {
   useLayoutEffect(() => {
     const s = ref.current, held = s?.querySelector('.carried'), b = s?.querySelector('.blk.new');
     if (!stacking || !held || !b) return;
-    // Center of el in scene coordinates, summing the offsetParent chain (any ancestor can become one).
-    const mid = (el) => {
-      let x = el.offsetWidth / 2, y = el.offsetHeight / 2;
-      for (let e = el; e && e !== s; e = e.offsetParent) { x += e.offsetLeft; y += e.offsetTop; }
-      return [x, y];
-    };
-    const [hx, hy] = mid(held), [bx, by] = mid(b);
+    const [hx, hy] = mid(held, s), [bx, by] = mid(b, s);
+    const fy = hy - by - 20; // 20px = jump height at the toss
     b.style.setProperty('--fx', `${hx - bx}px`);
-    b.style.setProperty('--fy', `${hy - by - 20}px`); // 20px = jump height at the toss
+    b.style.setProperty('--fy', `${fy}px`);
     b.style.setProperty('--fs', (held.offsetWidth / b.offsetWidth).toFixed(3));
+    s.style.setProperty('--fd', `${Math.min(1.4, Math.max(.6, .45 + Math.abs(fy) / 1500)).toFixed(2)}s`); // higher tower, longer flight
   }, [stacking, n]);
+
+  // Start at the ground; re-anchor there when the tower changes outside an animation.
+  useLayoutEffect(() => {
+    const stage = ref.current?.closest('.stage');
+    if (stage && !stacking) stage.scrollTop = stage.scrollHeight;
+  }, [n]);
+
+  // Camera: follow the brick up to the top, hold, glide back to the ground, then finish.
+  useEffect(() => {
+    if (!stacking) return;
+    if (REDUCED) { onDone?.(); return; }
+    const s = ref.current, stage = s.closest('.stage'), bottom = () => stage.scrollHeight - stage.clientHeight;
+    stage.scrollTop = bottom();
+    const fd = parseFloat(getComputedStyle(s).getPropertyValue('--fd')) * 1000 || 600;
+    let cancel = () => {};
+    const timers = [
+      setTimeout(() => {
+        const b = s.querySelector('.blk.new');
+        if (!b) return;
+        const target = Math.max(0, mid(b, stage)[1] - stage.clientHeight * .35);
+        if (target < stage.scrollTop) cancel = glide(stage, target, fd, easeOut);
+      }, 1400),
+      setTimeout(() => { cancel = glide(stage, bottom(), 700, easeInOut, onDone); }, 1400 + fd + 1100),
+    ];
+    return () => { timers.forEach(clearTimeout); cancel(); };
+  }, [stacking]);
 
   return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
     <div class="crew" aria-hidden="true">
-      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }} />
+      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }}><${Photo} day=${days[shown.at(-1)]} /></i>
       <span class="mob" title=${buddy.name}><${Monster} id=${buddy.id} px=${3.5} /></span>
       <span class="hero"><${Sprite} id=${character} px=${3.5} /></span>
       <span class="stars">★ ☆ ★</span>
@@ -53,7 +103,7 @@ export function Scene({ character, keys, anim, rubble, onBlock }) {
       <div class="stack">${shown.map((key, i) => html`
         <button key=${key} class=${'blk' + (stacking && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
           style=${{ '--c': TIER[Math.floor(i / 10)], '--i': i, ...(falling ? scatter(i, n) : {}) }}
-          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)} />`)}
+          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} /></button>`)}
       </div>
       ${rubble && !n && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
       <div class="base" />

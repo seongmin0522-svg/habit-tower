@@ -5,7 +5,7 @@ import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const STACK_MS = REDUCED ? 0 : 3000; // matches the CSS stack sequence
+const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 
 function App() {
@@ -84,8 +84,12 @@ function App() {
       </span>
     </header>
     <main class="stage">
-      ${state.habit && html`<${Scene} character=${state.habit.character} keys=${keys} anim=${anim}
-        rubble=${past[0]?.kind === 'fell'} onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })} />`}
+      <div class="world">
+        ${state.habit && html`<${Scene} character=${state.habit.character} keys=${keys} days=${state.days} anim=${anim}
+          rubble=${past[0]?.kind === 'fell'} onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
+          onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
+        <div class="ground" />
+      </div>
     </main>
     <footer class="bar">
       ${!state.habit ? null

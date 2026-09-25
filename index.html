@@ -10,17 +10,17 @@
   --frame:#3a3a3a; --frame-dark:#1a1a1a; --title:#e8c85a; --paper:#f4f1e6; --line:#c8c0a4;
   --ink:#333; --muted:#888; --gold:#ffd24a; --outline:#2b1d14;
   --b-green:linear-gradient(#8fd35a,#4a9a12); --b-blue:linear-gradient(#7cc0f5,#2f7fce); --b-orange:linear-gradient(#ffcf6a,#f08c10);
-  --sky:linear-gradient(#8fc3ea,#cfe8f7 72%,#9bcf7a 72%,#6fae4f);
-  --bh: clamp(8px, calc((100vh - 340px) / 30), 18px); /* one floor; 30 fit on screen */
+  --sky:linear-gradient(#8fc3ea,#cfe8f7); --grass:linear-gradient(#9bcf7a,#6fae4f);
+  --bw: 120px; --bh: 60px; /* one photo brick */
 }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sky:linear-gradient(#1d2b45,#2c3f5e 72%,#2f4a2a 72%,#223820); } }
-:root[data-theme="dark"] { --sky:linear-gradient(#1d2b45,#2c3f5e 72%,#2f4a2a 72%,#223820); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --sky:linear-gradient(#1d2b45,#2c3f5e); --grass:linear-gradient(#2f4a2a,#223820); } }
+:root[data-theme="dark"] { --sky:linear-gradient(#1d2b45,#2c3f5e); --grass:linear-gradient(#2f4a2a,#223820); }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { min-height: 100vh; background: var(--sky); background-attachment: fixed;
   font-family: Galmuri11, 'Dotum', '돋움', sans-serif; font-size: 12px; color: var(--ink); }
-#app { min-height: 100vh; display: flex; flex-direction: column; }
+#app { height: 100vh; height: 100dvh; display: flex; flex-direction: column; }
 button { font: inherit; cursor: pointer; }
 button:disabled { opacity: .5; cursor: default; }
 .banner { background: #b8482c; color: #fff; text-align: center; padding: 6px; }
@@ -44,43 +44,48 @@ button:disabled { opacity: .5; cursor: default; }
 label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 .btn:focus-within, .btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 
-/* Scene: crew + tower standing on the grass */
-.stage { flex: 1; display: flex; align-items: flex-end; justify-content: center; padding: 16px 16px 6vh; overflow: hidden; }
-.scene { position: relative; display: flex; align-items: flex-end; gap: 14px; }
+/* Scene: crew + tower standing on the ground; the stage scrolls when the tower outgrows the screen */
+.stage { flex: 1; position: relative; overflow-x: hidden; overflow-y: auto; }
+.world { min-height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-top: 56px; }
+.ground { align-self: stretch; flex: none; height: max(48px, 9vh); background: var(--grass); border-top: 2px solid #3f6e2c; }
+.scene { --fd: .6s; position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 0 16px; }
 .crew { position: relative; display: flex; align-items: flex-end; gap: 2px; }
 .crew svg { display: block; }
 .crew .mob svg { transform: scaleX(-1); } /* monster art faces left; here it follows the hero */
 .hero, .mob { animation: breathe 1.6s ease-in-out infinite; }
 .mob { animation-delay: .4s; }
 @keyframes breathe { 50% { transform: translateY(-2px); } }
-.carried { display: none; position: absolute; left: 50%; width: 60px; margin-left: -30px; bottom: calc(100% - 2px); height: var(--bh);
-  background: var(--c); border: 1px solid var(--outline); box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
+.carried { display: none; position: absolute; left: 50%; margin-left: calc(var(--bw) / -2); bottom: calc(100% - 4px); }
 .stars { display: none; position: absolute; left: 0; right: 0; top: -22px; text-align: center; color: #ffe14d; font-size: 14px; text-shadow: 0 1px 0 #000; }
 
-.tower { position: relative; display: flex; flex-direction: column; align-items: center; min-width: 62px; }
+.tower { position: relative; display: flex; flex-direction: column; align-items: center; min-width: calc(var(--bw) + 2px); }
 .stack { display: flex; flex-direction: column-reverse; align-items: center; }
-.blk { display: block; width: 60px; height: var(--bh); margin-top: -1px; padding: 0; background: var(--c); border: 1px solid var(--outline);
-  box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.25); }
-.blk:hover, .blk:focus-visible { filter: brightness(1.2); outline: 2px solid #fff; outline-offset: -1px; }
-.base { width: 78px; height: 6px; background: #5a3a22; border: 1px solid var(--outline); border-radius: 2px; }
+/* Photo brick: the proof photo framed in the floor's color, with pixel bevel on top */
+.blk, .carried { width: var(--bw); height: var(--bh); padding: 0; background: var(--c); border: 3px solid var(--c);
+  box-shadow: 0 0 0 1px var(--outline); overflow: hidden; }
+.blk { display: block; position: relative; margin-top: 1px; }
+.blk img, .carried img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.blk::after, .carried::after { content: ''; position: absolute; inset: 0; box-shadow: inset 2px 2px rgba(255,255,255,.35), inset -2px -2px rgba(0,0,0,.3); pointer-events: none; }
+.blk:hover, .blk:focus-visible { filter: brightness(1.15); outline: 2px solid #fff; outline-offset: 1px; }
+.base { width: calc(var(--bw) + 18px); height: 6px; background: #5a3a22; border: 1px solid var(--outline); border-radius: 2px; }
 .flag { font-size: 22px; line-height: 1; position: relative; }
 .rubble { display: flex; align-items: flex-end; }
 .rubble i { width: 14px; height: 8px; margin: 0 -1px; background: #a7a7a7; border: 1px solid var(--outline); }
 .rubble i:nth-child(2n) { transform: rotate(18deg); } .rubble i:nth-child(3) { transform: translateY(-6px) rotate(-12deg); }
 .plus, .dust { display: none; }
 
-/* Stack (3s): crew walks in bobbing with one brick overhead, crouches, jumps and tosses at the peak (1.4s);
-   the brick flies a real parabola from exactly where it was held (--fx/--fy/--fs set in scene.js) and lands at 2.0s. */
-.stacking .crew { transform-origin: 50% 100%; animation: carry 1.65s both, cheer .4s ease-out 2.05s; }
+/* Stack (~3-4s): crew walks in bobbing with one brick overhead, crouches, jumps and tosses at the peak (1.4s);
+   the brick flies a real parabola from exactly where it was held (--fx/--fy/--fs set in scene.js) and lands after --fd. */
+.stacking .crew { transform-origin: 50% 100%; animation: carry 1.65s both, cheer .4s ease-out calc(1.45s + var(--fd)); }
 .stacking .hero, .stacking .mob, .stacking .carried { animation: bob .275s ease-in-out 4 alternate; }
 .stacking .mob { animation-delay: .14s; }
 .stacking .carried { display: block; animation: bob .275s ease-in-out 4 alternate, vanish 0s 1.4s forwards; }
-.stacking .blk.new { animation: appear 0s 1.4s both, fly .6s linear 1.4s both, land .28s ease-out 2s; }
-.stacking .stack { transform-origin: 50% 100%; animation: settle .35s ease-out 2s; }
+.stacking .blk.new { animation: appear 0s 1.4s both, fly var(--fd) linear 1.4s both, land .28s ease-out calc(1.4s + var(--fd)); }
+.stacking .stack { transform-origin: 50% 100%; animation: settle .35s ease-out calc(1.4s + var(--fd)); }
 .stacking .dust { display: block; position: absolute; top: -8px; width: 80px; height: 18px; border-radius: 50%;
-  background: radial-gradient(#fffa, transparent 70%); animation: puff .6s ease-out 2s both; }
+  background: radial-gradient(#fffa, transparent 70%); animation: puff .6s ease-out calc(1.4s + var(--fd)) both; }
 .stacking .plus { display: block; position: absolute; top: -26px; color: #ffe14d; font-weight: bold; font-size: 14px;
-  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000; animation: rise .9s ease-out 2.05s both; }
+  text-shadow: -1px 0 #000, 1px 0 #000, 0 -1px #000, 0 1px #000; animation: rise .9s ease-out calc(1.45s + var(--fd)) both; }
 @keyframes carry {
   0% { transform: translateX(-60vw) rotate(4deg); animation-timing-function: cubic-bezier(.3,.5,.4,1); }
   67% { transform: translateX(0) rotate(2deg); animation-timing-function: ease-out; }
@@ -91,24 +96,24 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 @keyframes cheer { 40% { transform: translateY(-10px); } }
 @keyframes bob { to { transform: translateY(-4px); } }
 @keyframes vanish { to { visibility: hidden; } }
-/* x linear, y = parabola: dense stops + linear timing trace the curve; slight tilt, grows from held size to 1 */
+/* x linear; y climbs fast then slows like a real throw ((1-t)^2) plus a 70px arc; dense stops + linear timing trace the curve */
 @keyframes fly {
   0% { transform: translate(var(--fx), var(--fy)) scale(var(--fs)); }
-  20% { transform: translate(calc(var(--fx) * .8), calc(var(--fy) * .8 - 70px * .64)) rotate(-8deg) scale(calc(var(--fs) + (1 - var(--fs)) * .2)); }
-  40% { transform: translate(calc(var(--fx) * .6), calc(var(--fy) * .6 - 70px * .96)) rotate(-14deg) scale(calc(var(--fs) + (1 - var(--fs)) * .4)); }
-  50% { transform: translate(calc(var(--fx) * .5), calc(var(--fy) * .5 - 70px)) rotate(-15deg) scale(calc(var(--fs) + (1 - var(--fs)) * .5)); }
-  60% { transform: translate(calc(var(--fx) * .4), calc(var(--fy) * .4 - 70px * .96)) rotate(-12deg) scale(calc(var(--fs) + (1 - var(--fs)) * .6)); }
-  80% { transform: translate(calc(var(--fx) * .2), calc(var(--fy) * .2 - 70px * .64)) rotate(-6deg) scale(calc(var(--fs) + (1 - var(--fs)) * .8)); }
+  20% { transform: translate(calc(var(--fx) * .8), calc(var(--fy) * .64 - 70px * .64)) rotate(-8deg) scale(calc(var(--fs) + (1 - var(--fs)) * .2)); }
+  40% { transform: translate(calc(var(--fx) * .6), calc(var(--fy) * .36 - 70px * .96)) rotate(-14deg) scale(calc(var(--fs) + (1 - var(--fs)) * .4)); }
+  50% { transform: translate(calc(var(--fx) * .5), calc(var(--fy) * .25 - 70px)) rotate(-15deg) scale(calc(var(--fs) + (1 - var(--fs)) * .5)); }
+  60% { transform: translate(calc(var(--fx) * .4), calc(var(--fy) * .16 - 70px * .96)) rotate(-12deg) scale(calc(var(--fs) + (1 - var(--fs)) * .6)); }
+  80% { transform: translate(calc(var(--fx) * .2), calc(var(--fy) * .04 - 70px * .64)) rotate(-6deg) scale(calc(var(--fs) + (1 - var(--fs)) * .8)); }
   100% { transform: none; } }
 @keyframes land { 35% { transform: scale(1.1,.7); } 70% { transform: scale(.97,1.08); } }
 @keyframes settle { 35% { transform: scaleY(.985); } 70% { transform: scaleY(1.004); } }
 @keyframes puff { 0% { opacity: 0; transform: scale(.4); } 30% { opacity: 1; } 100% { opacity: 0; transform: scale(1.5); } }
 @keyframes rise { 0% { opacity: 0; transform: translateY(8px); } 25% { opacity: 1; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-16px); } }
 /* 30th floor: sparks burst around the flag */
-.stacking .flag { animation: appear 0s 2s both; } /* flag goes up when the 30th brick lands */
+.stacking .flag { animation: appear 0s calc(1.4s + var(--fd)) both; } /* flag goes up when the 30th brick lands */
 @keyframes appear { from { visibility: hidden; } }
 .sparks { position: absolute; left: 50%; top: 50%; }
-.sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out 2s both; }
+.sparks i { position: absolute; width: 5px; height: 5px; background: #ffe14d; box-shadow: 0 0 4px #fff; animation: spark .8s ease-out calc(1.4s + var(--fd)) both; }
 .sparks i:nth-child(odd) { background: #ff7a5c; }
 @keyframes spark { 0% { opacity: 1; transform: rotate(var(--a)) translateX(0); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(50px); } }
 
