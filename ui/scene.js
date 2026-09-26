@@ -49,7 +49,8 @@ const Photo = ({ day, eager }) => {
 
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
 // onDone: the stack sequence (incl. the camera trip) finished.
-export function Scene({ character, partnerCharacter, keys, days, anim, rubble, onBlock, onDone }) {
+// badge(key): optional {l, r} reaction emoji for the brick's bottom corners.
+export function Scene({ character, partnerCharacter, keys, days, anim, rubble, onBlock, onDone, badge }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
@@ -110,7 +111,8 @@ export function Scene({ character, partnerCharacter, keys, days, anim, rubble, o
       <div class="stack">${shown.map((key, i) => html`
         <button key=${key} class=${'blk' + (stacking && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
           style=${{ '--c': TIER[Math.floor(i / 10)], '--i': i, ...(falling ? scatter(i, n) : {}) }}
-          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} /></button>`)}
+          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} />${
+          ['l', 'r'].map((side) => badge?.(key)?.[side] && html`<span key=${side} class=${'badge ' + side}>${badge(key)[side]}</span>`)}</button>`)}
       </div>
       ${rubble && !n && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
       <div class="base" />

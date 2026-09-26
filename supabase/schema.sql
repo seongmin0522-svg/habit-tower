@@ -25,6 +25,7 @@ create table public.days (
   day date not null,
   photo_path text not null check (char_length(photo_path) < 200),
   at timestamptz,
+  note text not null default '' check (char_length(note) <= 40), -- one line on the photo
   primary key (user_id, day)
 );
 alter table public.days enable row level security;
@@ -122,6 +123,26 @@ create policy "days update own" on public.days for update to authenticated
   with check (user_id = (select auth.uid()) and split_part(photo_path, '/', 1) = (select auth.uid())::text);
 create policy "days delete own" on public.days for delete to authenticated
   using (user_id = (select auth.uid()));
+
+-- Reactions on the partner's photos: one per sender per day; sending another replaces it.
+create table public.reactions (
+  owner uuid not null references auth.users on delete cascade,   -- whose photo
+  day date not null,
+  sender uuid not null default auth.uid() references auth.users on delete cascade,
+  emoji text not null check (emoji in ('❤️', '🔥', '👏')),
+  at timestamptz not null default now(),
+  primary key (owner, day, sender)
+);
+alter table public.reactions enable row level security;
+create policy "reactions read mine" on public.reactions for select to authenticated
+  using (owner = (select auth.uid()) or sender = (select auth.uid()));
+create policy "reactions send to partner" on public.reactions for insert to authenticated
+  with check (sender = (select auth.uid()) and owner = (select public.partner_id()));
+create policy "reactions change own" on public.reactions for update to authenticated
+  using (sender = (select auth.uid()))
+  with check (sender = (select auth.uid()) and owner = (select public.partner_id()));
+create policy "reactions take back own" on public.reactions for delete to authenticated
+  using (sender = (select auth.uid()));
 
 -- Photos: private bucket, path '<user id>/<asset id>.jpg'.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

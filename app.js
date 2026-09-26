@@ -66,6 +66,8 @@ function App() {
   const { current, past } = views[view];
   const days = { me: state.days, couple: cdays, partner: pdays }[view];
   const partnerName = partner?.name || '상대';
+  const got = cloud?.got ?? EMPTY, gave = cloud?.gave ?? EMPTY;
+  const badge = (k) => ({ me: { r: got[k] }, couple: { l: got[k], r: gave[k] }, partner: { r: gave[k] } })[view];
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
   const built = past.filter((t) => t.kind === 'built').length;
@@ -201,7 +203,7 @@ function App() {
         ${state.habit && html`<${Scene} key=${view}
           character=${view === 'partner' ? partner.character : state.habit.character}
           partnerCharacter=${view === 'couple' ? partner.character : null}
-          keys=${keys} days=${days} anim=${anim} rubble=${past[0]?.kind === 'fell'}
+          keys=${keys} days=${days} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
           onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
           onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
         <div class="ground" />
@@ -224,7 +226,15 @@ function App() {
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...days[modal.key] }} n=${modal.n}
-      names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)} />`}
+      names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)}
+      mine=${view !== 'partner' && {
+        note: state.days[modal.key]?.note ?? '', got: got[modal.key],
+        onSave: (t) => actions.setNote(modal.key, t).then(() => cloudApi?.sync(), fail),
+      }}
+      theirs=${view !== 'me' && coupled && {
+        note: pdays[modal.key]?.note ?? '', gave: gave[modal.key],
+        onReact: (e) => cloudApi.react(modal.key, e).catch(fail),
+      }} />`}
     ${fall && html`<${FallNotice} floors=${fall.keys.length} onOk=${ackFall}
       title=${fall.scope === 'couple' ? '우리 탑이 무너졌어요' : undefined} />`}
     ${toast && html`<div class="toast" role="alert">${toast}</div>`}

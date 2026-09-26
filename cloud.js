@@ -19,7 +19,8 @@ const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1
 const must = ({ data, error }) => { if (error) throw error; return data; };
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
-// { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
+// { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, got, gave,
+//   partner: {id, name, character, habit, coupleCut} | null, partnerDays, synced }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -60,14 +61,15 @@ export async function openCloud(local, onChange) {
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
     // New phone: pull back my records the phone doesn't have yet.
-    const rows = must(await sb.from('days').select('day, photo_path, at').eq('user_id', uid));
+    const rows = must(await sb.from('days').select('day, photo_path, at, note').eq('user_id', uid));
     const mine = Object.fromEntries(rows.map((r) => [r.day, r.photo_path]));
+    const notes = Object.fromEntries(rows.map((r) => [r.day, r.note]));
     const have = await localDays();
     for (const r of rows) {
       if (have[r.day]) continue;
       const id = r.photo_path.split('/')[1].replace(/\.jpg$/, '');
       await assets.put(id, must(await sb.storage.from(BUCKET).download(r.photo_path)));
-      await db.doc(`days/${r.day}`).set({ assetId: id, at: r.at ?? '' });
+      await db.doc(`days/${r.day}`).set({ assetId: id, at: r.at ?? '', ...(r.note && { note: r.note }) });
     }
     let habit = (await db.doc('habit/me').get()).data();
     if (!habit && meRow?.habit) {
@@ -82,11 +84,19 @@ export async function openCloud(local, onChange) {
       const blob = await assets.get(days[day].assetId);
       if (!blob) continue;
       must(await sb.storage.from(BUCKET).upload(path, blob, { contentType: 'image/jpeg', upsert: true }));
-      must(await sb.from('days').upsert({ user_id: uid, day, photo_path: path, at: days[day].at || null }));
+      const note = days[day].note ?? '';
+      must(await sb.from('days').upsert({ user_id: uid, day, photo_path: path, at: days[day].at || null, note }));
+      notes[day] = note;
       // ponytail: a failed delete leaves one orphan photo in storage; harmless.
       if (mine[day]) await sb.storage.from(BUCKET).remove([mine[day]]);
       mine[day] = path;
       await save({ me: { ...st.me, mine } }); // progress survives a dropped connection
+    }
+
+    // Notes written after the photo went up.
+    for (const [day, d] of Object.entries(days)) {
+      if (mine[day] !== photoPath(uid, d.assetId) || (d.note ?? '') === (notes[day] ?? '')) continue;
+      must(await sb.from('days').update({ note: d.note ?? '' }).eq('user_id', uid).eq('day', day));
     }
 
     const name = st.me.name || meRow?.name || '';
@@ -102,20 +112,23 @@ export async function openCloud(local, onChange) {
     const keep = new Set();
     if (partner) {
       const cached = new Set((await kv.keys()).filter((k) => k.startsWith('ph:')).map((k) => k.slice(3)));
-      for (const r of must(await sb.from('days').select('day, photo_path, at').eq('user_id', partner.id))) {
+      for (const r of must(await sb.from('days').select('day, photo_path, at, note').eq('user_id', partner.id))) {
         if (!cached.has(r.photo_path)) {
           try { await kv.putPhoto(r.photo_path, must(await sb.storage.from(BUCKET).download(r.photo_path))); } catch { continue; }
         }
         keep.add(r.photo_path);
-        partnerDays[r.day] = { assetId: r.photo_path, at: r.at ?? '' };
+        partnerDays[r.day] = { assetId: r.photo_path, at: r.at ?? '', note: r.note };
       }
     }
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
     const info = (meRow?.couple_id && must(await sb.rpc('couple_info'))) || {};
+    // Reactions: got = on my photos (from my partner), gave = mine on theirs. day -> emoji.
+    const got = {}, gave = {};
+    for (const r of must(await sb.from('reactions').select('owner, day, emoji'))) (r.owner === uid ? got : gave)[r.day] = r.emoji;
     await save({
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
-        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '' },
-      partner: partner && { name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
+        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', got, gave },
+      partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
       partnerDays,
       synced: true,
     });
@@ -163,6 +176,16 @@ export async function openCloud(local, onChange) {
       await sync();
     }),
     setName: call(async (name) => { await save({ me: { ...st.me, name: name.trim().slice(0, 20) } }); await sync(); }),
+    // One reaction per photo; null takes it back. Needs a connection (no offline queue).
+    react: call(async (day, emoji) => {
+      const sb = await client(), owner = st.partner?.id;
+      if (!owner) return;
+      if (emoji) must(await sb.from('reactions').upsert({ owner, day, sender: st.me.userId, emoji }));
+      else must(await sb.from('reactions').delete().eq('owner', owner).eq('day', day).eq('sender', st.me.userId));
+      const gave = { ...st.me.gave };
+      if (emoji) gave[day] = emoji; else delete gave[day];
+      await save({ me: { ...st.me, gave } });
+    }),
     signOut: call(async () => { await (await client()).auth.signOut({ scope: 'local' }); await forget(); }),
     // Reset: delete my cloud records and photos and leave the couple. Throws (and the caller stops) if offline.
     wipe: call(async () => {

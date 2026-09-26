@@ -107,7 +107,7 @@ export function makeActions(db, assets, getState) {
       const { id } = await assets.upload(await shrink(file), { type: 'image/jpeg' });
       onUploaded?.({ retake: !!old });
       try {
-        await db.doc(`days/${key}`).set({ assetId: id, at: new Date().toISOString() });
+        await db.doc(`days/${key}`).set({ ...s.days[key], assetId: id, at: new Date().toISOString() }); // a retake keeps the note
       } catch (e) {
         assets.delete(id).catch(() => {});
         throw e;
@@ -115,6 +115,12 @@ export function makeActions(db, assets, getState) {
       // ponytail: a failed delete leaves one orphan photo in the asset store; harmless.
       if (old) assets.delete(old).catch(() => {});
       return { retake: !!old };
+    },
+
+    async setNote(key, note) {
+      const s = ready();
+      if (!s.days[key]?.assetId) throw new Error('인증한 날에만 남길 수 있어요');
+      await db.doc(`days/${key}`).set({ ...s.days[key], note: String(note ?? '').trim().slice(0, 40) });
     },
 
     // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).

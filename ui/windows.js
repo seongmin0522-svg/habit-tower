@@ -134,12 +134,37 @@ function CoupleBox({ cloud, api }) {
   </div>`;
 }
 
-export function Photo({ day, n, names, onClose }) {
+function NoteBox({ note, onSave }) {
+  const [t, setT] = useState(note);
+  const [busy, setBusy] = useState(false);
+  return html`<input class="note" maxlength="40" placeholder="한 줄 남기기" value=${t} disabled=${busy}
+    onInput=${(e) => setT(e.target.value)} onKeyDown=${(e) => e.key === 'Enter' && e.target.blur()}
+    onBlur=${() => { if (t.trim() !== note) { setBusy(true); onSave(t).finally(() => setBusy(false)); } }} />`;
+}
+
+const EMOJI = ['❤️', '🔥', '👏'];
+
+// One photo with its caption. mine: {note, got, onSave} on my photo; theirs: {note, gave, onReact} on my partner's.
+function Side({ id, who, mine, theirs }) {
+  return html`<figure>
+    <img src=${photoUrl(id)} alt=${`${who} 인증 사진`} />
+    <figcaption>
+      <b>${who}${mine?.got && html` <span title="받은 반응">${mine.got}</span>`}</b>
+      ${mine && html`<${NoteBox} note=${mine.note} onSave=${mine.onSave} />`}
+      ${theirs?.note && html`<span class="said">“${theirs.note}”</span>`}
+      ${theirs && html`<span class="reacts">${EMOJI.map((e) => html`<button key=${e} type="button" class=${theirs.gave === e ? 'on' : ''}
+        aria-pressed=${theirs.gave === e} onClick=${() => theirs.onReact(theirs.gave === e ? null : e)}>${e}</button>`)}</span>`}
+    </figcaption>
+  </figure>`;
+}
+
+// A couple day (partnerAssetId) shows both photos: mine left, theirs right.
+export function Photo({ day, n, names, mine, theirs, onClose }) {
+  const sides = day.partnerAssetId
+    ? [[day.assetId, names[0], mine, null], [day.partnerAssetId, names[1], null, theirs]]
+    : [[day.assetId, mine ? names[0] : names[1], mine, mine ? null : theirs]];
   return html`<${Win} title=${`${n}층 · ${day.key}`} onClose=${onClose} cls="photo-win">
-    <div class="body">${day.partnerAssetId
-      ? html`<div class="duo">${[[day.assetId, names[0]], [day.partnerAssetId, names[1]]].map(([id, who]) => html`
-          <figure key=${id}><img src=${photoUrl(id)} alt=${`${who} 인증 사진`} /><figcaption>${who}</figcaption></figure>`)}</div>`
-      : html`<img src=${photoUrl(day.assetId)} alt=${`${day.key} 인증 사진`} />`}</div>
+    <div class="body"><div class="duo">${sides.map(([id, who, m, t]) => html`<${Side} key=${id} id=${id} who=${who} mine=${m} theirs=${t} />`)}</div></div>
   </${Win}>`;
 }
 
