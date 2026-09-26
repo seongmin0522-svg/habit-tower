@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, TOWER_HEIGHT, MONSTERS } from './logic.js';
+import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, MONSTERS } from './logic.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -92,4 +92,35 @@ test('towers: a cut (start over) ends the run there as a reset tower, never a fa
   const later = towers(D(run('2026-09-10', 6), run('2026-09-17', 3)), T, '2026-09-15'); // a fall after a restart still falls
   assert.deepEqual(kinds(later), ['fell3', 'reset6']);
   assert.equal(pendingFall(D(run('2026-09-10', 6), run('2026-09-17', 3)), T, null, '2026-09-15').keys.length, 3);
+});
+
+test('shield: bridges one missed day without adding a floor', () => {
+  const S = { shield: true, at: '' };
+  const bridged = D(run('2026-09-21', 3), [['2026-09-24', S]]);          // photos 21-23, shield 24, today not yet
+  assert.equal(towers(bridged, T).current.keys.length, 3);
+  assert.deepEqual(towers(D(run('2026-09-21', 3), [['2026-09-24', S]], [['2026-09-25', { assetId: 'x' }]]), T).current.keys,
+    ['2026-09-21', '2026-09-22', '2026-09-23', '2026-09-25']);            // today's photo continues the tower
+  assert.equal(pendingFall(bridged, T, null), null);
+  assert.deepEqual(runs(D([['2026-09-20', S]], run('2026-09-21', 1))).map((r) => r.keys), [['2026-09-21']]); // a lone shield starts nothing
+});
+
+test('shieldDay: only yesterday can be filled, and only once a month', () => {
+  const fell = towers(D(run('2026-09-20', 4)), T).past[0];              // ends 23: missed 24 (yesterday)
+  assert.equal(shieldDay(fell, T), '2026-09-24');
+  assert.equal(shieldDay(towers(D(run('2026-09-19', 4)), T).past[0], T), null); // missed 23 and 24
+  const days = D([['2026-09-03', { shield: true }]]);
+  assert.equal(shieldsLeft(days, '2026-09-24'), 0);
+  assert.equal(shieldsLeft(days, '2026-10-01'), 1);
+  assert.equal(shieldsLeft({}, '2026-09-24'), 1);
+});
+
+test('coupleDays: a shield on either side bridges the couple tower too', () => {
+  const S = { shield: true };
+  const mine = D(run('2026-09-21', 5));                                   // 21-25
+  const theirs = D(run('2026-09-21', 3), [['2026-09-24', S]], [['2026-09-25', { assetId: 'y' }]]);
+  const c = coupleDays(mine, theirs);
+  assert.deepEqual(c['2026-09-24'], { shield: true });
+  assert.equal(towers(c, T).current.keys.length, 4);                      // 21, 22, 23, 25
+  assert.deepEqual(coupleDays(D([['2026-09-24', S]]), D([['2026-09-24', S]])), { '2026-09-24': { shield: true } });
+  assert.deepEqual(coupleDays({}, D([['2026-09-24', S]])), {});           // I missed it: nothing bridges
 });

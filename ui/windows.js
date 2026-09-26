@@ -190,12 +190,20 @@ export function Album({ current, past, days, onPick, onClose }) {
   </${Win}>`;
 }
 
-export function FallNotice({ floors, onOk, title = '탑이 무너졌어요' }) {
+// shield: null (can't help), {left, onUse} (fill yesterday with mine), {none} (used this month),
+// or {waiting: name} (the couple tower needs my partner's shield).
+export function FallNotice({ floors, onOk, title = '탑이 무너졌어요', shield }) {
+  const [busy, setBusy] = useState(false);
+  const use = () => { setBusy(true); shield.onUse().finally(() => setBusy(false)); };
   return html`<${Win} title=${title} cls="fall-win">
     <div class="body pad center">
       <p class="big">💥 ${floors}층에서 무너졌어요</p>
+      ${shield?.onUse && html`<p>🛡 방어권으로 어제를 메우면 탑이 다시 서요<br /><span class="muted small">이번 달 ${shield.left}개 남음 · 층은 안 올라가요</span></p>`}
+      ${shield?.none && html`<p class="muted small">이번 달 방어권은 이미 썼어요</p>`}
+      ${shield?.waiting && html`<p class="muted small">${shield.waiting}님이 어제 방어권을 쓰면 우리 탑이 다시 서요</p>`}
       <p class="muted">사진은 앨범에 남아 있어요. 오늘부터 다시 쌓아요!</p>
     </div>
-    <div class="foot"><span /><button class="btn orange" onClick=${onOk}>다시 쌓기</button></div>
+    <div class="foot"><span>${shield?.onUse && html`<button class="btn green" disabled=${busy} onClick=${use}>🛡 방어권 쓰기</button>`}</span>
+      <button class="btn orange" disabled=${busy} onClick=${onOk}>다시 쌓기</button></div>
   </${Win}>`;
 }

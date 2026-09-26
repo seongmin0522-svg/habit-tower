@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, coupleDays, toUpload, TOWER_HEIGHT } from './logic.js';
+import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE } from './db.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
@@ -122,6 +122,24 @@ function App() {
     cloudApi?.sync();
   }, fail);
 
+  // Shield offer on the collapse notice. The couple tower can only be saved with my shield when I'm the one who missed.
+  const shield = (() => {
+    const gap = fall && shieldDay(fall, today);
+    if (!gap) return null;
+    const missed = !state.days[gap]?.assetId && !state.days[gap]?.shield;
+    if (fall.scope === 'couple' && !missed) return { waiting: partnerName };
+    const left = shieldsLeft(state.days, gap);
+    return left ? {
+      left,
+      onUse: () => actions.useShield(gap).then(() => {
+        setFall(null);
+        setAnim(null);
+        setToast('🛡 방어권으로 탑을 지켰어요');
+        cloudApi?.sync();
+      }, fail),
+    } : { none: true };
+  })();
+
   const ackFall = () => actions.mark(fall.scope === 'couple' ? 'seenCoupleFall' : 'seenFall', fall.keys.at(-1))
     .then(() => { setFall(null); setAnim(null); }, fail);
 
@@ -236,7 +254,7 @@ function App() {
         onReact: (e) => cloudApi.react(modal.key, e).catch(fail),
       }} />`}
     ${fall && html`<${FallNotice} floors=${fall.keys.length} onOk=${ackFall}
-      title=${fall.scope === 'couple' ? '우리 탑이 무너졌어요' : undefined} />`}
+      title=${fall.scope === 'couple' ? '우리 탑이 무너졌어요' : undefined} shield=${shield} />`}
     ${toast && html`<div class="toast" role="alert">${toast}</div>`}
   `;
 }

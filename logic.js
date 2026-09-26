@@ -27,11 +27,13 @@ export const MONSTERS = [
 export const buddyFor = (floors) => MONSTERS[Math.min(Math.floor(Math.max(floors - 1, 0) / 4), MONSTERS.length - 1)];
 
 // Consecutive certified days, oldest first. cut: the day the user chose to start over — a run ends there.
+// A shield day keeps a run going without adding a floor (it's in end, not in keys), and starts nothing by itself.
 export function runs(days, cut) {
   const out = [];
-  for (const k of Object.keys(days).filter((k) => days[k]?.assetId).sort()) {
-    const last = out.at(-1);
-    if (last && addDays(last.end, 1) === k && last.end !== cut) { last.end = k; last.keys.push(k); } else out.push({ start: k, end: k, keys: [k] });
+  for (const k of Object.keys(days).filter((k) => days[k]?.assetId || days[k]?.shield).sort()) {
+    const last = out.at(-1), photo = !!days[k].assetId;
+    if (last && addDays(last.end, 1) === k && last.end !== cut) { last.end = k; if (photo) last.keys.push(k); }
+    else if (photo) out.push({ start: k, end: k, keys: [k] });
   }
   return out;
 }
@@ -48,7 +50,7 @@ export function towers(days, today, cut) {
   const past = [];
   for (const r of rs) {
     for (const keys of chunks(r.keys)) {
-      past.push({ keys, kind: keys.length === TOWER_HEIGHT ? 'built' : r.end === cut ? 'reset' : 'fell' });
+      past.push({ keys, end: r.end, kind: keys.length === TOWER_HEIGHT ? 'built' : r.end === cut ? 'reset' : 'fell' });
     }
   }
   let current = null;
@@ -68,13 +70,26 @@ export function pendingFall(days, today, seenFall, cut) {
 }
 
 // Couple tower: days we both certified. The brick shows my photo left, my partner's right.
+// A day where each of us has a photo or a shield, and at least one shield, bridges the couple tower too.
 export function coupleDays(mine, theirs) {
   const out = {};
   for (const [k, d] of Object.entries(mine)) {
-    if (d?.assetId && theirs[k]?.assetId) out[k] = { assetId: d.assetId, partnerAssetId: theirs[k].assetId };
+    const t = theirs[k];
+    if (d?.assetId && t?.assetId) out[k] = { assetId: d.assetId, partnerAssetId: t.assetId };
+    else if ((d?.assetId || d?.shield) && (t?.assetId || t?.shield)) out[k] = { shield: true };
   }
   return out;
 }
+
+// Shields: one a month (by the missed day's month) can fill the single day that broke a tower —
+// only yesterday, since one shield can't cover a longer gap. t: a fallen tower from towers()/pendingFall().
+export const SHIELDS_PER_MONTH = 1;
+export function shieldDay(t, today) {
+  const gap = addDays(t.end, 1);
+  return daysBetween(gap, today) === 1 ? gap : null;
+}
+export const shieldsLeft = (days, day) => Math.max(0, SHIELDS_PER_MONTH
+  - Object.keys(days).filter((k) => k.slice(0, 7) === day.slice(0, 7) && days[k]?.shield && !days[k]?.assetId).length);
 
 // Cloud copy of my photo: '<user id>/<asset id>.jpg'. mine: day -> cloud path, as last seen.
 export const photoPath = (uid, assetId) => `${uid}/${assetId}.jpg`;

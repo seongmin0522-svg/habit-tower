@@ -1,5 +1,5 @@
 // All persistence goes through here. The page never writes to db or assets directly.
-import { todayKST, addDays } from './logic.js';
+import { todayKST, addDays, shieldsLeft } from './logic.js';
 import { CHARACTERS } from './ui/sprites.js';
 
 const params = new URLSearchParams(location.search);
@@ -121,6 +121,14 @@ export function makeActions(db, assets, getState) {
       const s = ready();
       if (!s.days[key]?.assetId) throw new Error('인증한 날에만 남길 수 있어요');
       await db.doc(`days/${key}`).set({ ...s.days[key], note: String(note ?? '').trim().slice(0, 40) });
+    },
+
+    // Fill a missed day so the tower stands again; limited per month (logic.js shieldsLeft).
+    async useShield(key) {
+      const s = ready();
+      if (s.days[key]?.assetId || s.days[key]?.shield) return;
+      if (!shieldsLeft(s.days, key)) throw new Error('이번 달 방어권을 이미 썼어요');
+      await db.doc(`days/${key}`).set({ shield: true, at: new Date().toISOString() });
     },
 
     // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).

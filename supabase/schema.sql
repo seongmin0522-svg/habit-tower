@@ -23,10 +23,12 @@ alter table public.profiles enable row level security;
 create table public.days (
   user_id uuid not null default auth.uid() references auth.users on delete cascade,
   day date not null,
-  photo_path text not null check (char_length(photo_path) < 200),
+  photo_path text check (char_length(photo_path) < 200), -- null on a shield day
   at timestamptz,
   note text not null default '' check (char_length(note) <= 40), -- one line on the photo
-  primary key (user_id, day)
+  shield boolean not null default false, -- no photo; keeps the tower from falling
+  primary key (user_id, day),
+  constraint days_photo_or_shield check (photo_path is not null or shield)
 );
 alter table public.days enable row level security;
 
@@ -113,14 +115,14 @@ revoke insert, update on public.profiles from anon, authenticated;
 grant insert (id, name, character, habit, couple_cut, updated_at), update (id, name, character, habit, couple_cut, updated_at)
   on public.profiles to authenticated; -- upsert rewrites id too; the policy pins it to auth.uid()
 
--- days: read self + partner; write only your own rows, pointing at a photo in your own folder.
+-- days: read self + partner; write only your own rows, pointing at a photo in your own folder (if any).
 create policy "days read own or partner" on public.days for select to authenticated
   using (user_id = (select auth.uid()) or user_id = (select public.partner_id()));
 create policy "days insert own" on public.days for insert to authenticated
-  with check (user_id = (select auth.uid()) and split_part(photo_path, '/', 1) = (select auth.uid())::text);
+  with check (user_id = (select auth.uid()) and (photo_path is null or split_part(photo_path, '/', 1) = (select auth.uid())::text));
 create policy "days update own" on public.days for update to authenticated
   using (user_id = (select auth.uid()))
-  with check (user_id = (select auth.uid()) and split_part(photo_path, '/', 1) = (select auth.uid())::text);
+  with check (user_id = (select auth.uid()) and (photo_path is null or split_part(photo_path, '/', 1) = (select auth.uid())::text));
 create policy "days delete own" on public.days for delete to authenticated
   using (user_id = (select auth.uid()));
 

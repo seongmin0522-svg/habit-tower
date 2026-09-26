@@ -61,12 +61,13 @@ export async function openCloud(local, onChange) {
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
     // New phone: pull back my records the phone doesn't have yet.
-    const rows = must(await sb.from('days').select('day, photo_path, at, note').eq('user_id', uid));
+    const rows = must(await sb.from('days').select('day, photo_path, at, note, shield').eq('user_id', uid));
     const mine = Object.fromEntries(rows.map((r) => [r.day, r.photo_path]));
     const notes = Object.fromEntries(rows.map((r) => [r.day, r.note]));
     const have = await localDays();
     for (const r of rows) {
       if (have[r.day]) continue;
+      if (!r.photo_path) { await db.doc(`days/${r.day}`).set({ shield: true, at: r.at ?? '' }); continue; }
       const id = r.photo_path.split('/')[1].replace(/\.jpg$/, '');
       await assets.put(id, must(await sb.storage.from(BUCKET).download(r.photo_path)));
       await db.doc(`days/${r.day}`).set({ assetId: id, at: r.at ?? '', ...(r.note && { note: r.note }) });
@@ -93,6 +94,13 @@ export async function openCloud(local, onChange) {
       await save({ me: { ...st.me, mine } }); // progress survives a dropped connection
     }
 
+    // Shield days the cloud doesn't know yet.
+    for (const [day, d] of Object.entries(days)) {
+      if (d.shield && !d.assetId && !rows.some((r) => r.day === day)) {
+        must(await sb.from('days').upsert({ user_id: uid, day, photo_path: null, shield: true, at: d.at || null }));
+      }
+    }
+
     // Notes written after the photo went up.
     for (const [day, d] of Object.entries(days)) {
       if (mine[day] !== photoPath(uid, d.assetId) || (d.note ?? '') === (notes[day] ?? '')) continue;
@@ -112,7 +120,8 @@ export async function openCloud(local, onChange) {
     const keep = new Set();
     if (partner) {
       const cached = new Set((await kv.keys()).filter((k) => k.startsWith('ph:')).map((k) => k.slice(3)));
-      for (const r of must(await sb.from('days').select('day, photo_path, at, note').eq('user_id', partner.id))) {
+      for (const r of must(await sb.from('days').select('day, photo_path, at, note, shield').eq('user_id', partner.id))) {
+        if (!r.photo_path) { partnerDays[r.day] = { shield: true, at: r.at ?? '' }; continue; }
         if (!cached.has(r.photo_path)) {
           try { await kv.putPhoto(r.photo_path, must(await sb.storage.from(BUCKET).download(r.photo_path))); } catch { continue; }
         }
