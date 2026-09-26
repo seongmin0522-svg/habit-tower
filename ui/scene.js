@@ -43,7 +43,7 @@ function glide(el, to, ms, ease, done) {
 // A couple brick (partnerAssetId) shows both photos side by side.
 const Photo = ({ day, eager }) => {
   if (!day?.assetId) return null;
-  const img = (id, cls) => html`<img class=${cls} src=${photoUrl(id)} alt="" loading=${eager ? 'eager' : 'lazy'} decoding="async" draggable="false" />`;
+  const img = (id, cls) => html`<img class=${cls} src=${photoUrl(id, true)} alt="" loading=${eager ? 'eager' : 'lazy'} decoding="async" draggable="false" />`;
   return day.partnerAssetId ? html`${img(day.assetId, 'half')}${img(day.partnerAssetId, 'half')}` : img(day.assetId);
 };
 

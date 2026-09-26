@@ -183,7 +183,7 @@ export function Album({ current, past, days, onPick, onClose }) {
         <h3>${head(t)} <small class="muted">${t.keys[0]} ~ ${t.keys.at(-1)}</small></h3>
         <div class="thumbs">${t.keys.map((k, i) => html`
           <button key=${k} onClick=${() => onPick(k, i + 1)} aria-label=${`${k} 사진`}>
-            <img src=${photoUrl(days[k].assetId)} alt="" loading="lazy" /><span>${i + 1}</span>
+            <img src=${photoUrl(days[k].assetId, true)} alt="" loading="lazy" /><span>${i + 1}</span>
           </button>`)}</div>
       </section>`)}
     </div>

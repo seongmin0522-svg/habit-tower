@@ -2,7 +2,7 @@
 // My records live on the phone (localdb.js); the cloud copy lets my partner see them and lets a new phone
 // pull them back. Partner data is cached on the phone so their tower shows offline too.
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
-import { photoPath, toUpload } from './logic.js';
+import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions } from './logic.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
@@ -20,7 +20,7 @@ const must = ({ data, error }) => { if (error) throw error; return data; };
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
 // { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, got, gave,
-//   partner: {id, name, character, habit, coupleCut} | null, partnerDays, synced }.
+//   partner: {id, name, character, habit, coupleCut} | null, partnerDays, synced, syncFailed }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -28,9 +28,10 @@ export async function openCloud(local, onChange) {
     me: (await kv.get('me')) ?? {},
     partner: (await kv.get('partner')) ?? null,
     partnerDays: (await kv.get('partnerDays')) ?? {},
-    synced: false, // a sync succeeded during this launch
+    synced: false,     // a sync succeeded during this launch
+    syncFailed: false, // the last sync attempt failed (offline, server error): shown so a stale partner tower isn't a mystery
   };
-  const emit = () => onChange({ ...st.me, partner: st.partner, partnerDays: st.partnerDays, synced: st.synced });
+  const emit = () => onChange({ ...st.me, partner: st.partner, partnerDays: st.partnerDays, synced: st.synced, syncFailed: st.syncFailed });
   const save = async (patch) => {
     Object.assign(st, patch);
     for (const k of ['me', 'partner', 'partnerDays']) if (k in patch) await kv.put(k, st[k]);
@@ -64,13 +65,9 @@ export async function openCloud(local, onChange) {
     const rows = must(await sb.from('days').select('day, photo_path, at, note, shield').eq('user_id', uid));
     const mine = Object.fromEntries(rows.map((r) => [r.day, r.photo_path]));
     const notes = Object.fromEntries(rows.map((r) => [r.day, r.note]));
-    const have = await localDays();
-    for (const r of rows) {
-      if (have[r.day]) continue;
-      if (!r.photo_path) { await db.doc(`days/${r.day}`).set({ shield: true, at: r.at ?? '' }); continue; }
-      const id = r.photo_path.split('/')[1].replace(/\.jpg$/, '');
-      await assets.put(id, must(await sb.storage.from(BUCKET).download(r.photo_path)));
-      await db.doc(`days/${r.day}`).set({ assetId: id, at: r.at ?? '', ...(r.note && { note: r.note }) });
+    for (const { day, path, doc } of toRestore(rows, await localDays())) {
+      if (path) await assets.put(doc.assetId, must(await sb.storage.from(BUCKET).download(path)));
+      await db.doc(`days/${day}`).set(doc);
     }
     let habit = (await db.doc('habit/me').get()).data();
     if (!habit && meRow?.habit) {
@@ -94,17 +91,11 @@ export async function openCloud(local, onChange) {
       await save({ me: { ...st.me, mine } }); // progress survives a dropped connection
     }
 
-    // Shield days the cloud doesn't know yet.
-    for (const [day, d] of Object.entries(days)) {
-      if (d.shield && !d.assetId && !rows.some((r) => r.day === day)) {
-        must(await sb.from('days').upsert({ user_id: uid, day, photo_path: null, shield: true, at: d.at || null }));
-      }
+    for (const day of shieldsToPush(days, rows)) {
+      must(await sb.from('days').upsert({ user_id: uid, day, photo_path: null, shield: true, at: days[day].at || null }));
     }
-
-    // Notes written after the photo went up.
-    for (const [day, d] of Object.entries(days)) {
-      if (mine[day] !== photoPath(uid, d.assetId) || (d.note ?? '') === (notes[day] ?? '')) continue;
-      must(await sb.from('days').update({ note: d.note ?? '' }).eq('user_id', uid).eq('day', day));
+    for (const day of notesToPush(days, mine, notes, uid)) {
+      must(await sb.from('days').update({ note: days[day].note ?? '' }).eq('user_id', uid).eq('day', day));
     }
 
     const name = st.me.name || meRow?.name || '';
@@ -132,22 +123,29 @@ export async function openCloud(local, onChange) {
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
     const info = (meRow?.couple_id && must(await sb.rpc('couple_info'))) || {};
     // Reactions: got = on my photos (from my partner), gave = mine on theirs. day -> emoji.
-    const got = {}, gave = {};
-    for (const r of must(await sb.from('reactions').select('owner, day, emoji'))) (r.owner === uid ? got : gave)[r.day] = r.emoji;
+    const { got, gave } = splitReactions(must(await sb.from('reactions').select('owner, day, emoji')), uid);
     await save({
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
         coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', got, gave },
       partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
       partnerDays,
       synced: true,
+      syncFailed: false,
     });
+    lastOk = Date.now();
   }
 
   // One sync at a time; a call during a run schedules one more pass right after it.
-  let running = null, again = false;
-  const sync = () => {
+  // lazy (tab switch, back to the app): skip if the last good sync is under 30 seconds old.
+  let running = null, again = false, lastOk = 0;
+  const sync = ({ lazy = false } = {}) => {
+    if (lazy && Date.now() - lastOk < 30000) return Promise.resolve();
     if (running) { again = true; return running; }
-    running = doSync().catch((e) => console.warn('sync failed', e)).finally(() => {
+    running = doSync().catch((e) => {
+      console.warn('sync failed', e);
+      st.syncFailed = true;
+      emit();
+    }).finally(() => {
       running = null;
       if (again) { again = false; sync(); }
     });

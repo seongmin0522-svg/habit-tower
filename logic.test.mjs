@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, MONSTERS } from './logic.js';
+import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
+  TOWER_HEIGHT, MONSTERS } from './logic.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -123,4 +124,31 @@ test('coupleDays: a shield on either side bridges the couple tower too', () => {
   assert.equal(towers(c, T).current.keys.length, 4);                      // 21, 22, 23, 25
   assert.deepEqual(coupleDays(D([['2026-09-24', S]]), D([['2026-09-24', S]])), { '2026-09-24': { shield: true } });
   assert.deepEqual(coupleDays({}, D([['2026-09-24', S]])), {});           // I missed it: nothing bridges
+});
+
+test('sync: what a phone pulls back from its own cloud rows', () => {
+  const rows = [
+    { day: '2026-09-20', photo_path: 'u1/a.jpg', at: 't', note: '5km' },
+    { day: '2026-09-21', photo_path: null, at: null, shield: true },
+    { day: '2026-09-22', photo_path: 'u1/b.jpg', at: null, note: '' },
+  ];
+  assert.deepEqual(toRestore(rows, { '2026-09-22': { assetId: 'b' } }), [
+    { day: '2026-09-20', path: 'u1/a.jpg', doc: { assetId: 'a', at: 't', note: '5km' } },
+    { day: '2026-09-21', path: null, doc: { shield: true, at: '' } },
+  ]);
+  assert.deepEqual(toRestore(rows, { '2026-09-20': {}, '2026-09-21': {}, '2026-09-22': {} }), []);
+});
+
+test('sync: shields and notes the cloud does not have yet', () => {
+  const days = { '2026-09-20': { assetId: 'a', note: 'new' }, '2026-09-21': { shield: true }, '2026-09-22': { assetId: 'b' },
+    '2026-09-23': { shield: true }, '2026-09-24': { assetId: 'c', note: 'x' } };
+  assert.deepEqual(shieldsToPush(days, [{ day: '2026-09-23' }]), ['2026-09-21']);
+  const mine = { '2026-09-20': 'u1/a.jpg', '2026-09-22': 'u1/b.jpg', '2026-09-24': 'u1/old.jpg' };
+  // 20: note changed · 22: same (none) · 24: photo not uploaded yet, its upload carries the note
+  assert.deepEqual(notesToPush(days, mine, { '2026-09-20': 'old', '2026-09-22': '' }, 'u1'), ['2026-09-20']);
+});
+
+test('sync: reactions split into got (on my photos) and gave (on theirs)', () => {
+  const rows = [{ owner: 'me', day: 'd1', emoji: '❤️' }, { owner: 'you', day: 'd1', emoji: '🔥' }, { owner: 'you', day: 'd2', emoji: '👏' }];
+  assert.deepEqual(splitReactions(rows, 'me'), { got: { d1: '❤️' }, gave: { d1: '🔥', d2: '👏' } });
 });

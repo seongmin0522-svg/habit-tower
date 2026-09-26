@@ -45,7 +45,7 @@ function App() {
   useEffect(() => {
     if (!cloudApi) return;
     cloudApi.sync();
-    const onShow = () => document.visibilityState === 'visible' && cloudApi.sync();
+    const onShow = () => document.visibilityState === 'visible' && cloudApi.sync({ lazy: true });
     document.addEventListener('visibilitychange', onShow);
     return () => document.removeEventListener('visibilitychange', onShow);
   }, [cloudApi]);
@@ -212,7 +212,7 @@ function App() {
     </header>
     ${coupled && html`<nav class="tabs" role="tablist">${[['me', '나'], ['couple', '❤ 커플'], ['partner', partnerName]].map(([id, label]) => html`
       <button key=${id} role="tab" aria-selected=${view === id} disabled=${!!anim || !!fall}
-        onClick=${() => { setTab(id); cloudApi?.sync(); }}>${label}</button>`)}</nav>`}
+        onClick=${() => { setTab(id); cloudApi?.sync({ lazy: true }); }}>${label}</button>`)}</nav>`}
     ${view === 'couple' && cloud?.coupleReward && html`<div class="reward">${keys.length === TOWER_HEIGHT
       ? `🎉 보상 받을 시간! ${cloud.coupleReward}`
       : `🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
@@ -234,7 +234,9 @@ function App() {
           : doneToday
             ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}${view === 'couple' && pokeBtn}`
             : html`${camera('📷 인증하고 쌓기', 'green big')}${view === 'couple' && pokeBtn}`}
-      ${pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
+      ${cloud?.userId && cloud.syncFailed
+        ? html`<button class="btn danger sm" onClick=${() => cloudApi.sync()}>⚠ 동기화 안 됨 · 다시</button>`
+        : pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}

@@ -96,6 +96,28 @@ export const photoPath = (uid, assetId) => `${uid}/${assetId}.jpg`;
 export const toUpload = (days, mine, uid) =>
   Object.keys(days).filter((k) => days[k]?.assetId && mine[k] !== photoPath(uid, days[k].assetId)).sort();
 
+// The rest of cloud.js's decisions; it only does the calls. rows: my cloud days {day, photo_path, at, note, shield}.
+// Cloud rows this phone lacks (a new phone), with the local doc to write and the photo to download.
+export const toRestore = (rows, have) => rows.filter((r) => !have[r.day]).map((r) => (r.photo_path
+  ? { day: r.day, path: r.photo_path,
+      doc: { assetId: r.photo_path.split('/')[1].replace(/\.jpg$/, ''), at: r.at ?? '', ...(r.note && { note: r.note }) } }
+  : { day: r.day, path: null, doc: { shield: true, at: r.at ?? '' } }));
+
+export function shieldsToPush(days, rows) {
+  const known = new Set(rows.map((r) => r.day));
+  return Object.keys(days).filter((k) => days[k]?.shield && !days[k]?.assetId && !known.has(k)).sort();
+}
+
+// Notes edited after their photo went up (a photo still to upload carries its note along).
+export const notesToPush = (days, mine, notes, uid) => Object.keys(days).filter((k) => days[k]?.assetId
+  && mine[k] === photoPath(uid, days[k].assetId) && (days[k].note ?? '') !== (notes[k] ?? '')).sort();
+
+export function splitReactions(rows, uid) {
+  const got = {}, gave = {};
+  for (const r of rows) (r.owner === uid ? got : gave)[r.day] = r.emoji;
+  return { got, gave };
+}
+
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
 const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2})$/;
