@@ -77,3 +77,19 @@ test('toUpload: my days the cloud lacks or has an older photo for', () => {
   assert.deepEqual(toUpload(days, mine, 'u1'), ['2026-09-24', '2026-09-25']);
   assert.deepEqual(toUpload(days, {}, 'u1'), ['2026-09-23', '2026-09-24', '2026-09-25']);
 });
+
+test('towers: a cut (start over) ends the run there as a reset tower, never a fall', () => {
+  const kinds = (t) => t.past.map((p) => `${p.kind}${p.keys.length}`);
+  const six = D(run('2026-09-20', 6));                                 // through today
+  const t = towers(six, T, '2026-09-25');                              // restarted today, after today's photo
+  assert.equal(t.current, null);
+  assert.deepEqual(kinds(t), ['reset6']);
+  assert.equal(pendingFall(six, T, null, '2026-09-25'), null);
+  assert.equal(towers(D(run('2026-09-20', 7)), '2026-09-26', '2026-09-25').current.keys.length, 1); // next day: floor 1
+  const t2 = towers(six, T, '2026-09-24');                             // restarted yesterday, then certified today
+  assert.equal(t2.current.keys.length, 1);
+  assert.deepEqual(kinds(t2), ['reset5']);
+  const later = towers(D(run('2026-09-10', 6), run('2026-09-17', 3)), T, '2026-09-15'); // a fall after a restart still falls
+  assert.deepEqual(kinds(later), ['fell3', 'reset6']);
+  assert.equal(pendingFall(D(run('2026-09-10', 6), run('2026-09-17', 3)), T, null, '2026-09-15').keys.length, 3);
+});

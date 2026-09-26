@@ -26,12 +26,12 @@ export const MONSTERS = [
 // The monster buddy grows up every 4 floors and starts over when the tower falls.
 export const buddyFor = (floors) => MONSTERS[Math.min(Math.floor(Math.max(floors - 1, 0) / 4), MONSTERS.length - 1)];
 
-// Consecutive certified days, oldest first.
-export function runs(days) {
+// Consecutive certified days, oldest first. cut: the day the user chose to start over — a run ends there.
+export function runs(days, cut) {
   const out = [];
   for (const k of Object.keys(days).filter((k) => days[k]?.assetId).sort()) {
     const last = out.at(-1);
-    if (last && addDays(last.end, 1) === k) { last.end = k; last.keys.push(k); } else out.push({ start: k, end: k, keys: [k] });
+    if (last && addDays(last.end, 1) === k && last.end !== cut) { last.end = k; last.keys.push(k); } else out.push({ start: k, end: k, keys: [k] });
   }
   return out;
 }
@@ -40,12 +40,17 @@ const chunks = (keys) => Array.from({ length: Math.ceil(keys.length / TOWER_HEIG
   (_, i) => keys.slice(i * TOWER_HEIGHT, (i + 1) * TOWER_HEIGHT));
 
 // current = tower being built by the run ending today/yesterday (30 keys = flag day).
-// past = finished towers, newest first: 'built' (30 floors) or 'fell' (run broke first).
-export function towers(days, today) {
-  const rs = runs(days);
-  const live = rs.length && daysBetween(rs.at(-1).end, today) <= 1 ? rs.pop() : null;
+// past = finished towers, newest first: 'built' (30 floors), 'reset' (started over at cut) or 'fell' (run broke first).
+export function towers(days, today, cut) {
+  const rs = runs(days, cut);
+  const tail = rs.at(-1);
+  const live = tail && tail.end !== cut && daysBetween(tail.end, today) <= 1 ? rs.pop() : null;
   const past = [];
-  for (const r of rs) for (const keys of chunks(r.keys)) past.push({ keys, kind: keys.length === TOWER_HEIGHT ? 'built' : 'fell' });
+  for (const r of rs) {
+    for (const keys of chunks(r.keys)) {
+      past.push({ keys, kind: keys.length === TOWER_HEIGHT ? 'built' : r.end === cut ? 'reset' : 'fell' });
+    }
+  }
   let current = null;
   if (live) {
     const cs = chunks(live.keys);
@@ -56,8 +61,8 @@ export function towers(days, today) {
 }
 
 // The newest broken tower whose collapse hasn't been shown yet.
-export function pendingFall(days, today, seenFall) {
-  const { current, past } = towers(days, today);
+export function pendingFall(days, today, seenFall, cut) {
+  const { current, past } = towers(days, today, cut);
   const t = past[0];
   return !current && t?.kind === 'fell' && t.keys.at(-1) !== seenFall ? t : null;
 }

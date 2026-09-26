@@ -56,9 +56,12 @@ function App() {
   const coupled = !!partner;
   const pdays = cloud?.partnerDays ?? EMPTY;
   const cdays = useMemo(() => coupleDays(state.days, pdays), [state.days, pdays]);
+  // Start-over bookmarks: mine only on my phone; the couple one is shared, and the later of the two wins.
+  const cutMe = state.habit?.cutMe ?? null;
+  const cutCouple = [state.habit?.cutCouple, partner?.coupleCut].filter(Boolean).sort().at(-1) ?? null;
   const views = useMemo(() => ({
-    me: towers(state.days, today), couple: towers(cdays, today), partner: towers(pdays, today),
-  }), [state.days, cdays, pdays, today]);
+    me: towers(state.days, today, cutMe), couple: towers(cdays, today, cutCouple), partner: towers(pdays, today),
+  }), [state.days, cdays, pdays, today, cutMe, cutCouple]);
   const view = coupled ? tab : 'me';
   const { current, past } = views[view];
   const days = { me: state.days, couple: cdays, partner: pdays }[view];
@@ -77,19 +80,19 @@ function App() {
   const fallChecked = useRef({});
   useEffect(() => {
     if (!state.loaded || !state.habit || anim || fall) return;
-    const check = (scope, d, seen) => {
+    const check = (scope, d, seen, cut) => {
       if (fallChecked.current[scope] === today) return null;
       fallChecked.current[scope] = today;
-      const pf = pendingFall(d, today, seen);
+      const pf = pendingFall(d, today, seen, cut);
       return pf && { ...pf, scope };
     };
-    const pf = check('me', state.days, state.habit.seenFall)
-      ?? (coupled && cloud.synced ? check('couple', cdays, state.habit.seenCoupleFall) : null);
+    const pf = check('me', state.days, state.habit.seenFall, cutMe)
+      ?? (coupled && cloud.synced ? check('couple', cdays, state.habit.seenCoupleFall, cutCouple) : null);
     if (!pf) return;
     if (coupled) setTab(pf.scope);
     setAnim({ kind: 'fall', keys: pf.keys });
     setTimeout(() => setFall(pf), FALL_MS);
-  }, [state.loaded, state.habit, today, anim, fall, coupled, cloud?.synced, cdays]);
+  }, [state.loaded, state.habit, today, anim, fall, coupled, cloud?.synced, cdays, cutCouple]);
 
   // Export is two taps: building the file can take seconds with many photos, and the share sheet
   // only opens right after a tap (Safari is strict), so "저장하기" gets its own fresh tap.
@@ -117,7 +120,7 @@ function App() {
     cloudApi?.sync();
   }, fail);
 
-  const ackFall = () => actions.ackFall(fall.keys.at(-1), fall.scope === 'couple' ? 'seenCoupleFall' : 'seenFall')
+  const ackFall = () => actions.mark(fall.scope === 'couple' ? 'seenCoupleFall' : 'seenFall', fall.keys.at(-1))
     .then(() => { setFall(null); setAnim(null); }, fail);
 
   const onPhoto = async (e) => {
@@ -145,6 +148,15 @@ function App() {
     ${busy ? '올리는 중…' : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
+
+  // "새로 쌓기": end the tower on this tab at its last floor. The couple bookmark also goes to the cloud
+  // so my partner's couple tower restarts too.
+  const restart = keys.length && view !== 'partner' ? {
+    label: view === 'couple' ? '커플 탑 새로 쌓기' : '내 탑 새로 쌓기',
+    floors: keys.length,
+    onRestart: () => actions.mark(view === 'couple' ? 'cutCouple' : 'cutMe', keys.at(-1))
+      .then(() => { setModal(null); cloudApi?.sync(); }, fail),
+  } : null;
 
   // Android back button closes the open window instead of leaving the app.
   useEffect(() => {
@@ -197,7 +209,7 @@ function App() {
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
-      cloud=${cloud} cloudApi=${cloudApi}
+      cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}

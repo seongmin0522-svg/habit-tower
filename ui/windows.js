@@ -12,11 +12,13 @@ function Win({ title, onClose, children, cls = '' }) {
   </div>`;
 }
 
-export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, onImport, onReset, cloud, cloudApi }) {
+// restart: null, or { label, floors, onRestart } for the tower on the tab being viewed.
+export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, onImport, onReset, cloud, cloudApi, restart }) {
   const [title, setTitle] = useState(habit?.title ?? '');
   const [character, setCharacter] = useState(habit?.character ?? CHARACTERS[0].id);
   const [saving, setSaving] = useState(false);
   const [wipe, setWipe] = useState(false); // reset asks once more before deleting
+  const [again, setAgain] = useState(false); // start over asks once more too
   const [out, setOut] = useState(null);    // export: null | 'busy' | the prepared File
   const prepare = () => { setOut('busy'); onExport().then(setOut, () => setOut(null)); };
   const submit = (e) => {
@@ -44,8 +46,15 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
             : html`<button type="button" class="btn blue sm" disabled=${!habit || out === 'busy'} onClick=${prepare}>${out === 'busy' ? '준비 중…' : '내보내기'}</button>`}
           <label class="btn blue sm">${habit ? '가져오기' : '백업에서 복원'}<input type="file" accept="application/json,.json" hidden
             onChange=${(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onImport(f); }} /></label>
+          ${restart && !again && html`<button type="button" class="btn orange sm" onClick=${() => setAgain(true)}>${restart.label}</button>`}
           ${habit && !wipe && html`<button type="button" class="btn danger sm" onClick=${() => setWipe(true)}>초기화</button>`}
         </span>
+        ${restart && again && html`<div class="wipe" role="alert">
+          <p><b>${restart.label} 할까요?</b><br /><span class="muted small">지금 ${restart.floors}층은 앨범에 남고, 다음 인증부터 1층이에요.
+            오늘 이미 인증했으면 내일부터예요. 기록과 사진은 지워지지 않아요.</span></p>
+          <span><button type="button" class="btn orange sm" onClick=${restart.onRestart}>새로 쌓기</button>
+            <button type="button" class="btn blue sm" onClick=${() => setAgain(false)}>취소</button></span>
+        </div>`}
         ${wipe && html`<div class="wipe" role="alert">
           <p><b>모든 기록과 사진을 이 폰에서 지울까요?</b><br /><span class="muted small">${cloud?.userId
             ? '클라우드 기록·사진도 지우고 커플 연결도 끊겨요. 되돌릴 수 없어요.'
@@ -133,6 +142,7 @@ export function Album({ current, past, days, onPick, onClose }) {
     live: `🏗 쌓는 중 · ${t.keys.length}층`,
     built: `🏰 완성 · ${TOWER_HEIGHT}층`,
     fell: `💥 ${t.keys.length}층에서 붕괴`,
+    reset: `🔁 ${t.keys.length}층에서 새로 시작`,
   })[t.kind];
   return html`<${Win} title="앨범" onClose=${onClose} cls="album-win">
     <div class="body album">${list.length === 0 ? html`<p class="empty">아직 인증 사진이 없어요</p>` : list.map((t) => html`

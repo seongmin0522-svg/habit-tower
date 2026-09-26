@@ -117,9 +117,10 @@ export function makeActions(db, assets, getState) {
       return { retake: !!old };
     },
 
-    async ackFall(endKey, field = 'seenFall') {
+    // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).
+    async mark(field, key) {
       const s = ready();
-      await db.doc('habit/me').set({ ...s.habit, [field]: endKey });
+      await db.doc('habit/me').set({ ...s.habit, [field]: key });
     },
   };
 }

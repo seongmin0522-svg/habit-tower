@@ -19,7 +19,7 @@ const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1
 const must = ({ data, error }) => { if (error) throw error; return data; };
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
-// { email, userId, coupleId, code, name, mine, partner: {name, character, habit} | null, partnerDays, synced }.
+// { email, userId, coupleId, code, name, mine, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -55,7 +55,7 @@ export async function openCloud(local, onChange) {
     const s = await session();
     if (!s) { if (st.me.userId) await forget(); return; }
     const uid = s.user.id;
-    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id'));
+    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut'));
     const meRow = profs.find((p) => p.id === uid);
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
@@ -71,7 +71,7 @@ export async function openCloud(local, onChange) {
     }
     let habit = (await db.doc('habit/me').get()).data();
     if (!habit && meRow?.habit) {
-      habit = { title: meRow.habit, character: meRow.character, seenFall: null };
+      habit = { title: meRow.habit, character: meRow.character, seenFall: null, cutCouple: meRow.couple_cut ?? null };
       await db.doc('habit/me').set(habit);
     }
 
@@ -92,7 +92,8 @@ export async function openCloud(local, onChange) {
     const name = st.me.name || meRow?.name || '';
     if (habit) {
       must(await sb.from('profiles').upsert({
-        id: uid, name, character: habit.character, habit: habit.title, updated_at: new Date().toISOString(),
+        id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null,
+        updated_at: new Date().toISOString(),
       }));
     }
 
@@ -112,7 +113,7 @@ export async function openCloud(local, onChange) {
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
     await save({
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine },
-      partner: partner && { name: partner.name, character: partner.character, habit: partner.habit },
+      partner: partner && { name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
       partnerDays,
       synced: true,
     });
@@ -146,6 +147,9 @@ export async function openCloud(local, onChange) {
     joinCouple: call(async (code) => { must(await (await client()).rpc('join_couple', { code })); await sync(); }),
     leave: call(async () => {
       must(await (await client()).rpc('leave_couple'));
+      // The couple tower bookmark belongs to this couple only (the server drops its copy too).
+      const habit = (await db.doc('habit/me').get()).data();
+      if (habit?.cutCouple) await db.doc('habit/me').set({ ...habit, cutCouple: null });
       await save({ me: { ...st.me, coupleId: null, code: null } });
       await sync();
     }),

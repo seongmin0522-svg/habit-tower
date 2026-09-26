@@ -13,6 +13,7 @@ create table public.profiles (
   character text not null default 'warrior' check (char_length(character) <= 20),
   habit text not null default '' check (char_length(habit) <= 40),
   couple_id uuid references public.couples on delete set null,
+  couple_cut date, -- couple tower "start over" bookmark; both members use the later one
   updated_at timestamptz not null default now()
 );
 alter table public.profiles enable row level security;
@@ -73,7 +74,7 @@ end $$;
 
 create function public.leave_couple() returns void
 language sql security definer set search_path = '' as $$
-  update public.profiles set couple_id = null where id = (select auth.uid());
+  update public.profiles set couple_id = null, couple_cut = null where id = (select auth.uid()); -- drop the bookmark too
 $$;
 
 revoke execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple() from public, anon;
@@ -87,7 +88,7 @@ create policy "profiles insert own" on public.profiles for insert to authenticat
 create policy "profiles update own" on public.profiles for update to authenticated
   using (id = (select auth.uid())) with check (id = (select auth.uid()));
 revoke insert, update on public.profiles from anon, authenticated;
-grant insert (id, name, character, habit, updated_at), update (id, name, character, habit, updated_at)
+grant insert (id, name, character, habit, couple_cut, updated_at), update (id, name, character, habit, couple_cut, updated_at)
   on public.profiles to authenticated; -- upsert rewrites id too; the policy pins it to auth.uid()
 
 -- days: read self + partner; write only your own rows, pointing at a photo in your own folder.
