@@ -1,7 +1,7 @@
 import { html, useState } from './h.js';
 import { Sprite, CHARACTERS } from './sprites.js';
 import { TIER } from './scene.js';
-import { TOWER_HEIGHT } from '../logic.js';
+import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
 import { photoUrl } from '../db.js';
 
 function Win({ title, onClose, children, cls = '' }) {
@@ -164,8 +164,46 @@ export function Photo({ day, n, names, mine, theirs, onClose }) {
   const sides = day.partnerAssetId
     ? [[day.assetId, names[0], mine, null], [day.partnerAssetId, names[1], null, theirs]]
     : [[day.assetId, mine ? names[0] : names[1], mine, mine ? null : theirs]];
-  return html`<${Win} title=${`${n}층 · ${day.key}`} onClose=${onClose} cls="photo-win">
+  return html`<${Win} title=${n ? `${n}층 · ${day.key}` : day.key} onClose=${onClose} cls="photo-win">
     <div class="body"><div class="duo">${sides.map(([id, who, m, t]) => html`<${Side} key=${id} id=${id} who=${who} mine=${m} theirs=${t} />`)}</div></div>
+  </${Win}>`;
+}
+
+const WEEK = ['일', '월', '화', '수', '목', '금', '토'];
+
+// Month calendar for the tab being viewed: a photo day shows its photo, a shield day 🛡.
+// Couple tab: both of us → split photo, just one of us → a dot (left me, right my partner).
+// mine/theirs: day docs; couple: coupleDays(); onPick(key) opens a day this tab has a photo for.
+export function Calendar({ view, mine, theirs, couple, today, names, onPick, onClose }) {
+  const [ym, setYm] = useState(today.slice(0, 7));
+  const own = view === 'partner' ? theirs : mine;
+  const count = (d, both) => Object.keys(d).filter((k) => k.startsWith(ym) && d[k]?.assetId && (!both || d[k].partnerAssetId)).length;
+  const summary = view === 'couple'
+    ? `둘 다 ${count(couple, true)}일 · ${names[0]} ${count(mine)}일 · ${names[1]} ${count(theirs)}일`
+    : `${view === 'partner' ? names[1] + ' ' : ''}${count(own)}일 인증`;
+  const cell = (k, i) => {
+    if (!k) return html`<span key=${'e' + i} class="cal-day empty" />`;
+    const d = view === 'couple' ? couple[k] : own[k];
+    const cls = 'cal-day' + (k === today ? ' today' : '') + (k > today ? ' future' : '');
+    const body = html`${d?.assetId && html`<img src=${photoUrl(d.assetId, true)} alt="" loading="lazy" class=${d.partnerAssetId ? 'half' : ''} />`}${
+      d?.partnerAssetId && html`<img src=${photoUrl(d.partnerAssetId, true)} alt="" loading="lazy" class="half r" />`}${
+      !d?.assetId && d?.shield && html`<i class="shield">🛡</i>`}${
+      view === 'couple' && !d && html`${mine[k]?.assetId && html`<i class="dot l" />`}${theirs[k]?.assetId && html`<i class="dot r" />`}`}<b>${Number(k.slice(8))}</b>`;
+    return d?.assetId
+      ? html`<button key=${k} class=${cls} onClick=${() => onPick(k)} aria-label=${`${k} 사진`}>${body}</button>`
+      : html`<span key=${k} class=${cls}>${body}</span>`;
+  };
+  return html`<${Win} title="📅 달력" onClose=${onClose} cls="cal-win">
+    <div class="body pad">
+      <div class="cal-head">
+        <button type="button" class="btn blue sm" onClick=${() => setYm(addMonths(ym, -1))} aria-label="지난달">◀</button>
+        <b>${Number(ym.slice(0, 4))}년 ${Number(ym.slice(5))}월</b>
+        <button type="button" class="btn blue sm" disabled=${ym >= today.slice(0, 7)} onClick=${() => setYm(addMonths(ym, 1))} aria-label="다음 달">▶</button>
+      </div>
+      <p class="cal-sum">${summary}</p>
+      ${view === 'couple' && html`<p class="cal-key muted small"><i class="dot l" /> ${names[0]}만 · <i class="dot r" /> ${names[1]}만 · 🛡 방어권</p>`}
+      <div class="cal-grid">${WEEK.map((w) => html`<span key=${w} class="cal-w">${w}</span>`)}${monthGrid(ym).flat().map(cell)}</div>
+    </div>
   </${Win}>`;
 }
 

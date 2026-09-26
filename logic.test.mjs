@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
-  TOWER_HEIGHT, MONSTERS } from './logic.js';
+  monthGrid, addMonths, TOWER_HEIGHT, MONSTERS } from './logic.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -151,4 +151,22 @@ test('sync: shields and notes the cloud does not have yet', () => {
 test('sync: reactions split into got (on my photos) and gave (on theirs)', () => {
   const rows = [{ owner: 'me', day: 'd1', emoji: '❤️' }, { owner: 'you', day: 'd1', emoji: '🔥' }, { owner: 'you', day: 'd2', emoji: '👏' }];
   assert.deepEqual(splitReactions(rows, 'me'), { got: { d1: '❤️' }, gave: { d1: '🔥', d2: '👏' } });
+});
+
+test('monthGrid: Sunday-first weeks with blanks around the month', () => {
+  const sep = monthGrid('2026-09');                       // starts on a Tuesday, 30 days
+  assert.equal(sep.length, 5);
+  assert.deepEqual(sep[0], [null, null, '2026-09-01', '2026-09-02', '2026-09-03', '2026-09-04', '2026-09-05']);
+  assert.deepEqual(sep[4], ['2026-09-27', '2026-09-28', '2026-09-29', '2026-09-30', null, null, null]);
+  const feb = monthGrid('2026-02');                       // starts on a Sunday, 28 days: exactly 4 rows
+  assert.equal(feb.length, 4);
+  assert.equal(feb[0][0], '2026-02-01');
+  assert.equal(feb[3][6], '2026-02-28');
+  assert.equal(monthGrid('2028-02').flat().filter(Boolean).length, 29); // leap year
+});
+
+test('addMonths crosses years', () => {
+  assert.equal(addMonths('2026-12', 1), '2027-01');
+  assert.equal(addMonths('2026-01', -1), '2025-12');
+  assert.equal(addMonths('2026-09', 0), '2026-09');
 });

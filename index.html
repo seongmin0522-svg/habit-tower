@@ -182,6 +182,22 @@ input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inh
 .couple > span { align-items: center; margin-bottom: 6px; } .couple input { width: auto; flex: 1; min-width: 0; margin: 0; }
 .couple input.code { text-transform: uppercase; max-width: 90px; }
 .invite { font-size: 18px; letter-spacing: 3px; color: #b36200; }
+.cal-win { max-width: 420px; }
+.cal-head { display: flex; justify-content: space-between; align-items: center; }
+.cal-sum { text-align: center; margin: 4px 0 8px !important; font-weight: bold; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+.cal-w { text-align: center; font-size: 11px; color: var(--muted); }
+.cal-day { position: relative; display: block; aspect-ratio: 1; padding: 0; border: 1px solid var(--line); border-radius: 4px; background: #fff; overflow: hidden; }
+.cal-day.empty { border: 0; background: none; } .cal-day.future { opacity: .45; } .cal-day.today { box-shadow: 0 0 0 2px #f39a1e; }
+.cal-day img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.cal-day img.half { width: 50%; } .cal-day img.half.r { left: 50%; }
+.cal-day b { position: absolute; left: 2px; top: 1px; font-size: 10px; color: var(--ink); text-shadow: 0 0 2px #fff, 0 0 2px #fff; }
+.cal-day .shield { position: absolute; inset: 0; display: grid; place-items: center; font-style: normal; font-size: 16px; }
+.cal-day .dot { position: absolute; bottom: 4px; }
+.cal-day .dot.l { left: 22%; } .cal-day .dot.r { right: 22%; }
+.cal-win .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; }
+.cal-win .dot.l { background: #4a9a12; } .cal-win .dot.r { background: #b04ad9; }
+.cal-key { text-align: center; margin: -4px 0 8px !important; }
 .trophies { background: none; border: 0; color: #fff; padding: 0; text-decoration: underline dotted; }
 .shelf section + section { margin-top: 8px; padding-top: 8px; }
 .trophy { display: flex; align-items: center; gap: 10px; width: 100%; background: #fff; border: 2px solid #3a3a3a; border-radius: 6px; padding: 6px; text-align: left; margin-bottom: 6px; }

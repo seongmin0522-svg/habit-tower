@@ -13,6 +13,21 @@ export function addDays(key, n) {
   return d.toISOString().slice(0, 10);
 }
 
+// Calendar: 'YYYY-MM' months. monthGrid = Sunday-first weeks of day keys, null outside the month.
+export function monthGrid(ym) {
+  const first = new Date(ym + '-01T00:00:00Z');
+  const length = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 0)).getUTCDate();
+  const cells = [...Array(first.getUTCDay()).fill(null),
+    ...Array.from({ length }, (_, i) => `${ym}-${String(i + 1).padStart(2, '0')}`)];
+  while (cells.length % 7) cells.push(null);
+  return Array.from({ length: cells.length / 7 }, (_, w) => cells.slice(w * 7, w * 7 + 7));
+}
+export function addMonths(ym, n) {
+  const d = new Date(ym + '-01T00:00:00Z');
+  d.setUTCMonth(d.getUTCMonth() + n);
+  return d.toISOString().slice(0, 7);
+}
+
 export const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 export const TOWER_HEIGHT = 30;
