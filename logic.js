@@ -62,6 +62,20 @@ export function pendingFall(days, today, seenFall) {
   return !current && t?.kind === 'fell' && t.keys.at(-1) !== seenFall ? t : null;
 }
 
+// Couple tower: days we both certified. The brick shows my photo left, my partner's right.
+export function coupleDays(mine, theirs) {
+  const out = {};
+  for (const [k, d] of Object.entries(mine)) {
+    if (d?.assetId && theirs[k]?.assetId) out[k] = { assetId: d.assetId, partnerAssetId: theirs[k].assetId };
+  }
+  return out;
+}
+
+// Cloud copy of my photo: '<user id>/<asset id>.jpg'. mine: day -> cloud path, as last seen.
+export const photoPath = (uid, assetId) => `${uid}/${assetId}.jpg`;
+export const toUpload = (days, mine, uid) =>
+  Object.keys(days).filter((k) => days[k]?.assetId && mine[k] !== photoPath(uid, days[k].assetId)).sort();
+
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
 const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2})$/;

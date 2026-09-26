@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, TOWER_HEIGHT, MONSTERS } from './logic.js';
+import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, TOWER_HEIGHT, MONSTERS } from './logic.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -59,4 +59,21 @@ test('validBackup accepts only known paths and image data URLs', () => {
   assert.equal(validBackup({ ...ok, docs: [['habit/me', 'str']] }), false);
   assert.equal(validBackup({ ...ok, photos: [['p1', 'javascript:alert(1)']] }), false);
   assert.equal(validBackup(null), false);
+});
+
+test('coupleDays keeps only days both certified; the couple tower falls when either stops', () => {
+  const mine = D(run('2026-09-20', 3));
+  const theirs = { '2026-09-21': { assetId: 'u/x.jpg' }, '2026-09-22': {}, '2026-09-25': { assetId: 'u/y.jpg' } };
+  assert.deepEqual(coupleDays(mine, theirs), { '2026-09-21': { assetId: 'a1', partnerAssetId: 'u/x.jpg' } });
+  const c = coupleDays(D(run('2026-09-10', 16)), D(run('2026-09-10', 12))); // partner stopped after 12 days
+  assert.equal(towers(c, T).current, null);
+  assert.equal(pendingFall(c, T, null).keys.length, 12);
+});
+
+test('toUpload: my days the cloud lacks or has an older photo for', () => {
+  assert.equal(photoPath('u1', 'a0'), 'u1/a0.jpg');
+  const days = D(run('2026-09-23', 3), [['2026-09-26', {}]]);
+  const mine = { '2026-09-23': 'u1/a0.jpg', '2026-09-24': 'u1/old.jpg' };
+  assert.deepEqual(toUpload(days, mine, 'u1'), ['2026-09-24', '2026-09-25']);
+  assert.deepEqual(toUpload(days, {}, 'u1'), ['2026-09-23', '2026-09-24', '2026-09-25']);
 });
