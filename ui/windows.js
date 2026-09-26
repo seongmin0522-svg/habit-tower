@@ -59,10 +59,14 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
   </${Win}>`;
 }
 
+// Phones often reload the page while the user reads the mail, so the sign-in fields never hide
+// behind a "code sent" step and the address is remembered on this phone.
+const EMAIL_KEY = 'habit-tower-email';
+const lastEmail = () => { try { return localStorage.getItem(EMAIL_KEY) ?? ''; } catch { return ''; } };
+
 // Settings "커플" section: email code sign-in, name, invite code, leave, sign out.
 function CoupleBox({ cloud, api }) {
-  const [email, setEmail] = useState(cloud.email ?? '');
-  const [sent, setSent] = useState(false);
+  const [email, setEmail] = useState(cloud.email ?? lastEmail());
   const [code, setCode] = useState('');
   const [name, setName] = useState(cloud.name ?? '');
   const [msg, setMsg] = useState('');
@@ -77,15 +81,17 @@ function CoupleBox({ cloud, api }) {
   // Enter here must not submit the habit form around it.
   return html`<div class="backup couple" onKeyDown=${(e) => e.key === 'Enter' && e.preventDefault()}>
     <div class="lbl">커플 <span class="muted small">— 로그인하면 기록이 클라우드에도 올라가요</span></div>
-    ${!cloud.userId && !sent && html`<span>
+    ${!cloud.userId && html`<span>
       <input type="email" autocomplete="email" placeholder="이메일" value=${email} onInput=${val(setEmail)} />
       <button type="button" class="btn blue sm" disabled=${busy || !email.includes('@')}
-        onClick=${() => act(() => api.sendCode(email.trim()), () => setSent(true))}>코드 받기</button></span>`}
-    ${!cloud.userId && sent && html`<span>
+        onClick=${() => act(() => api.sendCode(email.trim()), () => {
+          try { localStorage.setItem(EMAIL_KEY, email.trim()); } catch {}
+          setMsg('메일로 온 숫자를 아래 칸에 넣어주세요');
+        })}>코드 받기</button></span>
+      <span>
       <input inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="메일로 온 숫자" value=${code} onInput=${val(setCode)} />
-      <button type="button" class="btn green sm" disabled=${busy || code.trim().length < 6}
-        onClick=${() => act(() => api.verify(email.trim(), code.trim()), () => setCode(''))}>로그인</button>
-      <button type="button" class="btn blue sm" onClick=${() => setSent(false)}>다시</button></span>`}
+      <button type="button" class="btn green sm" disabled=${busy || !email.includes('@') || code.trim().length < 6}
+        onClick=${() => act(() => api.verify(email.trim(), code.trim()), () => setCode(''))}>로그인</button></span>`}
     ${cloud.userId && html`
       <label>내 이름 <input maxlength="20" value=${name} onInput=${val(setName)}
         onBlur=${() => name.trim() !== (cloud.name ?? '') && act(() => api.setName(name))} /></label>
