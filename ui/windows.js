@@ -78,6 +78,7 @@ function CoupleBox({ cloud, api }) {
   const [email, setEmail] = useState(cloud.email ?? lastEmail());
   const [code, setCode] = useState('');
   const [name, setName] = useState(cloud.name ?? '');
+  const [title, setTitle] = useState(cloud.coupleTitle ?? '');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -114,7 +115,10 @@ function CoupleBox({ cloud, api }) {
             <button type="button" class="btn blue sm" onClick=${() => navigator.clipboard?.writeText(cloud.code).then(() => setMsg('복사했어요'))}>복사</button>
             <br /><span class="muted small">상대가 설정 → 커플에서 이 코드를 넣으면 연결돼요</span></p>`
         : html`<p class="muted small">상대와 연결이 끊겼어요. 연결 끊기 후 새로 만들어요.</p>`)}
-      ${cloud.partner && html`<p>❤ <b>${cloud.partner.name || '상대'}</b>와 연결됨</p>`}
+      ${cloud.partner && html`<p>❤ <b>${cloud.partner.name || '상대'}</b>와 연결됨</p>
+        <label>우리 탑 이름 <span class="muted small">— 둘 다 같이 보여요</span>
+          <input maxlength="40" placeholder="예: 같이 운동" value=${title} onInput=${val(setTitle)}
+            onBlur=${() => title.trim() !== (cloud.coupleTitle ?? '') && act(() => api.setCoupleTitle(title))} /></label>`}
       <span>
         ${cloud.coupleId && (leaving
           ? html`<button type="button" class="btn danger sm" disabled=${busy} onClick=${() => act(api.leave, () => setLeaving(false))}>정말 끊기</button>`

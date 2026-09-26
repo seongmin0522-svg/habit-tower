@@ -69,7 +69,7 @@ function App() {
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
   const built = past.filter((t) => t.kind === 'built').length;
-  const title = { me: state.habit?.title, couple: '❤ 우리 탑', partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
+  const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
   const doneToday = !!state.days[today]?.assetId;
   const ready = !!actions && state.loaded;
   const fail = (e) => setToast('실패: ' + (e?.message ?? e?.code ?? e));

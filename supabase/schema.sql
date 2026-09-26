@@ -3,6 +3,7 @@
 create table public.couples (
   id uuid primary key default gen_random_uuid(),
   invite_code text unique not null,
+  title text not null default '' check (char_length(title) <= 40), -- couple tower name, shared
   created_at timestamptz not null default now()
 );
 alter table public.couples enable row level security; -- no policies: reached only through the functions below
@@ -72,13 +73,29 @@ begin
   update public.profiles set couple_id = cid where id = me;
 end $$;
 
+-- Couple tower name: read and written only through these (couples stays closed to clients).
+create function public.couple_title() returns text
+language sql stable security definer set search_path = '' as $$
+  select c.title from public.couples c join public.profiles p on p.couple_id = c.id where p.id = (select auth.uid())
+$$;
+
+create function public.set_couple_title(t text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.couples set title = left(trim(t), 40)
+  where id = (select couple_id from public.profiles where id = auth.uid());
+  if not found then raise exception 'not in a couple'; end if;
+end $$;
+
 create function public.leave_couple() returns void
 language sql security definer set search_path = '' as $$
   update public.profiles set couple_id = null, couple_cut = null where id = (select auth.uid()); -- drop the bookmark too
 $$;
 
-revoke execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple() from public, anon;
-grant execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple() to authenticated;
+revoke execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple(),
+  public.couple_title(), public.set_couple_title(text) from public, anon;
+grant execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple(),
+  public.couple_title(), public.set_couple_title(text) to authenticated;
 
 -- profiles: read self + partner; write only your own row, never couple_id (functions only).
 create policy "profiles read own or partner" on public.profiles for select to authenticated

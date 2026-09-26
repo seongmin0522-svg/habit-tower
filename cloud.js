@@ -19,7 +19,7 @@ const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1
 const must = ({ data, error }) => { if (error) throw error; return data; };
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
-// { email, userId, coupleId, code, name, mine, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
+// { email, userId, coupleId, code, name, mine, coupleTitle, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -111,8 +111,9 @@ export async function openCloud(local, onChange) {
       }
     }
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
+    const coupleTitle = meRow?.couple_id ? must(await sb.rpc('couple_title')) ?? '' : '';
     await save({
-      me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine },
+      me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine, coupleTitle },
       partner: partner && { name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
       partnerDays,
       synced: true,
@@ -151,6 +152,11 @@ export async function openCloud(local, onChange) {
       const habit = (await db.doc('habit/me').get()).data();
       if (habit?.cutCouple) await db.doc('habit/me').set({ ...habit, cutCouple: null });
       await save({ me: { ...st.me, coupleId: null, code: null } });
+      await sync();
+    }),
+    setCoupleTitle: call(async (t) => {
+      must(await (await client()).rpc('set_couple_title', { t }));
+      await save({ me: { ...st.me, coupleTitle: t.trim().slice(0, 40) } });
       await sync();
     }),
     setName: call(async (name) => { await save({ me: { ...st.me, name: name.trim().slice(0, 20) } }); await sync(); }),
