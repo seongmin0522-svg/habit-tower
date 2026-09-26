@@ -21,8 +21,8 @@
 "오늘 인증" = `days`에 `(user_id, day = (now() at time zone 'Asia/Seoul')::date)` 행이 있음(방어권 행 포함 — 방어권은 어제만 채우므로 오늘엔 영향 없음).
 
 ## 서버
-- **VAPID 키**: 공개 키는 `config.js`, 비밀 키는 Supabase Vault(`vault.secrets` 이름 `vapid_private`). 저장소가 공개라 비밀 키는 절대 코드에 두지 않는다. Supabase CLI가 없고 MCP엔 Edge Function secret 설정이 없어서 Vault를 쓴다: `remind_config()`(security definer, `service_role`만 실행)가 Vault에서 `vapid_private`·`cron_secret`을 꺼내 준다.
-- **Edge Function `remind`**: 헤더 암호(Vault `cron_secret`)가 맞을 때만 동작. Edge Function 기본 env의 service role 키로 "오늘 인증 없는 사람의 `push_subs`"를 읽어 각각 푸시. 응답 404/410이면 그 행 삭제(죽은 주소표). JWT 검증 끔(cron이 부름), 대신 암호로 막음.
+- **VAPID 키**: 공개 키는 `config.js`, 비밀 키는 Supabase Vault(`vault.secrets` 이름 `vapid_keys`, 공개·비밀 JWK 한 쌍 JSON). 저장소가 공개라 비밀 키는 절대 코드에 두지 않는다. Supabase CLI가 없고 MCP엔 Edge Function secret 설정이 없어서 Vault를 쓴다: `remind_config()`(security definer, `service_role`만 실행)가 Vault에서 `vapid_keys`·`cron_secret`을 꺼내 준다.
+- **Edge Function `remind`**: 헤더 암호(Vault `cron_secret`)가 맞을 때만 동작. Edge Function 기본 env의 service role 키로 "오늘 인증 없는 사람의 `push_subs`"를 읽어 각각 푸시. 응답 404/410이면 그 행 삭제(죽은 주소표). JWT 검증 끔(cron이 부름), 대신 암호로 막음. 본문 `{"endpoint": "..."}`면 그 주소표 하나에만 보냄(인증 여부 무관, 수동 테스트·"알림 안 와요" 진단용).
 - **예약**: `pg_cron` 매일 `0 12 * * *`(UTC = 21:00 KST) → `pg_net`으로 `remind` 호출, 암호 헤더 포함. 암호는 Vault(`vault.secrets`)에서 읽는다.
 
 ## 클라이언트
@@ -42,4 +42,4 @@
 3. 도균님 플립 실기기. 여자친구는 본인 아이폰(홈 화면 앱)에서 직접 [켜기].
 
 ## Supabase 작업(각 단계 전 도균님 확인)
-표·함수 마이그레이션, Vault에 `vapid_private`·`cron_secret` 저장, Edge Function 배포, cron 등록. 전부 MCP로.
+표·함수 마이그레이션, Vault에 `vapid_keys`·`cron_secret` 저장, Edge Function 배포, cron 등록. 전부 MCP로.
