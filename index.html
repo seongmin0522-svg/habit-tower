@@ -166,6 +166,16 @@ input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inh
 .btn.danger { background: linear-gradient(#e0795a,#b8482c); border-color: #7a2a14; }
 .wipe { margin-top: 8px; padding: 6px 8px; background: #fbe3dc; border: 1px solid #d9937f; border-radius: 3px; } .wipe p { margin: 0 0 6px; }
 .toast { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); background: #2a2a2a; color: #fff; padding: 6px 12px; border-radius: 4px; z-index: 30; }
+/* Couple mode */
+.tabs { display: flex; background: #2a2a2a; border-bottom: 2px solid #777; }
+.tabs button { flex: 1; min-width: 0; background: none; border: 0; color: #bbb; padding: 6px 4px; font-weight: bold;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--gold); box-shadow: inset 0 -3px var(--gold); }
+.blk img.half, .carried img.half { float: left; width: 50%; }
+.duo { display: flex; } .duo figure { margin: 0; flex: 1; min-width: 0; } .duo figcaption { text-align: center; padding: 2px; }
+.couple > span { align-items: center; margin-bottom: 6px; } .couple input { width: auto; flex: 1; min-width: 0; margin: 0; }
+.couple input.code { text-transform: uppercase; max-width: 90px; }
+.invite { font-size: 18px; letter-spacing: 3px; color: #b36200; }
 </style>
 </head>
 <body>

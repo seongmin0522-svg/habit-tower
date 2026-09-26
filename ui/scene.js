@@ -40,12 +40,16 @@ function glide(el, to, ms, ease, done) {
 }
 
 // Lazy by default; eager for bricks that must show their photo the moment they move on screen.
-const Photo = ({ day, eager }) => day?.assetId &&
-  html`<img src=${photoUrl(day.assetId)} alt="" loading=${eager ? 'eager' : 'lazy'} decoding="async" draggable="false" />`;
+// A couple brick (partnerAssetId) shows both photos side by side.
+const Photo = ({ day, eager }) => {
+  if (!day?.assetId) return null;
+  const img = (id, cls) => html`<img class=${cls} src=${photoUrl(id)} alt="" loading=${eager ? 'eager' : 'lazy'} decoding="async" draggable="false" />`;
+  return day.partnerAssetId ? html`${img(day.assetId, 'half')}${img(day.partnerAssetId, 'half')}` : img(day.assetId);
+};
 
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
 // onDone: the stack sequence (incl. the camera trip) finished.
-export function Scene({ character, keys, days, anim, rubble, onBlock, onDone }) {
+export function Scene({ character, partnerCharacter, keys, days, anim, rubble, onBlock, onDone }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
@@ -97,6 +101,7 @@ export function Scene({ character, keys, days, anim, rubble, onBlock, onDone }) 
       <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }}><${Photo} day=${days[shown.at(-1)]} eager /></i>
       <span class="mob" title=${buddy.name}><${Monster} id=${buddy.id} px=${3.5} /></span>
       <span class="hero"><${Sprite} id=${character} px=${3.5} /></span>
+      ${partnerCharacter && html`<span class="hero"><${Sprite} id=${partnerCharacter} px=${3.5} /></span>`}
       <span class="stars">★ ☆ ★</span>
     </div>
     <div class="tower">

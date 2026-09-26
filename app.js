@@ -1,12 +1,13 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, TOWER_HEIGHT } from './logic.js';
-import { connect, connectAssets, subscribe, makeActions, localBackup, MODE } from './db.js';
+import { todayKST, towers, pendingFall, coupleDays, toUpload, TOWER_HEIGHT } from './logic.js';
+import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE } from './db.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
+const EMPTY = {};
 
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
@@ -15,9 +16,12 @@ function App() {
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
-  const [fall, setFall] = useState(null);   // the fallen tower whose notice is up
+  const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
   const [modal, setModal] = useState(null); // null | 'setup' | 'album' | {key, n}
   const [busy, setBusy] = useState(false);
+  const [cloud, setCloud] = useState(null);       // couple-mode state from cloud.js; null = off
+  const [cloudApi, setCloudApi] = useState(null);
+  const [tab, setTab] = useState('couple');       // 'me' | 'couple' | 'partner', only while coupled
   const stateRef = useRef(state);
   stateRef.current = state;
 
@@ -26,6 +30,7 @@ function App() {
     connect().then(setDb, () => setDb(null));
     connectAssets().then(setAssets, () => setAssets(null));
     localBackup().then(setBackup, () => {});
+    localStore().then((l) => l && import('./cloud.js').then((m) => m.openCloud(l, setCloud))).then(setCloudApi, () => {});
   }, []);
   useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
   useEffect(() => {
@@ -36,26 +41,55 @@ function App() {
     document.addEventListener('visibilitychange', onShow);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow); };
   }, []);
+  // Couple mode syncs on launch and whenever the app comes back to the front.
+  useEffect(() => {
+    if (!cloudApi) return;
+    cloudApi.sync();
+    const onShow = () => document.visibilityState === 'visible' && cloudApi.sync();
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, [cloudApi]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
   const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current), [db, assets]);
 
-  const { current, past } = useMemo(() => towers(state.days, today), [state.days, today]);
+  const partner = cloud?.partner;
+  const coupled = !!partner;
+  const pdays = cloud?.partnerDays ?? EMPTY;
+  const cdays = useMemo(() => coupleDays(state.days, pdays), [state.days, pdays]);
+  const views = useMemo(() => ({
+    me: towers(state.days, today), couple: towers(cdays, today), partner: towers(pdays, today),
+  }), [state.days, cdays, pdays, today]);
+  const view = coupled ? tab : 'me';
+  const { current, past } = views[view];
+  const days = { me: state.days, couple: cdays, partner: pdays }[view];
+  const partnerName = partner?.name || '상대';
+  const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
   const built = past.filter((t) => t.kind === 'built').length;
+  const title = { me: state.habit?.title, couple: '❤ 우리 탑', partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
   const doneToday = !!state.days[today]?.assetId;
   const ready = !!actions && state.loaded;
   const fail = (e) => setToast('실패: ' + (e?.message ?? e?.code ?? e));
 
   // A collapse plays once, the first time the page sees it — also when midnight passes with the page open.
-  const fallChecked = useRef('');
+  // My tower first, then the couple tower; the couple one only after this launch has synced,
+  // so a stale partner cache never fakes a collapse.
+  const fallChecked = useRef({});
   useEffect(() => {
-    if (!state.loaded || !state.habit || fallChecked.current === today) return;
-    fallChecked.current = today;
-    const pf = pendingFall(state.days, today, state.habit.seenFall);
+    if (!state.loaded || !state.habit || anim || fall) return;
+    const check = (scope, d, seen) => {
+      if (fallChecked.current[scope] === today) return null;
+      fallChecked.current[scope] = today;
+      const pf = pendingFall(d, today, seen);
+      return pf && { ...pf, scope };
+    };
+    const pf = check('me', state.days, state.habit.seenFall)
+      ?? (coupled && cloud.synced ? check('couple', cdays, state.habit.seenCoupleFall) : null);
     if (!pf) return;
+    if (coupled) setTab(pf.scope);
     setAnim({ kind: 'fall', keys: pf.keys });
     setTimeout(() => setFall(pf), FALL_MS);
-  }, [state.loaded, state.habit, today]);
+  }, [state.loaded, state.habit, today, anim, fall, coupled, cloud?.synced, cdays]);
 
   // Export is two taps: building the file can take seconds with many photos, and the share sheet
   // only opens right after a tap (Safari is strict), so "저장하기" gets its own fresh tap.
@@ -74,13 +108,17 @@ function App() {
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   };
-  const onReset = () => backup.reset().then(() => location.reload(), fail);
+  // Signed in: the cloud copy goes first, so a failed wipe (offline) leaves everything as it was.
+  const onReset = () => (cloud?.userId ? cloudApi.wipe() : Promise.resolve())
+    .then(() => backup.reset()).then(() => location.reload(), fail);
   const onImport = (file) => backup.restore(file).then((r) => {
     setModal(null);
     setToast(`복원 완료: 기록 ${r.days}일 · 사진 ${r.photos}장`);
+    cloudApi?.sync();
   }, fail);
 
-  const ackFall = () => actions.ackFall(fall.keys.at(-1)).then(() => { setFall(null); setAnim(null); }, fail);
+  const ackFall = () => actions.ackFall(fall.keys.at(-1), fall.scope === 'couple' ? 'seenCoupleFall' : 'seenFall')
+    .then(() => { setFall(null); setAnim(null); }, fail);
 
   const onPhoto = async (e) => {
     const file = e.target.files?.[0];
@@ -90,10 +128,15 @@ function App() {
     let t;
     try {
       // Start the walk-in before the block appears, so it never flashes on top first.
+      // If my partner already certified today, the brick goes on the couple tower.
       const r = await actions.certify(file, ({ retake }) => {
-        if (!retake) { setAnim({ kind: 'stack' }); t = setTimeout(() => setAnim(null), STACK_MS); }
+        if (retake) return;
+        if (coupled) setTab(pdays[today]?.assetId ? 'couple' : 'me');
+        setAnim({ kind: 'stack' });
+        t = setTimeout(() => setAnim(null), STACK_MS);
       });
       if (r.retake) setToast('오늘 사진을 바꿨어요');
+      cloudApi?.sync();
     } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
   };
 
@@ -114,11 +157,12 @@ function App() {
       if (history.state?.win) history.back(); // closed by ✕: drop the entry we pushed
     };
   }, [!!modal]);
+  const partnerDone = !!pdays[today]?.assetId;
   return html`
     ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
     <header class="hud">
       <div class="ttlbox">
-        <b>${state.habit?.title ?? '해빗 타워'}</b>
+        <b>${title}</b>
         <span class="gold">${keys.length}/${TOWER_HEIGHT}층</span>
         ${built > 0 && html`<span title="완성한 탑">🏰×${built}</span>`}
       </div>
@@ -127,36 +171,48 @@ function App() {
         <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => setModal('setup')}>설정</button>
       </span>
     </header>
+    ${coupled && html`<nav class="tabs" role="tablist">${[['me', '나'], ['couple', '❤ 커플'], ['partner', partnerName]].map(([id, label]) => html`
+      <button key=${id} role="tab" aria-selected=${view === id} disabled=${!!anim || !!fall}
+        onClick=${() => { setTab(id); cloudApi?.sync(); }}>${label}</button>`)}</nav>`}
     <main class="stage">
       <div class="world">
-        ${state.habit && html`<${Scene} character=${state.habit.character} keys=${keys} days=${state.days} anim=${anim}
-          rubble=${past[0]?.kind === 'fell'} onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
+        ${state.habit && html`<${Scene} key=${view}
+          character=${view === 'partner' ? partner.character : state.habit.character}
+          partnerCharacter=${view === 'couple' ? partner.character : null}
+          keys=${keys} days=${days} anim=${anim} rubble=${past[0]?.kind === 'fell'}
+          onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
           onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
         <div class="ground" />
       </div>
     </main>
     <footer class="bar">
       ${!state.habit ? null
-        : doneToday
-          ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}`
-          : camera('📷 인증하고 쌓기', 'green big')}
+        : view === 'partner'
+          ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? '오늘 완료 ✓' : '오늘 아직'}</span>`
+          : doneToday
+            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}`
+            : camera('📷 인증하고 쌓기', 'green big')}
+      ${pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
-      onSave=${(f) => actions.setHabit(f).then(() => setModal(null), fail)} />`}
-    ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${state.days}
+      cloud=${cloud} cloudApi=${cloudApi}
+      onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
+    ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
-    ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...state.days[modal.key] }} n=${modal.n} onClose=${() => setModal(null)} />`}
-    ${fall && html`<${FallNotice} floors=${fall.keys.length} onOk=${ackFall} />`}
+    ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...days[modal.key] }} n=${modal.n}
+      names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)} />`}
+    ${fall && html`<${FallNotice} floors=${fall.keys.length} onOk=${ackFall}
+      title=${fall.scope === 'couple' ? '우리 탑이 무너졌어요' : undefined} />`}
     ${toast && html`<div class="toast" role="alert">${toast}</div>`}
   `;
 }
 
 render(html`<${App} />`, document.getElementById('app'));
 
-// Installed-app shell: offline start and "앱 설치" in Chrome. Not in claude.ai, ?dev or on localhost,
+// Installed-app shell: offline start and "앱 설치" in Chrome. Not in claude.ai, ?dev or on localhost/127.0.0.1,
 // where a cache-first worker would serve yesterday's code during development.
-if (MODE === 'local' && location.hostname !== 'localhost' && 'serviceWorker' in navigator) {
+if (MODE === 'local' && !['localhost', '127.0.0.1'].includes(location.hostname) && 'serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
