@@ -12,20 +12,23 @@ function Win({ title, onClose, children, cls = '' }) {
   </div>`;
 }
 
-export function Setup({ habit, onSave, onClose, backup, onExport, onImport, onReset }) {
+export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, onImport, onReset }) {
   const [title, setTitle] = useState(habit?.title ?? '');
   const [character, setCharacter] = useState(habit?.character ?? CHARACTERS[0].id);
   const [saving, setSaving] = useState(false);
   const [wipe, setWipe] = useState(false); // reset asks once more before deleting
+  const [out, setOut] = useState(null);    // export: null | 'busy' | the prepared File
+  const prepare = () => { setOut('busy'); onExport().then(setOut, () => setOut(null)); };
   const submit = (e) => {
     e.preventDefault();
     setSaving(true);
     onSave({ title, character }).finally(() => setSaving(false));
   };
+  // Title autofocus only on first run: on a phone it would pop the keyboard every time settings open.
   return html`<${Win} title=${habit ? '습관 설정' : '해빗 타워 시작'} onClose=${habit && onClose} cls="setup-win">
     <form class="body pad" onSubmit=${submit}>
       <label>어떤 습관을 쌓을까요?
-        <input value=${title} onInput=${(e) => setTitle(e.target.value)} maxlength="40" placeholder="예: 운동 30분" required autofocus /></label>
+        <input value=${title} onInput=${(e) => setTitle(e.target.value)} maxlength="40" placeholder="예: 운동 30분" required autofocus=${!habit} /></label>
       <div class="lbl">함께 쌓을 캐릭터</div>
       <div class="chars">${CHARACTERS.map((c) => html`
         <button type="button" class=${'char' + (c.id === character ? ' sel' : '')} onClick=${() => setCharacter(c.id)} aria-pressed=${c.id === character}>
@@ -36,7 +39,9 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onImport, onRe
       ${backup && html`<div class="backup">
         <div class="lbl">백업 <span class="muted small">— 기록과 사진은 이 폰에만 있어요. 가끔 내보내 두세요.</span></div>
         <span>
-          <button type="button" class="btn blue sm" disabled=${!habit} onClick=${onExport}>내보내기</button>
+          ${out instanceof File
+            ? html`<button type="button" class="btn green sm" onClick=${() => onSaveFile(out)}>📤 저장하기 (${Math.max(1, Math.round(out.size / 1024))}KB)</button>`
+            : html`<button type="button" class="btn blue sm" disabled=${!habit || out === 'busy'} onClick=${prepare}>${out === 'busy' ? '준비 중…' : '내보내기'}</button>`}
           <label class="btn blue sm">${habit ? '가져오기' : '백업에서 복원'}<input type="file" accept="application/json,.json" hidden
             onChange=${(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onImport(f); }} /></label>
           ${habit && !wipe && html`<button type="button" class="btn danger sm" onClick=${() => setWipe(true)}>초기화</button>`}

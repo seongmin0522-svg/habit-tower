@@ -57,22 +57,22 @@ function App() {
     setTimeout(() => setFall(pf), FALL_MS);
   }, [state.loaded, state.habit, today]);
 
+  // Export is two taps: building the file can take seconds with many photos, and the share sheet
+  // only opens right after a tap (Safari is strict), so "저장하기" gets its own fresh tap.
+  const onExport = () => backup.save()
+    .then((blob) => new File([blob], `habit-tower-backup-${today}.json`, { type: 'application/json' }))
+    .catch((e) => { fail(e); throw e; });
   // Share sheet where it can take files ("파일에 저장" on iPhone, Drive on Android), else a plain download.
-  const onExport = async () => {
-    try {
-      const name = `habit-tower-backup-${today}.json`;
-      const blob = await backup.save();
-      const file = new File([blob], name, { type: 'application/json' });
-      if (navigator.canShare?.({ files: [file] })) {
-        try { await navigator.share({ files: [file], title: name }); } catch (e) { if (e.name !== 'AbortError') throw e; }
-        return;
-      }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = name;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10000);
-    } catch (e) { fail(e); }
+  const onSaveFile = (file) => {
+    if (navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file], title: file.name }).catch((e) => e.name !== 'AbortError' && fail(e));
+      return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10000);
   };
   const onReset = () => backup.reset().then(() => location.reload(), fail);
   const onImport = (file) => backup.restore(file).then((r) => {
@@ -143,7 +143,7 @@ function App() {
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}
-      backup=${backup} onExport=${onExport} onImport=${onImport} onReset=${onReset}
+      backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       onSave=${(f) => actions.setHabit(f).then(() => setModal(null), fail)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${state.days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
