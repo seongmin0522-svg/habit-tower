@@ -4,8 +4,11 @@ import { createDevDb } from './devdb.js';
 import { validBackup } from './logic.js';
 
 const open = () => new Promise((ok, no) => {
-  const r = indexedDB.open('habit-tower', 1);
-  r.onupgradeneeded = () => { r.result.createObjectStore('docs'); r.result.createObjectStore('photos'); };
+  const r = indexedDB.open('habit-tower', 2);
+  r.onupgradeneeded = (e) => {
+    if (e.oldVersion < 1) { r.result.createObjectStore('docs'); r.result.createObjectStore('photos'); }
+    if (e.oldVersion < 2) r.result.createObjectStore('cloud'); // couple mode: 'me', 'partner', 'partnerDays', 'ph:<path>' photos
+  };
   r.onsuccess = () => ok(r.result);
   r.onerror = () => no(r.error);
 });
@@ -37,6 +40,7 @@ export async function openLocal(urls) {
   const mem = createDevDb();
   for (const [path, body] of await entries(idb, 'docs')) await mem.doc(path).set(body);
   for (const [id, blob] of await entries(idb, 'photos')) urls.set(id, URL.createObjectURL(blob));
+  for (const [k, blob] of await entries(idb, 'cloud')) if (k.startsWith('ph:')) urls.set(k.slice(3), URL.createObjectURL(blob));
 
   // Disk first, then memory: a failed write never shows up as saved.
   const doc = (path) => {
@@ -46,10 +50,14 @@ export async function openLocal(urls) {
   const db = { doc, collection: mem.collection };
 
   const assets = {
-    async upload(blob) {
-      const id = crypto.randomUUID();
+    get: (id) => run(idb, 'photos', 'readonly', (s) => s.get(id)),
+    async put(id, blob) {
       await run(idb, 'photos', 'readwrite', (s) => s.put(blob, id));
       urls.set(id, URL.createObjectURL(blob));
+    },
+    async upload(blob) {
+      const id = crypto.randomUUID();
+      await assets.put(id, blob);
       return { id, url: urls.get(id), sizeBytes: blob.size, contentType: blob.type };
     },
     async delete(id) {
@@ -57,6 +65,19 @@ export async function openLocal(urls) {
       URL.revokeObjectURL(urls.get(id));
       urls.delete(id);
       return { deleted: true };
+    },
+  };
+
+  // Couple-mode cache. Partner photos live under 'ph:<cloud path>' and show through photoUrl(path).
+  const cloud = {
+    get: (k) => run(idb, 'cloud', 'readonly', (s) => s.get(k)),
+    put: (k, v) => run(idb, 'cloud', 'readwrite', (s) => s.put(v, k)),
+    keys: () => run(idb, 'cloud', 'readonly', (s) => s.getAllKeys()),
+    async putPhoto(path, blob) { await cloud.put('ph:' + path, blob); urls.set(path, URL.createObjectURL(blob)); },
+    async dropPhoto(path) {
+      await run(idb, 'cloud', 'readwrite', (s) => s.delete('ph:' + path));
+      URL.revokeObjectURL(urls.get(path));
+      urls.delete(path);
     },
   };
 
@@ -82,9 +103,9 @@ export async function openLocal(urls) {
     },
     // Wipes every record and photo on this phone. The caller reloads the page afterwards.
     async reset() {
-      for (const store of ['docs', 'photos']) await run(idb, store, 'readwrite', (s) => s.clear());
+      for (const store of ['docs', 'photos', 'cloud']) await run(idb, store, 'readwrite', (s) => s.clear());
     },
   };
 
-  return { db, assets, backup };
+  return { db, assets, cloud, backup };
 }

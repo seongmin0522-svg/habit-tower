@@ -16,6 +16,7 @@ export const photoUrl = (id) => devUrls.get(id) ?? `/_blob/${id}`;
 let local; // one IndexedDB connection shared by db, assets and backup
 const openLocalOnce = () => (local ??= import('./localdb.js').then((m) => m.openLocal(devUrls)));
 export const localBackup = () => (MODE === 'local' ? openLocalOnce().then((l) => l.backup) : Promise.resolve(null));
+export const localStore = () => (MODE === 'local' ? openLocalOnce() : Promise.resolve(null));
 
 export async function connect() {
   if (MODE === 'artifact') return window.claude.use('db');
@@ -116,9 +117,9 @@ export function makeActions(db, assets, getState) {
       return { retake: !!old };
     },
 
-    async ackFall(endKey) {
+    async ackFall(endKey, field = 'seenFall') {
       const s = ready();
-      await db.doc('habit/me').set({ ...s.habit, seenFall: endKey });
+      await db.doc('habit/me').set({ ...s.habit, [field]: endKey });
     },
   };
 }
