@@ -186,6 +186,9 @@ function App() {
     ${coupled && html`<nav class="tabs" role="tablist">${[['me', '나'], ['couple', '❤ 커플'], ['partner', partnerName]].map(([id, label]) => html`
       <button key=${id} role="tab" aria-selected=${view === id} disabled=${!!anim || !!fall}
         onClick=${() => { setTab(id); cloudApi?.sync(); }}>${label}</button>`)}</nav>`}
+    ${view === 'couple' && cloud?.coupleReward && html`<div class="reward">${keys.length === TOWER_HEIGHT
+      ? `🎉 보상 받을 시간! ${cloud.coupleReward}`
+      : `🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
     <main class="stage">
       <div class="world">
         ${state.habit && html`<${Scene} key=${view}

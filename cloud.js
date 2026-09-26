@@ -19,7 +19,7 @@ const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1
 const must = ({ data, error }) => { if (error) throw error; return data; };
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
-// { email, userId, coupleId, code, name, mine, coupleTitle, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
+// { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, partner: {name, character, habit, coupleCut} | null, partnerDays, synced }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -111,9 +111,10 @@ export async function openCloud(local, onChange) {
       }
     }
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
-    const coupleTitle = meRow?.couple_id ? must(await sb.rpc('couple_title')) ?? '' : '';
+    const info = (meRow?.couple_id && must(await sb.rpc('couple_info'))) || {};
     await save({
-      me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine, coupleTitle },
+      me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
+        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '' },
       partner: partner && { name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
       partnerDays,
       synced: true,
@@ -154,9 +155,11 @@ export async function openCloud(local, onChange) {
       await save({ me: { ...st.me, coupleId: null, code: null } });
       await sync();
     }),
-    setCoupleTitle: call(async (t) => {
-      must(await (await client()).rpc('set_couple_title', { t }));
-      await save({ me: { ...st.me, coupleTitle: t.trim().slice(0, 40) } });
+    // Shared couple texts; pass only the ones to change.
+    setCoupleInfo: call(async ({ title, reward }) => {
+      must(await (await client()).rpc('set_couple_info', { new_title: title ?? null, new_reward: reward ?? null }));
+      const trim = (v, old) => (v == null ? old : v.trim().slice(0, 40));
+      await save({ me: { ...st.me, coupleTitle: trim(title, st.me.coupleTitle), coupleReward: trim(reward, st.me.coupleReward) } });
       await sync();
     }),
     setName: call(async (name) => { await save({ me: { ...st.me, name: name.trim().slice(0, 20) } }); await sync(); }),

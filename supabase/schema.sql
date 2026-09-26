@@ -4,6 +4,7 @@ create table public.couples (
   id uuid primary key default gen_random_uuid(),
   invite_code text unique not null,
   title text not null default '' check (char_length(title) <= 40), -- couple tower name, shared
+  reward text not null default '' check (char_length(reward) <= 40), -- 30-floor reward, shared
   created_at timestamptz not null default now()
 );
 alter table public.couples enable row level security; -- no policies: reached only through the functions below
@@ -73,16 +74,19 @@ begin
   update public.profiles set couple_id = cid where id = me;
 end $$;
 
--- Couple tower name: read and written only through these (couples stays closed to clients).
-create function public.couple_title() returns text
+-- Shared couple texts (tower name, 30-floor reward): read and written only through these
+-- (couples stays closed to clients). In set_couple_info, null leaves a field as it is.
+create function public.couple_info() returns json
 language sql stable security definer set search_path = '' as $$
-  select c.title from public.couples c join public.profiles p on p.couple_id = c.id where p.id = (select auth.uid())
+  select json_build_object('title', c.title, 'reward', c.reward)
+  from public.couples c join public.profiles p on p.couple_id = c.id where p.id = (select auth.uid())
 $$;
 
-create function public.set_couple_title(t text) returns void
+create function public.set_couple_info(new_title text default null, new_reward text default null) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
-  update public.couples set title = left(trim(t), 40)
+  update public.couples
+  set title = coalesce(left(trim(new_title), 40), title), reward = coalesce(left(trim(new_reward), 40), reward)
   where id = (select couple_id from public.profiles where id = auth.uid());
   if not found then raise exception 'not in a couple'; end if;
 end $$;
@@ -93,9 +97,9 @@ language sql security definer set search_path = '' as $$
 $$;
 
 revoke execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple(),
-  public.couple_title(), public.set_couple_title(text) from public, anon;
+  public.couple_info(), public.set_couple_info(text, text) from public, anon;
 grant execute on function public.partner_id(), public.create_couple(), public.join_couple(text), public.leave_couple(),
-  public.couple_title(), public.set_couple_title(text) to authenticated;
+  public.couple_info(), public.set_couple_info(text, text) to authenticated;
 
 -- profiles: read self + partner; write only your own row, never couple_id (functions only).
 create policy "profiles read own or partner" on public.profiles for select to authenticated

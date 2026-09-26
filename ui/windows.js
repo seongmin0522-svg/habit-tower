@@ -79,6 +79,7 @@ function CoupleBox({ cloud, api }) {
   const [code, setCode] = useState('');
   const [name, setName] = useState(cloud.name ?? '');
   const [title, setTitle] = useState(cloud.coupleTitle ?? '');
+  const [reward, setReward] = useState(cloud.coupleReward ?? '');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -118,7 +119,10 @@ function CoupleBox({ cloud, api }) {
       ${cloud.partner && html`<p>❤ <b>${cloud.partner.name || '상대'}</b>와 연결됨</p>
         <label>우리 탑 이름 <span class="muted small">— 둘 다 같이 보여요</span>
           <input maxlength="40" placeholder="예: 같이 운동" value=${title} onInput=${val(setTitle)}
-            onBlur=${() => title.trim() !== (cloud.coupleTitle ?? '') && act(() => api.setCoupleTitle(title))} /></label>`}
+            onBlur=${() => title.trim() !== (cloud.coupleTitle ?? '') && act(() => api.setCoupleInfo({ title }))} /></label>
+        <label>${TOWER_HEIGHT}층 보상 <span class="muted small">— 커플 탑이 완성되면 해줄 것</span>
+          <input maxlength="40" placeholder="예: 삼겹살 🍖" value=${reward} onInput=${val(setReward)}
+            onBlur=${() => reward.trim() !== (cloud.coupleReward ?? '') && act(() => api.setCoupleInfo({ reward }))} /></label>`}
       <span>
         ${cloud.coupleId && (leaving
           ? html`<button type="button" class="btn danger sm" disabled=${busy} onClick=${() => act(api.leave, () => setLeaving(false))}>정말 끊기</button>`
