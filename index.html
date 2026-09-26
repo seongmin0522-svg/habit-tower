@@ -2,11 +2,14 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>해빗 타워</title>
 <meta name="theme-color" content="#2a2a2a">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="해빗 타워">
 <style>
 @font-face { font-family: Galmuri11; src: url(fonts/Galmuri11.woff2) format('woff2'); font-display: swap; }
 :root {
@@ -37,7 +40,8 @@ button:disabled { opacity: .5; cursor: default; }
 .hud .ttlbox { display: flex; gap: 10px; align-items: baseline; min-width: 0; }
 .hud .ttlbox b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hud > span { display: flex; gap: 4px; flex: none; }
-.bar { justify-content: center; border-top-width: 2px; min-height: 52px; }
+.bar { justify-content: center; border-top-width: 2px; min-height: 52px; padding-bottom: calc(6px + env(safe-area-inset-bottom)); } /* iPhone home bar */
+.hud { padding-top: calc(6px + env(safe-area-inset-top)); }
 .done { color: #9bf07a; font-weight: bold; font-size: 14px; }
 
 .btn { color: #fff; border-radius: 3px; padding: 2px 8px; font-weight: bold; border: 1px solid; white-space: nowrap; display: inline-block; }
@@ -158,7 +162,9 @@ input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inh
 .thumbs img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumbs span { position: absolute; left: 2px; bottom: 1px; color: #fff; font-size: 10px; text-shadow: 0 0 2px #000; }
 .backup { margin-top: 10px; border-top: 1px dotted var(--line); padding-top: 8px; }
-.backup > span { display: flex; gap: 6px; }
+.backup > span { display: flex; gap: 6px; flex-wrap: wrap; }
+.btn.danger { background: linear-gradient(#e0795a,#b8482c); border-color: #7a2a14; }
+.wipe { margin-top: 8px; padding: 6px 8px; background: #fbe3dc; border: 1px solid #d9937f; border-radius: 3px; } .wipe p { margin: 0 0 6px; }
 .toast { position: fixed; left: 50%; bottom: 70px; transform: translateX(-50%); background: #2a2a2a; color: #fff; padding: 6px 12px; border-radius: 4px; z-index: 30; }
 </style>
 </head>

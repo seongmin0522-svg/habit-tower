@@ -12,10 +12,11 @@ function Win({ title, onClose, children, cls = '' }) {
   </div>`;
 }
 
-export function Setup({ habit, onSave, onClose, backup, onExport, onImport }) {
+export function Setup({ habit, onSave, onClose, backup, onExport, onImport, onReset }) {
   const [title, setTitle] = useState(habit?.title ?? '');
   const [character, setCharacter] = useState(habit?.character ?? CHARACTERS[0].id);
   const [saving, setSaving] = useState(false);
+  const [wipe, setWipe] = useState(false); // reset asks once more before deleting
   const submit = (e) => {
     e.preventDefault();
     setSaving(true);
@@ -38,7 +39,13 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onImport }) {
           <button type="button" class="btn blue sm" disabled=${!habit} onClick=${onExport}>내보내기</button>
           <label class="btn blue sm">${habit ? '가져오기' : '백업에서 복원'}<input type="file" accept="application/json,.json" hidden
             onChange=${(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) onImport(f); }} /></label>
+          ${habit && !wipe && html`<button type="button" class="btn danger sm" onClick=${() => setWipe(true)}>초기화</button>`}
         </span>
+        ${wipe && html`<div class="wipe" role="alert">
+          <p><b>모든 기록과 사진을 이 폰에서 지울까요?</b><br /><span class="muted small">되돌릴 수 없어요. 필요하면 먼저 내보내기 하세요.</span></p>
+          <span><button type="button" class="btn danger sm" onClick=${onReset}>전부 지우기</button>
+            <button type="button" class="btn blue sm" onClick=${() => setWipe(false)}>취소</button></span>
+        </div>`}
       </div>`}
     </form>
   </${Win}>`;

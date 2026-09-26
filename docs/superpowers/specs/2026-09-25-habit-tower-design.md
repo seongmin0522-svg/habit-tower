@@ -78,3 +78,12 @@ claude.ai 비공개 Artifact. capabilities: `db`(기록), `assets`(사진). 로�
 - `manifest.webmanifest`(standalone, portrait, 아이콘 192/512 maskable) + `sw.js`(앱 셸·CDN stale-while-revalidate). dev/claude.ai에선 SW 등록 안 함.
 - 백업: 설정 창에 내보내기(JSON: docs + 사진 dataURL) / 가져오기(검증 `validBackup` 후 병합). 경로는 `habit/me`, `days/YYYY-MM-DD`만 허용.
 - 배포: GitHub Pages 공개 저장소 (데이터는 폰에만).
+
+## 변경 (2026-09-26): 아이폰 + 초기화 (1단계)
+- 아이폰: `apple-touch-icon`(180), `apple-mobile-web-app-capable/title`, `viewport-fit=cover` + 하단 바 `env(safe-area-inset-bottom)` 여백.
+- 사진 축소: `createImageBitmap` 실패 시 `<img>.decode()` 경로.
+- 백업 내보내기: `navigator.share({ files })` 가능하면 공유 창(아이폰 "파일에 저장", 안드로이드 드라이브), 아니면 다운로드.
+- 설정 창 **초기화**: 한 번 더 확인 → IndexedDB `docs`·`photos` 비우고 새로고침.
+
+## 다음 (2단계, 미설계): 커플 모드
+도균님 선택: 각자 탑 + 서로 탑·인증 사진 구경 + 둘 다 인증한 날만 쌓이는 커플 탑(한 명이라도 빼먹으면 붕괴). 두 폰이 데이터를 주고받아야 해서 클라우드 백엔드(Supabase 등, 도균님이 직접 가입) 필요. 1단계 로컬 기록은 클라우드로 옮길 수 있게 설계할 것.

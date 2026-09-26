@@ -80,6 +80,10 @@ export async function openLocal(urls) {
       for (const [path, body] of data.docs) await doc(path).set(body);
       return { days: data.docs.length - (data.docs.some(([p]) => p === 'habit/me') ? 1 : 0), photos: data.photos.length };
     },
+    // Wipes every record and photo on this phone. The caller reloads the page afterwards.
+    async reset() {
+      for (const store of ['docs', 'photos']) await run(idb, store, 'readwrite', (s) => s.clear());
+    },
   };
 
   return { db, assets, backup };

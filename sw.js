@@ -2,13 +2,13 @@
 // the page request decides — network if it answers within 2.5s, else the whole launch runs from cache
 // (weak signal in a gym basement shouldn't mean a blank screen). The CDN bundle is pinned by version,
 // so cache first. Photos are blob: URLs and never pass through here.
-const CACHE = 'habit-tower-v3';
+const CACHE = 'habit-tower-v4';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
   './', 'index.html', 'app.js', 'logic.js', 'db.js', 'localdb.js', 'devdb.js', 'manifest.webmanifest',
   'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js',
-  'fonts/Galmuri11.woff2', 'icons/icon-192.png', 'icons/icon-512.png',
+  'fonts/Galmuri11.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js',
 ];
 
