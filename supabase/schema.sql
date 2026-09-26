@@ -171,3 +171,38 @@ create table public.client_errors (
 alter table public.client_errors enable row level security;
 create policy "report errors" on public.client_errors for insert to anon, authenticated
   with check (user_id is null or user_id = (select auth.uid()));
+
+-- Push reminders (9pm KST if today has no brick). One row per phone subscription.
+-- The endpoint must be https: the remind function POSTs to it.
+create table public.push_subs (
+  endpoint text primary key check (endpoint like 'https://%' and char_length(endpoint) < 1000),
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  p256dh text not null check (char_length(p256dh) < 200),
+  auth text not null check (char_length(auth) < 100),
+  created_at timestamptz not null default now()
+);
+alter table public.push_subs enable row level security;
+create policy "push_subs own" on public.push_subs for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- For the remind Edge Function only (service_role). Secrets live in Vault: cron_secret, vapid_keys.
+create function public.remind_config() returns json
+language sql stable security definer set search_path = '' as $$
+  select json_build_object(
+    'cron_secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret'),
+    'vapid_keys', (select decrypted_secret::json from vault.decrypted_secrets where name = 'vapid_keys'))
+$$;
+
+-- Subscriptions of people with no row in days for today (KST).
+create function public.remind_targets() returns setof public.push_subs
+language sql stable security definer set search_path = '' as $$
+  select s.* from public.push_subs s
+  where not exists (select 1 from public.days d
+                    where d.user_id = s.user_id and d.day = (now() at time zone 'Asia/Seoul')::date)
+$$;
+
+revoke execute on function public.remind_config(), public.remind_targets() from public, anon, authenticated;
+grant execute on function public.remind_config(), public.remind_targets() to service_role;
+
+create extension if not exists pg_net with schema extensions; -- not public (advisor); its functions live in schema net
+create extension if not exists pg_cron;
