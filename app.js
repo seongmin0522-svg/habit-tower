@@ -170,6 +170,13 @@ function App() {
     };
   }, [!!modal]);
   const partnerDone = !!pdays[today]?.assetId;
+  // Nudge through the phone's share sheet (KakaoTalk etc.); no push server needed. Else copy the text.
+  const poke = () => {
+    const text = `${partnerName}! 오늘 ${partner.habit || '인증'} 아직이야 👉 우리 탑 무너진다 😱\n${location.origin}${location.pathname}`;
+    if (navigator.share) navigator.share({ text }).catch((e) => e.name !== 'AbortError' && fail(e));
+    else navigator.clipboard?.writeText(text).then(() => setToast('문구를 복사했어요 — 카톡에 붙여넣어 주세요'), fail);
+  };
+  const pokeBtn = coupled && !partnerDone && html`<button class="btn orange sm" onClick=${poke}>👉 콕 찌르기</button>`;
   return html`
     ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
     <header class="hud">
@@ -203,10 +210,10 @@ function App() {
     <footer class="bar">
       ${!state.habit ? null
         : view === 'partner'
-          ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? '오늘 완료 ✓' : '오늘 아직'}</span>`
+          ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? '오늘 완료 ✓' : '오늘 아직'}</span>${pokeBtn}`
           : doneToday
-            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}`
-            : camera('📷 인증하고 쌓기', 'green big')}
+            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}${view === 'couple' && pokeBtn}`
+            : html`${camera('📷 인증하고 쌓기', 'green big')}${view === 'couple' && pokeBtn}`}
       ${pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
