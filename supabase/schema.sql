@@ -157,3 +157,17 @@ create policy "photos update own" on storage.objects for update to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
 create policy "photos delete own" on storage.objects for delete to authenticated
   using (bucket_id = 'photos' and (storage.foldername(name))[1] = (select auth.uid())::text);
+
+-- Phone-only problems: the app writes uncaught errors here (text only). Write-only for clients; read in the dashboard.
+create table public.client_errors (
+  id bigint generated always as identity primary key,
+  at timestamptz not null default now(),
+  user_id uuid default auth.uid(),
+  message text not null check (char_length(message) <= 500),
+  stack text not null default '' check (char_length(stack) <= 2000),
+  ua text not null default '' check (char_length(ua) <= 300),
+  url text not null default '' check (char_length(url) <= 200)
+);
+alter table public.client_errors enable row level security;
+create policy "report errors" on public.client_errors for insert to anon, authenticated
+  with check (user_id is null or user_id = (select auth.uid()));

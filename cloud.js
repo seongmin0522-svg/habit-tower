@@ -2,6 +2,7 @@
 // My records live on the phone (localdb.js); the cloud copy lets my partner see them and lets a new phone
 // pull them back. Partner data is cached on the phone so their tower shows offline too.
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions } from './logic.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
@@ -143,6 +144,7 @@ export async function openCloud(local, onChange) {
     if (running) { again = true; return running; }
     running = doSync().catch((e) => {
       console.warn('sync failed', e);
+      report(`sync: ${e?.message ?? e}`, e?.stack);
       st.syncFailed = true;
       emit();
     }).finally(() => {

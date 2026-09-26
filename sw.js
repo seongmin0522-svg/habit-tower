@@ -8,7 +8,7 @@ const CACHE = 'habit-tower-v6';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
-  './', 'index.html', 'app.js', 'logic.js', 'db.js', 'localdb.js', 'devdb.js', 'cloud.js', 'config.js', 'image.js', 'manifest.webmanifest',
+  './', 'index.html', 'app.js', 'logic.js', 'db.js', 'localdb.js', 'devdb.js', 'cloud.js', 'config.js', 'image.js', 'report.js', 'manifest.webmanifest',
   'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js',
   'fonts/Galmuri11.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js',
