@@ -1,5 +1,6 @@
 import { html, useState } from './h.js';
 import { Sprite, CHARACTERS } from './sprites.js';
+import { TIER } from './scene.js';
 import { TOWER_HEIGHT } from '../logic.js';
 import { photoUrl } from '../db.js';
 
@@ -168,6 +169,33 @@ export function Photo({ day, n, names, mine, theirs, onClose }) {
   </${Win}>`;
 }
 
+// One tower's photos in floor order; tapping one opens it.
+function Thumbs({ keys, days, onPick }) {
+  return html`<div class="thumbs">${keys.map((k, i) => html`
+    <button key=${k} onClick=${() => onPick(k, i + 1)} aria-label=${`${k} 사진`}>
+      <img src=${photoUrl(days[k].assetId, true)} alt="" loading="lazy" /><span>${i + 1}</span>
+    </button>`)}</div>`;
+}
+
+// Hall of fame: every finished tower as a card (mini tower + top-floor photo); tap to see its floors.
+// built: finished towers, newest first (from towers().past).
+export function Shelf({ built, days, onPick, onClose }) {
+  const [open, setOpen] = useState(null);
+  return html`<${Win} title="🏰 명예의 전당" onClose=${onClose} cls="album-win">
+    <div class="body album shelf">${built.map((t, i) => html`
+      <section key=${t.keys[0]}>
+        <button class="trophy" aria-expanded=${open === t.keys[0]} onClick=${() => setOpen(open === t.keys[0] ? null : t.keys[0])}>
+          <span class="mini" aria-hidden="true">${t.keys.map((k, f) => html`<i key=${k} style=${{ background: TIER[Math.floor(f / 10)] }} />`)}🚩</span>
+          <img src=${photoUrl(days[t.keys.at(-1)].assetId, true)} alt="" loading="lazy" />
+          <span class="info"><b>🏰 ${built.length - i}번째 탑</b><small class="muted">${t.keys[0]} ~ ${t.keys.at(-1)}</small>
+            <small class="muted">${open === t.keys[0] ? '▲ 접기' : `▼ ${TOWER_HEIGHT}층 사진 보기`}</small></span>
+        </button>
+        ${open === t.keys[0] && html`<${Thumbs} keys=${t.keys} days=${days} onPick=${onPick} />`}
+      </section>`)}
+    </div>
+  </${Win}>`;
+}
+
 // current + past towers, newest first; each shows its photos in date order.
 export function Album({ current, past, days, onPick, onClose }) {
   const list = [...(current ? [{ ...current, kind: 'live' }] : []), ...past];
@@ -181,10 +209,7 @@ export function Album({ current, past, days, onPick, onClose }) {
     <div class="body album">${list.length === 0 ? html`<p class="empty">아직 인증 사진이 없어요</p>` : list.map((t) => html`
       <section key=${t.keys[0]}>
         <h3>${head(t)} <small class="muted">${t.keys[0]} ~ ${t.keys.at(-1)}</small></h3>
-        <div class="thumbs">${t.keys.map((k, i) => html`
-          <button key=${k} onClick=${() => onPick(k, i + 1)} aria-label=${`${k} 사진`}>
-            <img src=${photoUrl(days[k].assetId, true)} alt="" loading="lazy" /><span>${i + 1}</span>
-          </button>`)}</div>
+        <${Thumbs} keys=${t.keys} days=${days} onPick=${onPick} />
       </section>`)}
     </div>
   </${Win}>`;

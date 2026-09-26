@@ -2,7 +2,7 @@ import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE } from './db.js';
 import { Scene } from './ui/scene.js';
-import { Setup, Photo, Album, FallNotice } from './ui/windows.js';
+import { Setup, Photo, Album, Shelf, FallNotice } from './ui/windows.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
@@ -17,7 +17,7 @@ function App() {
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | {key, n}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | {key, n}
   const [busy, setBusy] = useState(false);
   const [cloud, setCloud] = useState(null);       // couple-mode state from cloud.js; null = off
   const [cloudApi, setCloudApi] = useState(null);
@@ -70,7 +70,8 @@ function App() {
   const badge = (k) => ({ me: { r: got[k] }, couple: { l: got[k], r: gave[k] }, partner: { r: gave[k] } })[view];
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
-  const built = past.filter((t) => t.kind === 'built').length;
+  const builtTowers = past.filter((t) => t.kind === 'built');
+  const built = builtTowers.length;
   const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
   const doneToday = !!state.days[today]?.assetId;
   const ready = !!actions && state.loaded;
@@ -203,7 +204,7 @@ function App() {
       <div class="ttlbox">
         <b>${title}</b>
         <span class="gold">${keys.length}/${TOWER_HEIGHT}층</span>
-        ${built > 0 && html`<span title="완성한 탑">🏰×${built}</span>`}
+        ${built > 0 && html`<button class="trophies" onClick=${() => setModal('shelf')} aria-label=${`완성한 탑 ${built}개 보기`}>🏰×${built}</button>`}
       </div>
       <span>
         <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('album')}>앨범</button>
@@ -244,6 +245,8 @@ function App() {
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
+      onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
+    ${modal === 'shelf' && html`<${Shelf} built=${builtTowers} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...days[modal.key] }} n=${modal.n}
       names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)}

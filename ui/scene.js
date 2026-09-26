@@ -4,7 +4,7 @@ import { Monster } from './monsters.js';
 import { TOWER_HEIGHT, buddyFor } from '../logic.js';
 import { photoUrl } from '../db.js';
 
-const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
+export const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
 
 // Fixed pseudo-random scatter per floor so re-renders never jump mid-collapse.
 const rnd = (i, s) => Math.sin(i * 12.9898 + s * 78.233) * 43758.5453 % 1;
