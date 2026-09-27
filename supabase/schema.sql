@@ -216,3 +216,44 @@ select cron.schedule('habit-remind', '0 12 * * *', $$
     body := '{}'::jsonb,
     timeout_milliseconds := 10000)
 $$);
+
+-- Rewards (2026-09-27): gacha box results, what each of us wears, the couple tower skin.
+-- pulls: one row per opened box, so a new phone gets its collection back. Only the owner reads them.
+create table public.pulls (
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  box text not null check (box ~ '^([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5})$'),
+  item text not null check (char_length(item) <= 40),
+  shiny boolean not null default false,
+  dup boolean not null default false,
+  at timestamptz,
+  primary key (user_id, box)
+);
+alter table public.pulls enable row level security;
+create policy "pulls own" on public.pulls for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+
+-- look: {monster, shiny, char, bg, brick, flag, badge} — my partner sees it.
+alter table public.profiles add column look jsonb not null default '{}'::jsonb check (pg_column_size(look) < 2000);
+grant insert (look), update (look) on public.profiles to authenticated; -- profiles writes are column-granted (see above)
+-- skin: {bg, brick, flag} for the couple tower; whoever changed it last wins.
+alter table public.couples add column skin jsonb not null default '{}'::jsonb check (pg_column_size(skin) < 1000);
+
+create or replace function public.couple_info() returns json
+language sql stable security definer set search_path = '' as $$
+  select json_build_object('title', c.title, 'reward', c.reward, 'skin', c.skin)
+  from public.couples c join public.profiles p on p.couple_id = c.id where p.id = (select auth.uid())
+$$;
+
+-- patch: only bg/brick/flag keys, each a short id or null (null = back to the default).
+create function public.set_couple_skin(patch jsonb) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if jsonb_typeof(patch) <> 'object' or exists (select 1 from jsonb_each(patch) e
+    where e.key not in ('bg', 'brick', 'flag') or jsonb_typeof(e.value) not in ('string', 'null') or char_length(e.value #>> '{}') > 40)
+  then raise exception 'bad skin'; end if;
+  update public.couples set skin = jsonb_strip_nulls(skin || patch)
+  where id = (select couple_id from public.profiles where id = auth.uid());
+  if not found then raise exception 'not in a couple'; end if;
+end $$;
+revoke execute on function public.set_couple_skin(jsonb) from public, anon;
+grant execute on function public.set_couple_skin(jsonb) to authenticated;

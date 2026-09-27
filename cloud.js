@@ -3,7 +3,7 @@
 // pull them back. Partner data is cached on the phone so their tower shows offline too.
 import { SUPABASE_URL, SUPABASE_KEY, VAPID_PUBLIC } from './config.js';
 import { report } from './report.js';
-import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions } from './logic.js';
+import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions, pullsToPush, pullsToRestore } from './logic.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
@@ -35,8 +35,8 @@ const dropSub = async (sb) => {
 const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
-// { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, got, gave,
-//   partner: {id, name, character, habit, coupleCut} | null, partnerDays, synced, syncFailed }.
+// { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, coupleSkin, got, gave,
+//   partner: {id, name, character, habit, coupleCut, look} | null, partnerDays, synced, syncFailed }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -66,7 +66,8 @@ export async function openCloud(local, onChange) {
     return sb;
   }, (e) => { sbP = null; throw e; }));
   const session = async () => (await (await client()).auth.getSession()).data.session;
-  const localDays = async () => Object.fromEntries((await db.collection('days').get()).docs.map((d) => [d.id, d.data()]));
+  const localDocs = async (c) => Object.fromEntries((await db.collection(c).get()).docs.map((d) => [d.id, d.data()]));
+  const localDays = () => localDocs('days');
 
   async function doSync() {
     const sb = await client();
@@ -77,7 +78,7 @@ export async function openCloud(local, onChange) {
       const sub = await (await pushReg())?.pushManager.getSubscription();
       if (sub) await saveSub(sb, sub).catch((e) => report('push resave: ' + e.message)); // never blocks the sync
     }
-    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut'));
+    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut, look'));
     const meRow = profs.find((p) => p.id === uid);
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
@@ -89,9 +90,12 @@ export async function openCloud(local, onChange) {
       if (path) await assets.put(doc.assetId, must(await sb.storage.from(BUCKET).download(path)));
       await db.doc(`days/${day}`).set(doc);
     }
+    // Box results too: a new phone gets its collection back, and its opened boxes stay opened.
+    const pullRows = must(await sb.from('pulls').select('box, item, shiny, dup, at').eq('user_id', uid));
+    for (const { box, doc } of pullsToRestore(pullRows, await localDocs('pulls'))) await db.doc(`pulls/${box}`).set(doc);
     let habit = (await db.doc('habit/me').get()).data();
     if (!habit && meRow?.habit) {
-      habit = { title: meRow.habit, character: meRow.character, seenFall: null, cutCouple: meRow.couple_cut ?? null };
+      habit = { title: meRow.habit, character: meRow.character, seenFall: null, cutCouple: meRow.couple_cut ?? null, look: meRow.look ?? {} };
       await db.doc('habit/me').set(habit);
     }
 
@@ -118,10 +122,15 @@ export async function openCloud(local, onChange) {
       must(await sb.from('days').update({ note: days[day].note ?? '' }).eq('user_id', uid).eq('day', day));
     }
 
+    const pulls = await localDocs('pulls');
+    const newPulls = pullsToPush(pulls, pullRows).map((box) => ({
+      user_id: uid, box, item: pulls[box].item, shiny: !!pulls[box].shiny, dup: !!pulls[box].dup, at: pulls[box].at || null }));
+    if (newPulls.length) must(await sb.from('pulls').upsert(newPulls));
+
     const name = st.me.name || meRow?.name || '';
     if (habit) {
       must(await sb.from('profiles').upsert({
-        id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null,
+        id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null, look: habit.look ?? {},
         updated_at: new Date().toISOString(),
       }));
     }
@@ -146,8 +155,9 @@ export async function openCloud(local, onChange) {
     const { got, gave } = splitReactions(must(await sb.from('reactions').select('owner, day, emoji')), uid);
     await save({
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
-        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', got, gave },
-      partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut },
+        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', coupleSkin: info.skin ?? {}, got, gave },
+      partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut,
+        look: partner.look ?? {} },
       partnerDays,
       synced: true,
       syncFailed: false,
@@ -218,6 +228,14 @@ export async function openCloud(local, onChange) {
       await save({ me: { ...st.me, coupleTitle: trim(title, st.me.coupleTitle), coupleReward: trim(reward, st.me.coupleReward) } });
       await sync();
     }),
+    // Couple tower skin {bg, brick, flag}: pass only the ones to change, null back to the default.
+    setCoupleSkin: call(async (patch) => {
+      must(await (await client()).rpc('set_couple_skin', { patch }));
+      const skin = { ...st.me.coupleSkin, ...patch };
+      for (const k in skin) if (skin[k] == null) delete skin[k];
+      await save({ me: { ...st.me, coupleSkin: skin } });
+      await sync();
+    }),
     setName: call(async (name) => { await save({ me: { ...st.me, name: name.trim().slice(0, 20) } }); await sync(); }),
     // One reaction per photo; null takes it back. Needs a connection (no offline queue).
     react: call(async (day, emoji) => {
@@ -247,6 +265,7 @@ export async function openCloud(local, onChange) {
         if (!gone.length) throw new Error('클라우드 사진을 지우지 못했어요'); // a silent refusal would loop forever
       }
       must(await sb.from('days').delete().eq('user_id', uid));
+      must(await sb.from('pulls').delete().eq('user_id', uid));
       await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });
