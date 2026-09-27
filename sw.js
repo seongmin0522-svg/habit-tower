@@ -4,7 +4,7 @@
 // so cache first. Photos are blob: URLs and never pass through here; Supabase requests bypass the worker.
 // Our own files are always revalidated (cache: 'no-cache'): GitHub Pages lets browsers keep them 10 minutes,
 // which right after a deploy could pair a new app.js with an old windows.js and break the page.
-const CACHE = 'habit-tower-v6';
+const CACHE = 'habit-tower-v7';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
@@ -41,4 +41,15 @@ self.addEventListener('fetch', (e) => {
     if (fromCache.has(e.clientId)) return (await cached()) ?? net();
     try { return await net(); } catch { return (await cached()) ?? Response.error(); }
   }));
+});
+
+// 9pm reminder from supabase/functions/remind. Tapping it brings the app forward (or opens it).
+self.addEventListener('push', (e) => {
+  const { title = '해빗 타워', body = '' } = e.data?.json() ?? {};
+  e.waitUntil(self.registration.showNotification(title, { body, icon: 'icons/icon-192.png', tag: 'remind' }));
+});
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+    .then((ws) => (ws[0] ? ws[0].focus() : self.clients.openWindow('./'))));
 });
