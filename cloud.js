@@ -1,7 +1,7 @@
 // Couple mode: Supabase sign-in, invite codes and a local-first sync.
 // My records live on the phone (localdb.js); the cloud copy lets my partner see them and lets a new phone
 // pull them back. Partner data is cached on the phone so their tower shows offline too.
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+import { SUPABASE_URL, SUPABASE_KEY, VAPID_PUBLIC } from './config.js';
 import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions } from './logic.js';
 
@@ -18,6 +18,21 @@ const MSG = [
 ];
 const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1] ?? e?.message ?? String(e));
 const must = ({ data, error }) => { if (error) throw error; return data; };
+
+// Push reminder: this phone's subscription is in push_subs while it's on. Needs a registered service worker
+// (none on localhost, and an iPhone only allows push in the home-screen app).
+const pushReg = async () => ('PushManager' in window && (await navigator.serviceWorker?.getRegistration())) || null;
+const saveSub = async (sb, sub) => {
+  const { endpoint, keys } = sub.toJSON();
+  must(await sb.from('push_subs').upsert({ endpoint, p256dh: keys.p256dh, auth: keys.auth }));
+};
+// Unsubscribing kills the endpoint anyway (the server drops a gone one), so it runs even if the delete fails.
+const dropSub = async (sb) => {
+  const sub = await (await pushReg())?.pushManager.getSubscription();
+  if (!sub) return;
+  try { must(await sb.from('push_subs').delete().eq('endpoint', sub.endpoint)); } finally { await sub.unsubscribe(); }
+};
+const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
 // { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, got, gave,
@@ -58,6 +73,10 @@ export async function openCloud(local, onChange) {
     const s = await session();
     if (!s) { if (st.me.userId) await forget(); return; }
     const uid = s.user.id;
+    if (globalThis.Notification?.permission === 'granted') { // the browser can rotate the subscription quietly
+      const sub = await (await pushReg())?.pushManager.getSubscription();
+      if (sub) await saveSub(sb, sub).catch((e) => report('push resave: ' + e.message)); // never blocks the sync
+    }
     const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut'));
     const meRow = profs.find((p) => p.id === uid);
     const partner = profs.find((p) => p.id !== uid) ?? null;
@@ -157,6 +176,21 @@ export async function openCloud(local, onChange) {
   const call = (f) => async (...a) => { try { return await f(...a); } catch (e) { throw friendly(e); } };
   const api = {
     sync,
+    // 'on' | 'off' | 'denied' | 'unsupported'
+    pushState: async () => {
+      const reg = await pushReg();
+      if (!reg) return 'unsupported';
+      if (Notification.permission === 'denied') return 'denied';
+      return (await reg.pushManager.getSubscription()) ? 'on' : 'off';
+    },
+    // Permission first: an iPhone only asks while the tap is still "fresh".
+    pushOn: call(async () => {
+      if ((await Notification.requestPermission()) !== 'granted') throw new Error('알림이 허용되지 않았어요');
+      const reg = await pushReg();
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64url(VAPID_PUBLIC) });
+      await saveSub(await client(), sub);
+    }),
+    pushOff: call(async () => dropSub(await client())),
     sendCode: call(async (email) => { must(await (await client()).auth.signInWithOtp({ email })); }),
     verify: call(async (email, token) => {
       must(await (await client()).auth.verifyOtp({ email, token, type: 'email' }));
@@ -195,7 +229,12 @@ export async function openCloud(local, onChange) {
       if (emoji) gave[day] = emoji; else delete gave[day];
       await save({ me: { ...st.me, gave } });
     }),
-    signOut: call(async () => { await (await client()).auth.signOut({ scope: 'local' }); await forget(); }),
+    signOut: call(async () => {
+      const sb = await client();
+      await dropSub(sb).catch(() => {}); // offline: the unsubscribe still happened, the server drops the row later
+      await sb.auth.signOut({ scope: 'local' });
+      await forget();
+    }),
     // Reset: delete my cloud records and photos and leave the couple. Throws (and the caller stops) if offline.
     wipe: call(async () => {
       const sb = await client(), s = await session();
@@ -208,6 +247,7 @@ export async function openCloud(local, onChange) {
         if (!gone.length) throw new Error('클라우드 사진을 지우지 못했어요'); // a silent refusal would loop forever
       }
       must(await sb.from('days').delete().eq('user_id', uid));
+      await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });
       await forget();
