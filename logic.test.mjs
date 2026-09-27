@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { todayKST, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
-  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore } from './logic.js';
+  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick } from './logic.js';
 import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL } from './catalog.js';
 
 // n consecutive certified days starting at `start`
@@ -238,4 +238,14 @@ test('pull sync diffs', () => {
 test('backup accepts pull docs', () => {
   assert.ok(validBackup({ version: 1, docs: [['pulls/d:2026-10-01', { item: 'a' }], ['pulls/c:2026-10-01', {}], ['pulls/b:3', {}]], photos: [] }));
   assert.ok(!validBackup({ version: 1, docs: [['pulls/../x', {}]], photos: [] }));
+});
+
+test('halfBrick: only one of us has a photo for today', () => {
+  const P = { assetId: 'me1', at: '' }, Q = { assetId: 'u/p1.jpg', at: '' }, S = { shield: true };
+  assert.deepEqual(halfBrick(D([[T, P]]), {}, T), { side: 'l', assetId: 'me1' });
+  assert.deepEqual(halfBrick({}, D([[T, Q]]), T), { side: 'r', assetId: 'u/p1.jpg' });
+  assert.equal(halfBrick(D([[T, P]]), D([[T, Q]]), T), null);            // both: a real floor instead
+  assert.equal(halfBrick({}, {}, T), null);
+  assert.equal(halfBrick(D([[T, S]]), {}, T), null);                     // a shield is not a photo
+  assert.equal(halfBrick(D([['2026-09-24', P]]), {}, T), null);          // yesterday's photo doesn't count
 });

@@ -88,6 +88,14 @@ export function coupleDays(mine, theirs) {
   return out;
 }
 
+// Today's couple brick while only one of us has certified: that photo on its side ('l' mine, 'r' my partner's).
+// It is drawn on top of the couple tower but is not a floor.
+export function halfBrick(mine, theirs, today) {
+  const a = mine[today]?.assetId, b = theirs[today]?.assetId;
+  if (!a === !b) return null;
+  return a ? { side: 'l', assetId: a } : { side: 'r', assetId: b };
+}
+
 // Shields: one a month (by the missed day's month) can fill the single day that broke a tower —
 // only yesterday, since one shield can't cover a longer gap. t: a fallen tower from towers()/pendingFall().
 export const SHIELDS_PER_MONTH = 1;
