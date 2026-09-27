@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { todayKST, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
-  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick } from './logic.js';
-import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL } from './catalog.js';
+  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick, glowAt } from './logic.js';
+import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL, TIERS } from './catalog.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -248,4 +248,11 @@ test('halfBrick: only one of us has a photo for today', () => {
   assert.equal(halfBrick({}, {}, T), null);
   assert.equal(halfBrick(D([[T, S]]), {}, T), null);                     // a shield is not a photo
   assert.equal(halfBrick(D([['2026-09-24', P]]), {}, T), null);          // yesterday's photo doesn't count
+});
+
+test('glowAt: the glow is the least the box can be, never more than it is', () => {
+  assert.deepEqual(TIERS.map((t) => t.taps), [2, 5, 20, 30]);
+  assert.deepEqual([0, 1, 2, 4, 5, 19, 20, 29].map(glowAt), [null, null, 'rare', 'rare', 'epic', 'epic', 'legend', 'legend']);
+  const rank = (id) => TIERS.findIndex((t) => t.id === id);
+  for (const [i, t] of TIERS.entries()) assert.ok(rank(glowAt(t.taps - 1)) <= i, t.id); // one tap before it opens
 });

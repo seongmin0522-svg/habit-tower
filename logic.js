@@ -156,6 +156,13 @@ export function roll(pool, [r1, r2, r3]) {
   return { item, shiny: !!item.base && r3 < SHINY_RATE };
 }
 
+// Box reveal: after `taps` taps a box still shut is at least the tier whose lower neighbor would have opened by now.
+export function glowAt(taps) {
+  let g = null;
+  for (let i = 1; i < TIERS.length; i++) if (taps >= TIERS[i - 1].taps) g = TIERS[i].id;
+  return g;
+}
+
 // What I have: item ids, a shiny monster as 'id*'. The starter snail comes free.
 export const owned = (pulls) => new Set([STARTER,
   ...Object.values(pulls).filter((p) => p?.item).map((p) => p.item + (p.shiny ? '*' : ''))]);

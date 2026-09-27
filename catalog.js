@@ -7,11 +7,11 @@ export const SHINY_RATE = 0.03;
 export const DUPS_PER_BONUS = 10;
 export const STARTER = 'snail-green';
 
-export const TIERS = [
-  { id: 'common', name: '일반', weight: 70, color: '#a7a7a7' },
-  { id: 'rare', name: '레어', weight: 20, color: '#4a9ae8' },
-  { id: 'epic', name: '희귀', weight: 8, color: '#b05ae0' },
-  { id: 'legend', name: '전설', weight: 2, color: '#f2c230' },
+export const TIERS = [ // taps: how many taps a box of this tier takes to open
+  { id: 'common', name: '일반', weight: 70, color: '#a7a7a7', taps: 2 },
+  { id: 'rare', name: '레어', weight: 20, color: '#4a9ae8', taps: 5 },
+  { id: 'epic', name: '희귀', weight: 8, color: '#b05ae0', taps: 20 },
+  { id: 'legend', name: '전설', weight: 2, color: '#f2c230', taps: 30 },
 ];
 
 // [base, tier, [[variant, name, pal], ...]]
