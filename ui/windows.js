@@ -92,7 +92,7 @@ function SoundBox() {
 const EMAIL_KEY = 'habit-tower-email';
 const lastEmail = () => { try { return localStorage.getItem(EMAIL_KEY) ?? ''; } catch { return ''; } };
 
-// Settings "알림": the 9pm reminder on this phone. The state comes from the phone (permission, subscription).
+// Settings "알림": the 9pm reminder and partner pushes on this phone. The state comes from the phone (permission, subscription).
 function PushRow({ api }) {
   const [st, setSt] = useState(null); // null while checking
   const [busy, setBusy] = useState(false);
@@ -103,7 +103,7 @@ function PushRow({ api }) {
     setMsg('');
     f().catch((e) => setMsg(e.message)).then(api.pushState).then(setSt).finally(() => setBusy(false));
   };
-  return html`<p>알림 <span class="muted small">— 밤 9시, 오늘 벽돌 아직이면</span>
+  return html`<p>알림 <span class="muted small">— 밤 9시(오늘 벽돌 아직이면) · 상대가 인증하면</span>
     ${st === 'off' && html` <button type="button" class="btn green sm" disabled=${busy} onClick=${() => flip(api.pushOn)}>켜기</button>`}
     ${st === 'on' && html` <button type="button" class="btn blue sm" disabled=${busy} onClick=${() => flip(api.pushOff)}>끄기</button>`}
     ${st === 'unsupported' && html`<br /><span class="muted small">홈 화면에 추가한 앱에서만 알림이 돼요</span>`}

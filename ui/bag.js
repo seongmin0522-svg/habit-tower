@@ -49,12 +49,15 @@ export function BoxReveal({ box, left, shards, onOpen, onEquip, onNext, onClose 
 
   const tap = async () => {
     if (stage !== 'shut' || busy.current) return;
-    let p = pull;
-    if (!p) {
+    if (!pull) {
+      // Every tier takes 2+ taps, so the first one is always a plain hit: its feedback doesn't wait for the
+      // roll, which keeps it inside the tap (iPhone's haptic only fires there).
+      sfx('shake'); buzz('tap');
       busy.current = true;
-      try { p = await onOpen(box); setPull(p); } catch { return; } finally { busy.current = false; }
+      try { setPull(await onOpen(box)); count.current = 1; setTaps(1); } catch { /* not openable: stays shut */ } finally { busy.current = false; }
+      return;
     }
-    const tr = tierOf(ITEMS.get(p.item)?.tier), n = ++count.current;
+    const p = pull, tr = tierOf(ITEMS.get(p.item)?.tier), n = ++count.current;
     setTaps(n);
     if (n >= tr.taps) {
       setStage('burst'); setFlash((f) => f + 1);
@@ -66,9 +69,9 @@ export function BoxReveal({ box, left, shards, onOpen, onEquip, onNext, onClose 
   };
 
   const hint = taps === 0 ? '상자를 두드려 보세요' : HINT[glow] ?? '한 번 더!';
-  return html`<${Win} title=${boxName(box)} onClose=${taps > 0 && stage !== 'open' ? null : onClose}
+  // The flash sits outside the window: the shaking window would trap a fixed child inside its own box.
+  return html`${flash > 0 && html`<i key=${flash} class="flash" />`}<${Win} title=${boxName(box)} onClose=${taps > 0 && stage !== 'open' ? null : onClose}
     cls=${'reveal-win' + (stage === 'burst' ? ' quake t-' + tier.id : '')}>
-    ${flash > 0 && html`<i key=${flash} class="flash" />`}
     <div class="body pad center">
       ${stage !== 'open' ? html`
         <div class=${'chestwrap' + (glow ? ' glow' : '') + (stage === 'burst' ? ' burst' : '')}
