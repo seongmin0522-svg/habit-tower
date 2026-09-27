@@ -82,7 +82,8 @@ function App() {
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
   const half = view === 'couple' ? halfBrick(state.days, pdays, today) : null;
-  const builtTowers = past.filter((t) => t.kind === 'built');
+  // Finished towers, newest first; a tower topped today counts already.
+  const builtTowers = [...(keys.length === TOWER_HEIGHT ? [current] : []), ...past.filter((t) => t.kind === 'built')];
   const built = builtTowers.length;
   const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
   const doneToday = !!state.days[today]?.assetId;
@@ -308,7 +309,12 @@ function App() {
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal === 'calendar' && html`<${Calendar} view=${view} mine=${state.days} theirs=${pdays} couple=${cdays} today=${today}
       names=${[cloud?.name || '나', partnerName]} onPick=${(k) => setModal({ key: k, n: 0 })} onClose=${() => setModal(null)} />`}
-    ${modal === 'shelf' && html`<${Shelf} built=${builtTowers} days=${days}
+    ${modal === 'shelf' && html`<${Shelf} built=${builtTowers} days=${days} onSaveFile=${onSaveFile}
+      onCollage=${(t) => import('./collage.js')
+        .then((m) => m.makeCollage({ keys: t.keys, days, title: view === 'couple' ? title : `🏰 ${title}`, brick: look.brick,
+          sub: `${view === 'couple' ? `${cloud?.name || '나'} ❤ ${partnerName} · ` : ''}${t.keys[0]} ~ ${t.keys.at(-1)}` }))
+        .then((blob) => new File([blob], `habit-tower-${t.keys[0]}.jpg`, { type: 'image/jpeg' }))
+        .catch((e) => { fail(e); throw e; })}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...days[modal.key] }} n=${modal.n}
       names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)}

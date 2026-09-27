@@ -254,9 +254,12 @@ function Thumbs({ keys, days, onPick }) {
 }
 
 // Hall of fame: every finished tower as a card (mini tower + top-floor photo); tap to see its floors.
-// built: finished towers, newest first (from towers().past).
-export function Shelf({ built, days, onPick, onClose }) {
+// built: finished towers, newest first. onCollage(t) resolves to a JPEG File. Saving is its own tap,
+// like the backup export: the share sheet only opens right after a tap, and building the image takes a moment.
+export function Shelf({ built, days, onPick, onCollage, onSaveFile, onClose }) {
   const [open, setOpen] = useState(null);
+  const [out, setOut] = useState(null); // {key, file: File | 'busy'} for the tower being made
+  const make = (key, t) => { setOut({ key, file: 'busy' }); onCollage(t).then((file) => setOut({ key, file }), () => setOut(null)); };
   return html`<${Win} title="🏰 명예의 전당" onClose=${onClose} cls="album-win">
     <div class="body album shelf">${built.map((t, i) => html`
       <section key=${t.keys[0]}>
@@ -266,7 +269,11 @@ export function Shelf({ built, days, onPick, onClose }) {
           <span class="info"><b>🏰 ${built.length - i}번째 탑</b><small class="muted">${t.keys[0]} ~ ${t.keys.at(-1)}</small>
             <small class="muted">${open === t.keys[0] ? '▲ 접기' : `▼ ${TOWER_HEIGHT}층 사진 보기`}</small></span>
         </button>
-        ${open === t.keys[0] && html`<${Thumbs} keys=${t.keys} days=${days} onPick=${onPick} />`}
+        ${open === t.keys[0] && html`<p class="collage">${out?.key === t.keys[0] && out.file instanceof File
+          ? html`<button type="button" class="btn green sm" onClick=${() => onSaveFile(out.file)}>📤 콜라주 저장하기</button>`
+          : html`<button type="button" class="btn blue sm" disabled=${out?.file === 'busy'} onClick=${() => make(t.keys[0], t)}>${
+            out?.key === t.keys[0] && out.file === 'busy' ? '만드는 중…' : '🖼 콜라주 만들기'}</button>`}</p>
+          <${Thumbs} keys=${t.keys} days=${days} onPick=${onPick} />`}
       </section>`)}
     </div>
   </${Win}>`;
