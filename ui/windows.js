@@ -79,7 +79,7 @@ function SoundBox() {
     onClick=${() => setPrefs({ [key]: !p[key] })}>${label} ${p[key] ? '켜짐' : '꺼짐'}</button>`;
   return html`<div class="backup">
     <div class="lbl">소리</div>
-    <span>${sw('bgm', '🎵 배경음악')}${sw('sfx', '🔔 효과음')}</span>
+    <span>${sw('bgm', '🎵 배경음악')}${sw('sfx', '🔔 효과음')}${sw('vibe', '📳 진동')}</span>
     <select class="track" value=${String(p.track)} aria-label="배경음악 곡" disabled=${!p.bgm}
       onChange=${(e) => setPrefs({ track: e.target.value === 'random' ? 'random' : Number(e.target.value) })}>
       ${TRACKS.map((t) => html`<option key=${t.id} value=${String(t.id)}>${t.id}. ${t.name}</option>`)}<option value="random">🔀 랜덤</option>
