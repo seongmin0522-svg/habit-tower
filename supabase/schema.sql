@@ -276,3 +276,9 @@ end $$;
 revoke execute on function public.notify_partner() from public, anon, authenticated;
 create trigger days_notify_partner after insert on public.days
   for each row execute function public.notify_partner();
+
+-- Live updates (2026-09-27): partner photos and reactions reach an open app without a refresh (cloud.js watch).
+-- RLS still decides who receives which row. Not profiles: every sync rewrites them.
+alter publication supabase_realtime add table public.days, public.reactions;
+-- Signed-out clients never touch these; Realtime sends DELETE events without RLS, so anon gets no access at all.
+revoke all on public.days, public.reactions from anon;

@@ -56,7 +56,27 @@ export async function openCloud(local, onChange) {
   const dropPartnerPhotos = async (keep = new Set()) => {
     for (const k of await kv.keys()) if (k.startsWith('ph:') && !keep.has(k.slice(3))) await kv.dropPhoto(k.slice(3));
   };
-  const forget = async () => { await dropPartnerPhotos(); await save({ me: {}, partner: null, partnerDays: {}, synced: false }); };
+  const forget = async () => { unwatch(); await dropPartnerPhotos(); await save({ me: {}, partner: null, partnerDays: {}, synced: false }); };
+
+  // Live updates: a partner row changing on the server (a photo, a note, a reaction) starts a sync, the one
+  // code path that reads them. RLS decides which rows reach this phone; my own changes are skipped. Not profiles:
+  // every sync rewrites mine, so watching them would bounce syncs between the two phones forever.
+  // ponytail: each event re-reads everything; fine for two people, patch state from the payload if it ever isn't.
+  let live = null, liveT;
+  const watch = (sb, uid) => {
+    if (live) return;
+    const kick = (p) => {
+      if (p.errors) return; // e.g. 401 while the token is being refreshed: nothing to act on
+      const row = p.eventType === 'DELETE' ? p.old : p.new;
+      if (row?.user_id === uid || row?.sender === uid) return;
+      clearTimeout(liveT);
+      liveT = setTimeout(() => sync(), 1500); // a photo upload lands as several writes
+    };
+    live = sb.channel('partner');
+    for (const table of ['days', 'reactions']) live.on('postgres_changes', { event: '*', schema: 'public', table }, kick);
+    live.subscribe();
+  };
+  const unwatch = () => { clearTimeout(liveT); const ch = live; live = null; if (ch) sbP?.then((sb) => sb.removeChannel(ch)); };
 
   // Loaded on first use; offline it fails and the next call tries again. Local records never wait on it.
   let sbP;
@@ -163,6 +183,7 @@ export async function openCloud(local, onChange) {
       syncFailed: false,
     });
     lastOk = Date.now();
+    if (partner) watch(sb, uid); else unwatch();
   }
 
   // One sync at a time; a call during a run schedules one more pass right after it.
