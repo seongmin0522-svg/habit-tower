@@ -1,23 +1,31 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT } from './logic.js';
-import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE } from './db.js';
+import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
+import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
+import { ITEMS, STARTER, TITLES } from './catalog.js';
+import { initSound, sfx } from './sound.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
+import { Bag, BoxReveal } from './ui/bag.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 const EMPTY = {};
+// Monster buddy from a look: a catalog monster or the starter snail.
+const buddy = (l) => ({ id: ITEMS.get(l.monster)?.base ? l.monster : STARTER, shiny: !!(l.monster && l.shiny) });
+initSound();
 
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
-  const [state, setState] = useState({ habit: null, days: {}, loaded: false });
+  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, loaded: false });
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | {key, n (0 = not a floor)}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | {key, n (0 = not a floor)}
+  const [revealNext, setRevealNext] = useState(false); // a new box waits for the stacking to finish
+  const [revealBox, setRevealBox] = useState(null);    // the box on the reveal window (it stays after it's opened)
   const [busy, setBusy] = useState(false);
   const [cloud, setCloud] = useState(null);       // couple-mode state from cloud.js; null = off
   const [cloudApi, setCloudApi] = useState(null);
@@ -75,6 +83,41 @@ function App() {
   const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
   const doneToday = !!state.days[today]?.assetId;
   const ready = !!actions && state.loaded;
+
+  // Rewards. Couple boxes only once this launch has synced my partner's days.
+  const boxCdays = coupled && cloud?.synced ? cdays : EMPTY;
+  const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom }),
+    [state.days, boxCdays, state.pulls]);
+  const have = useMemo(() => owned(state.pulls), [state.pulls]);
+  const earned = useMemo(() => titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today }),
+    [state.days, cdays, coupled, state.pulls, today]);
+  const myLook = state.habit?.look ?? EMPTY, pLook = partner?.look ?? EMPTY, cSkin = cloud?.coupleSkin ?? EMPTY;
+  const look = {
+    me: { monsters: [buddy(myLook)], hero: myLook.char, bg: myLook.bg, brick: myLook.brick, flag: myLook.flag, badge: myLook.badge },
+    partner: { monsters: [buddy(pLook)], hero: pLook.char, bg: pLook.bg, brick: pLook.brick, flag: pLook.flag, badge: pLook.badge },
+    couple: { monsters: [buddy(myLook), buddy(pLook)], hero: myLook.char, partnerHero: pLook.char,
+      bg: cSkin.bg, brick: cSkin.brick, flag: cSkin.flag, badge: myLook.badge },
+  }[view];
+  const badgeName = TITLES.find((t) => t.id === look.badge)?.name;
+  // The sky and grass follow the tab's background skin.
+  useEffect(() => {
+    const bg = ITEMS.get(look.bg), st = document.documentElement.style;
+    if (bg) { st.setProperty('--sky', bg.sky); st.setProperty('--grass', bg.grass); }
+    else { st.removeProperty('--sky'); st.removeProperty('--grass'); }
+  }, [look.bg]);
+  // After a new photo: the box shows up once the brick has landed and nothing else is on screen.
+  useEffect(() => {
+    if (revealNext && !anim && !fall && !modal && unopened.length) { setRevealNext(false); openReveal(); }
+  }, [revealNext, anim, fall, modal, unopened.length]);
+  const openReveal = () => { setRevealBox(unopened[0]); setModal('reveal'); };
+  const onEquip = (patch) => actions.equip(patch).then(() => { setToast('장착했어요'); cloudApi?.sync(); }, fail);
+  const onEquipCouple = (patch) => cloudApi.setCoupleSkin(patch).then(() => setToast('우리 탑에 적용했어요'), fail);
+  // A couple skin from the reveal goes on the couple tower; anything else on me.
+  const wear = (p) => {
+    const it = ITEMS.get(p.item);
+    if (it.couple) return coupled ? onEquipCouple({ [it.kind]: it.id }) : setToast('커플 연결 후 우리 탑에 쓸 수 있어요');
+    return onEquip(it.base ? { monster: it.id, shiny: p.shiny } : { [it.kind]: it.id });
+  };
   const fail = (e) => setToast('실패: ' + (e?.message ?? e?.code ?? e));
 
   // A collapse plays once, the first time the page sees it — also when midnight passes with the page open.
@@ -160,6 +203,7 @@ function App() {
         t = setTimeout(() => setAnim(null), STACK_MS);
       });
       if (r.retake) setToast('오늘 사진을 바꿨어요');
+      else setRevealNext(true);
       cloudApi?.sync();
     } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
   };
@@ -207,6 +251,8 @@ function App() {
         ${built > 0 && html`<button class="trophies" onClick=${() => setModal('shelf')} aria-label=${`완성한 탑 ${built}개 보기`}>🏰×${built}</button>`}
       </div>
       <span>
+        <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => { sfx('tap'); setModal('bag'); }}
+          aria-label=${unopened.length ? `가방 · 안 연 상자 ${unopened.length}개` : '가방'}>${unopened.length ? `🎁${unopened.length}` : '가방'}</button>
         <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('calendar')}>달력</button>
         <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('album')}>앨범</button>
         <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => setModal('setup')}>설정</button>
@@ -222,7 +268,7 @@ function App() {
       <div class="world">
         ${state.habit && html`<${Scene} key=${view}
           character=${view === 'partner' ? partner.character : state.habit.character}
-          partnerCharacter=${view === 'couple' ? partner.character : null}
+          partnerCharacter=${view === 'couple' ? partner.character : null} look=${look} tag=${badgeName}
           keys=${keys} days=${days} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
           onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
           onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
@@ -245,6 +291,12 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
+    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook}
+      character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
+      onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
+    ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
+      shards=${shards(state.pulls)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
+      onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal === 'calendar' && html`<${Calendar} view=${view} mine=${state.days} theirs=${pdays} couple=${cdays} today=${today}

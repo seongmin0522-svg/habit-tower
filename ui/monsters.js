@@ -173,17 +173,32 @@ function shinyColor(hex) {
   return `hsl(${Math.round(h)} ${Math.round(sat * 100)}% ${Math.round(Math.min(l, .8) * 100)}%)`;
 }
 
-// id: a catalog monster ('snail-green'); its variant palette goes over the base art's.
-// shiny: the rare recolor (CSS hue turn + sparkle, see index.html .shiny).
-export function Monster({ id, px = 2, shiny = false }) {
+// The art and final colors for a catalog monster ('snail-green'): its variant palette goes over the base art's.
+function paint(id, shiny) {
   const m = MONSTERS.find((x) => x.id === id) ?? MONSTERS[0];
   const art = ART[m.base], pal = { ...art.pal, ...m.pal };
   if (shiny) for (const k in pal) pal[k] = shinyColor(pal[k]);
-  const rects = [];
-  art.map.forEach((row, y) => [...row].forEach((k, x) => {
-    const fill = pal[k] || BASE[k];
-    if (fill) rects.push(html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`);
-  }));
-  return html`<svg class=${'monster' + (shiny ? ' shiny' : '')} width=${16 * px} height=${16 * px} viewBox="0 0 16 16"
-    shape-rendering="crispEdges" role="img" aria-label=${(shiny ? '이로치 ' : '') + m.name}>${rects}</svg>`;
+  const cells = [];
+  art.map.forEach((row, y) => [...row].forEach((k, x) => { const fill = pal[k] || BASE[k]; if (fill) cells.push([x, y, fill]); }));
+  return { m, cells };
+}
+
+// shiny: the rare recolor; the sparkle around it is CSS (.sparkle in index.html).
+export function Monster({ id, px = 2, shiny = false }) {
+  const { m, cells } = paint(id, shiny);
+  return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16"
+    shape-rendering="crispEdges" role="img" aria-label=${(shiny ? '이로치 ' : '') + m.name}>${
+    cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
+}
+
+// The same picture as an image URL, for grids (the bag shows up to 200): one <img> instead of ~150 <rect>s each.
+const urls = new Map();
+export function monsterUrl(id, shiny = false) {
+  const key = id + (shiny ? '*' : '');
+  if (!urls.has(key)) {
+    const rects = paint(id, shiny).cells.map(([x, y, f]) => `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${f}"/>`).join('');
+    urls.set(key, 'data:image/svg+xml,' + encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" shape-rendering="crispEdges">${rects}</svg>`));
+  }
+  return urls.get(key);
 }

@@ -1,10 +1,17 @@
 import { html, useRef, useLayoutEffect, useEffect } from './h.js';
 import { Sprite } from './sprites.js';
 import { Monster } from './monsters.js';
-import { TOWER_HEIGHT, buddyFor } from '../logic.js';
+import { TOWER_HEIGHT } from '../logic.js';
+import { ITEMS } from '../catalog.js';
+import { sfx } from '../sound.js';
 import { photoUrl } from '../db.js';
 
 export const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
+// Floor color (0-based floor i) for a brick skin id, or the default stone/brick/gold.
+export const brickColor = (skin, i) => {
+  const b = ITEMS.get(skin);
+  return b?.rainbow ? `hsl(${(i * 12) % 360} 75% 62%)` : (b?.colors ?? TIER)[Math.min(2, Math.floor(i / 10))];
+};
 
 // Fixed pseudo-random scatter per floor so re-renders never jump mid-collapse.
 const rnd = (i, s) => Math.sin(i * 12.9898 + s * 78.233) * 43758.5453 % 1;
@@ -48,14 +55,17 @@ const Photo = ({ day, eager }) => {
 };
 
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
+// look: { monsters: [{id, shiny}] (one each), hero, partnerHero (character color skins), brick, flag } — catalog ids or null.
 // onDone: the stack sequence (incl. the camera trip) finished.
 // badge(key): optional {l, r} reaction emoji for the brick's bottom corners.
-export function Scene({ character, partnerCharacter, keys, days, anim, rubble, onBlock, onDone, badge }) {
+// tag: the title worn, shown like a name tag under the crew.
+export function Scene({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
   const n = shown.length;
-  const buddy = buddyFor(n);
+  const px = look.monsters.length > 1 ? 2.75 : 3.5; // the couple crew is four wide: keep it on a 360px phone
+  const flag = ITEMS.get(look.flag)?.icon ?? '🚩';
 
   // Hand-off: the flying brick starts exactly where the crew holds it at the jump's peak.
   // offset* ignore transforms, so this measures the crew's resting spot even mid-walk.
@@ -92,6 +102,7 @@ export function Scene({ character, partnerCharacter, keys, days, anim, rubble, o
         const target = Math.max(0, mid(b, stage)[1] - stage.clientHeight * .35);
         if (target < stage.scrollTop) cancel = glide(stage, target, fd, easeOut);
       }, 1400),
+      setTimeout(() => { sfx('brick'); if (n === TOWER_HEIGHT) setTimeout(() => sfx('top'), 300); }, 1400 + fd),
       setTimeout(() => { cancel = glide(stage, bottom(), 700, easeInOut, onDone); }, 1400 + fd + 1100),
     ];
     return () => { timers.forEach(clearTimeout); cancel(); };
@@ -99,18 +110,18 @@ export function Scene({ character, partnerCharacter, keys, days, anim, rubble, o
 
   return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
     <div class="crew" aria-hidden="true">
-      <i class="carried" style=${{ '--c': TIER[Math.floor(Math.max(n - 1, 0) / 10)] }}><${Photo} day=${days[shown.at(-1)]} eager /></i>
-      <span class="mob" title=${buddy.name}><${Monster} id=${buddy.id} px=${3.5} /></span>
-      <span class="hero"><${Sprite} id=${character} px=${3.5} /></span>
-      ${partnerCharacter && html`<span class="hero"><${Sprite} id=${partnerCharacter} px=${3.5} /></span>`}
+      <i class="carried" style=${{ '--c': brickColor(look.brick, Math.max(n - 1, 0)) }}><${Photo} day=${days[shown.at(-1)]} eager /></i>
+      ${look.monsters.map((m, i) => html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')}><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></span>`)}
+      <span class="hero"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
+      ${partnerCharacter && html`<span class="hero"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
       <span class="stars">★ ☆ ★</span>
     </div>
     <div class="tower">
-      ${n === TOWER_HEIGHT && !falling && html`<div class="flag">🚩${stacking && html`<span class="sparks">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => html`<i key=${k} style=${{ '--a': `${k * 45}deg` }} />`)}</span>`}</div>`}
+      ${n === TOWER_HEIGHT && !falling && html`<div class="flag">${flag}${stacking && html`<span class="sparks">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => html`<i key=${k} style=${{ '--a': `${k * 45}deg` }} />`)}</span>`}</div>`}
       ${stacking && html`<span class="plus">+1층</span><span class="dust" />`}
       <div class="stack">${shown.map((key, i) => html`
         <button key=${key} class=${'blk' + (stacking && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
-          style=${{ '--c': TIER[Math.floor(i / 10)], '--i': i, ...(falling ? scatter(i, n) : {}) }}
+          style=${{ '--c': brickColor(look.brick, i), '--i': i, ...(falling ? scatter(i, n) : {}) }}
           aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} />${
           ['l', 'r'].map((side) => badge?.(key)?.[side] && html`<span key=${side} class=${'badge ' + side}>${badge(key)[side]}</span>`)}</button>`)}
       </div>

@@ -4,7 +4,7 @@ import { TIER } from './scene.js';
 import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
 import { photoUrl } from '../db.js';
 
-function Win({ title, onClose, children, cls = '' }) {
+export function Win({ title, onClose, children, cls = '' }) {
   return html`<div class="overlay" onClick=${onClose}>
     <div class=${'win ' + cls} role="dialog" aria-label=${title} onClick=${(e) => e.stopPropagation()}>
       <div class="ttl">${title}${onClose && html`<button class="x" onClick=${onClose} aria-label="닫기">✕</button>`}</div>

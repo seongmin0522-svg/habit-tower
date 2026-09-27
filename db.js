@@ -1,5 +1,6 @@
 // All persistence goes through here. The page never writes to db or assets directly.
-import { todayKST, addDays, shieldsLeft } from './logic.js';
+import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
+import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
 
@@ -7,6 +8,9 @@ const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
 const MAX_TITLE = 40;
 const devUrls = new Map(); // dev and phone modes: asset id -> object/data URL
+
+// Boxes count from launch day; ?dev seeds live in the past, so there every photo day counts.
+export const rewardsFrom = DEV ? '' : REWARDS_FROM;
 
 // Where data lives: claude.ai Artifact (db + assets), ?dev (in memory), or the phone (IndexedDB PWA).
 export const MODE = window.claude?.use ? 'artifact' : DEV ? 'dev' : window.indexedDB ? 'local' : 'none';
@@ -44,13 +48,13 @@ export async function connectAssets() {
   };
 }
 
-// `loaded` flips true only after server-definitive snapshots of both sources.
+// `loaded` flips true only after server-definitive snapshots of all three sources.
 export function subscribe(db, onState, onError) {
-  const st = { habit: null, days: {}, loaded: false };
+  const st = { habit: null, days: {}, pulls: {}, loaded: false };
   const seen = new Set();
   const emit = (part, s) => {
     if (!s.metadata.fromCache) seen.add(part);
-    st.loaded = seen.size === 2;
+    st.loaded = seen.size === 3;
     onState({ ...st });
   };
   const offs = [
@@ -58,6 +62,10 @@ export function subscribe(db, onState, onError) {
     db.collection('days').onSnapshot((s) => {
       st.days = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
       emit('days', s);
+    }, onError),
+    db.collection('pulls').onSnapshot((s) => {
+      st.pulls = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      emit('pulls', s);
     }, onError),
   ];
   return () => offs.forEach((off) => off());
@@ -113,6 +121,33 @@ export function makeActions(db, assets, getState) {
       await db.doc(`days/${key}`).set({ shield: true, at: new Date().toISOString() });
     },
 
+    // Open one box: the result is saved before anything shows, so closing the app mid-reveal can't reroll it.
+    // cdays: couple days (only once the partner is synced), for 'c:' boxes.
+    async openBox(box, cdays = {}) {
+      const s = ready();
+      if (s.pulls[box]) return s.pulls[box];
+      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
+      const r = [...crypto.getRandomValues(new Uint32Array(3))].map((n) => n / 2 ** 32);
+      const { item, shiny } = roll(box.startsWith('c:') ? COUPLE_POOL : POOL, r);
+      const doc = { item: item.id, shiny, dup: owned(s.pulls).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
+      await db.doc(`pulls/${box}`).set(doc);
+      return doc;
+    },
+
+    // What I wear: habit/me.look = {monster, shiny, char, bg, brick, flag, badge}; null = the default.
+    async equip(patch) {
+      const s = ready();
+      const have = owned(s.pulls);
+      for (const [k, v] of Object.entries(patch)) {
+        if (v == null || k === 'shiny') continue;
+        const ok = k === 'badge' ? TITLES.some((t) => t.id === v)
+          : k === 'monster' ? have.has(v + (patch.shiny ? '*' : ''))
+          : have.has(v) && ITEMS.get(v)?.kind === k && !ITEMS.get(v).couple;
+        if (!ok) throw new Error('아직 없는 아이템이에요');
+      }
+      await db.doc('habit/me').set({ ...s.habit, look: { ...s.habit?.look, ...patch } });
+    },
+
     // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).
     async mark(field, key) {
       const s = ready();
@@ -121,8 +156,10 @@ export function makeActions(db, assets, getState) {
   };
 }
 
-// ?dev&seed=fall|30|album — fake history for checking animations locally.
+// ?dev&seed=fall|30|album|boxes|bag — fake history for checking animations locally.
 const SEEDS = {
+  boxes: [[-6, 6]],           // 6 unopened boxes, today not certified yet
+  bag: [[-6, 6]],             // same, plus a half-full collection
   fall: [[-13, 12]],          // 12 floors, missed yesterday → collapse
   30: [[-29, 29]],            // 29 floors through yesterday → today's photo tops it out
   album: [[-80, 30], [-45, 7], [-4, 5]],
@@ -139,6 +176,11 @@ async function seedDev(db, kind) {
       devUrls.set(id, 'data:image/svg+xml,' + encodeURIComponent(svg));
       await db.doc(`days/${key}`).set({ assetId: id, at: '' });
     }
+  }
+  if (kind === 'bag') {
+    const got = [...MONSTERS.filter((_, i) => i % 2 === 0), ...SKINS.filter((_, i) => i % 3 === 0)];
+    for (const [i, it] of got.entries()) await db.doc(`pulls/b:${1000 + i}`).set({ item: it.id, shiny: i % 7 === 0 && !!it.base, dup: false, at: '' });
+    for (let i = 0; i < 7; i++) await db.doc(`pulls/b:${2000 + i}`).set({ item: 'snail-green', shiny: false, dup: true, at: '' });
   }
   await db.doc('habit/me').set({ title: '운동 30분', character: 'warrior', seenFall: null });
 }
