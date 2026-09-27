@@ -1,5 +1,6 @@
 // Pure logic for Habit Tower. No DOM, no db — everything here is unit-tested.
 // Day keys are 'YYYY-MM-DD' strings in Korea time. A day counts when it has a photo.
+import { TIERS, SHINY_RATE, DUPS_PER_BONUS, STARTER, ITEMS, MONSTERS } from './catalog.js';
 
 const kstFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -31,16 +32,6 @@ export function addMonths(ym, n) {
 export const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 
 export const TOWER_HEIGHT = 30;
-
-export const MONSTERS = [
-  { id: 'snail', name: '달팽이' }, { id: 'mushroom', name: '버섯' }, { id: 'slime', name: '슬라임' },
-  { id: 'bat', name: '박쥐' }, { id: 'pig', name: '돼지' }, { id: 'skeleton', name: '해골' },
-  { id: 'golem', name: '골렘' }, { id: 'dragon', name: '드래곤' },
-];
-
-// The monster buddy grows up every 4 floors and starts over when the tower falls.
-// The dragon comes early (27) so it stays 4 floors like the others; the golem gets 25-26.
-export const buddyFor = (floors) => floors >= 27 ? MONSTERS.at(-1) : MONSTERS[Math.floor(Math.max(floors - 1, 0) / 4)];
 
 // Consecutive certified days, oldest first. cut: the day the user chose to start over — a run ends there.
 // A shield day keeps a run going without adding a floor (it's in end, not in keys), and starts nothing by itself.
@@ -136,7 +127,7 @@ export function splitReactions(rows, uid) {
 
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
-const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2})$/;
+const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}))$/;
 const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function validBackup(b) {
   return isPlain(b) && b.version === 1 && Array.isArray(b.docs) && Array.isArray(b.photos)
@@ -144,3 +135,66 @@ export function validBackup(b) {
     && b.photos.every((p) => Array.isArray(p) && typeof p[0] === 'string' && p[0].length < 100
       && typeof p[1] === 'string' && p[1].startsWith('data:image/'));
 }
+
+// Rewards. A pull is pulls/<box> = {item, shiny, dup, at}; box ids: 'd:<day>' (my photo day),
+// 'c:<day>' (we both certified), 'b:<n>' (bonus for every 10 duplicates).
+// r: three random numbers in [0, 1) — tier, item within the tier, shiny.
+export function roll(pool, [r1, r2, r3]) {
+  const tiers = TIERS.filter((t) => pool.some((i) => i.tier === t.id));
+  let x = r1 * tiers.reduce((a, t) => a + t.weight, 0), tier = tiers.at(-1);
+  for (const t of tiers) { if (x < t.weight) { tier = t; break; } x -= t.weight; }
+  const items = pool.filter((i) => i.tier === tier.id);
+  const item = items[Math.min(Math.floor(r2 * items.length), items.length - 1)];
+  return { item, shiny: !!item.base && r3 < SHINY_RATE };
+}
+
+// What I have: item ids, a shiny monster as 'id*'. The starter snail comes free.
+export const owned = (pulls) => new Set([STARTER,
+  ...Object.values(pulls).filter((p) => p?.item).map((p) => p.item + (p.shiny ? '*' : ''))]);
+
+const dupCount = (pulls) => Object.values(pulls).filter((p) => p?.dup).length;
+export const shards = (pulls) => dupCount(pulls) % DUPS_PER_BONUS;
+
+// Unopened boxes, oldest day first, bonus boxes last. Counted from the records, never stored.
+export function boxes({ days, cdays, pulls, from }) {
+  const dated = [
+    ...Object.keys(days).filter((k) => days[k]?.assetId && k >= from).map((k) => 'd:' + k),
+    ...Object.keys(cdays).filter((k) => cdays[k]?.partnerAssetId && k >= from).map((k) => 'c:' + k),
+  ].sort((a, b) => (a.slice(2) + a[0]).localeCompare(b.slice(2) + b[0]));
+  const bonus = Array.from({ length: Math.floor(dupCount(pulls) / DUPS_PER_BONUS) }, (_, i) => 'b:' + i);
+  return [...dated, ...bonus].filter((b) => !pulls[b]);
+}
+
+const fullTowers = (days, today) => {
+  const { current, past } = towers(days, today);
+  return [...past.filter((t) => t.kind === 'built'), ...(current?.keys.length === TOWER_HEIGHT ? [current] : [])];
+};
+export function titles({ days, cdays, pulls, today }) {
+  const out = new Set();
+  const photos = Object.keys(days).filter((k) => days[k]?.assetId).length;
+  const rs = runs(days);
+  const built = fullTowers(days, today);
+  const got = Object.values(pulls).filter((p) => p?.item);
+  const species = new Set([STARTER, ...got.map((p) => p.item)].filter((id) => ITEMS.get(id)?.base)).size;
+  if (photos >= 1) out.add('first');
+  if (rs.some((r) => r.keys.length >= 7)) out.add('week');
+  if (built.length >= 1) out.add('tower');
+  if (built.length >= 3) out.add('towers3');
+  if (built.some((t) => daysBetween(t.keys[0], t.keys.at(-1)) === TOWER_HEIGHT - 1)) out.add('straight'); // no shield gaps
+  if (photos >= 100) out.add('days100');
+  if (rs.some((r, i) => i > 0 && r.keys.length >= 7)) out.add('comeback');
+  if (got.some((p) => p.shiny)) out.add('shiny');
+  if (got.some((p) => ITEMS.get(p.item)?.tier === 'legend')) out.add('legend');
+  if (species >= 50) out.add('dex50');
+  if (species >= MONSTERS.length) out.add('dex100');
+  if (fullTowers(cdays, today).length) out.add('couple');
+  return out;
+}
+
+// rows: my cloud pulls {box, item, shiny, dup, at}.
+export function pullsToPush(pulls, rows) {
+  const known = new Set(rows.map((r) => r.box));
+  return Object.keys(pulls).filter((b) => !known.has(b)).sort();
+}
+export const pullsToRestore = (rows, pulls) => rows.filter((r) => !pulls[r.box])
+  .map((r) => ({ box: r.box, doc: { item: r.item, shiny: !!r.shiny, dup: !!r.dup, at: r.at ?? '' } }));

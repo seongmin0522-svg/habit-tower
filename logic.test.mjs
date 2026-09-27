@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, buddyFor, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
-  monthGrid, addMonths, TOWER_HEIGHT, MONSTERS } from './logic.js';
+import { todayKST, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
+  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore } from './logic.js';
+import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL } from './catalog.js';
 
 // n consecutive certified days starting at `start`
 const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'a' + i, at: '' }]);
@@ -45,11 +46,6 @@ test('pendingFall: newest broken tower until seen', () => {
   assert.equal(pendingFall(D(run('2026-08-01', 30)), T, null), null); // ended exactly complete
 });
 
-test('buddyFor evolves every 4 floors, dragon from 27', () => {
-  assert.equal(MONSTERS.length, 8);
-  const id = (n) => buddyFor(n).id;
-  assert.deepEqual([0, 1, 4, 5, 25, 26, 27, 30].map(id), ['snail', 'snail', 'snail', 'mushroom', 'golem', 'golem', 'dragon', 'dragon']);
-});
 
 test('validBackup accepts only known paths and image data URLs', () => {
   const ok = { version: 1, docs: [['habit/me', { title: 'x' }], ['days/2026-09-25', { assetId: 'p1', at: '' }]], photos: [['p1', 'data:image/jpeg;base64,AAAA']] };
@@ -169,4 +165,77 @@ test('addMonths crosses years', () => {
   assert.equal(addMonths('2026-12', 1), '2027-01');
   assert.equal(addMonths('2026-01', -1), '2025-12');
   assert.equal(addMonths('2026-09', 0), '2026-09');
+});
+
+test('catalog counts and unique ids', () => {
+  const by = (xs, t) => xs.filter((x) => x.tier === t).length;
+  const tiers = ['common', 'rare', 'epic', 'legend'];
+  assert.deepEqual(tiers.map((t) => by(MONSTERS, t)), [50, 30, 15, 5]);
+  const solo = SKINS.filter((s) => !s.couple), duo = SKINS.filter((s) => s.couple);
+  assert.deepEqual(tiers.map((t) => by(solo, t)), [14, 12, 10, 4]);
+  assert.deepEqual(tiers.map((t) => by(duo, t)), [4, 3, 2, 1]);
+  assert.equal(new Set([...MONSTERS, ...SKINS].map((x) => x.id)).size, 150);
+  assert.ok(ITEMS.has(STARTER));
+  assert.equal(TITLES.length, 12);
+});
+
+test('roll picks tier by weight, item by index, shiny for monsters only', () => {
+  assert.equal(roll(POOL, [0, 0, 0.5]).item.tier, 'common');
+  assert.equal(roll(POOL, [0.69, 0, 0.5]).item.tier, 'common');
+  assert.equal(roll(POOL, [0.70, 0, 0.5]).item.tier, 'rare');
+  assert.equal(roll(POOL, [0.90, 0, 0.5]).item.tier, 'epic');
+  assert.equal(roll(POOL, [0.98, 0, 0.5]).item.tier, 'legend');
+  assert.equal(roll(POOL, [0.999, 0.999, 0.5]).item.tier, 'legend');
+  const mon = roll(POOL, [0, 0, 0.01]);
+  assert.equal(mon.shiny, !!mon.item.base);
+  assert.equal(roll(POOL, [0, 0, 0.03]).shiny, false);
+  assert.equal(roll(COUPLE_POOL, [0.99, 0.5, 0]).shiny, false);
+  assert.ok(roll(COUPLE_POOL, [0.99, 0.5, 0]).item.couple);
+});
+
+test('owned always has the starter; shiny counts apart', () => {
+  const o = owned({ 'd:2026-10-01': { item: 'bat-purple', shiny: true } });
+  assert.ok(o.has(STARTER) && o.has('bat-purple*') && !o.has('bat-purple'));
+});
+
+test('boxes: photo days from the start date, couple days, bonus from dups; minus opened', () => {
+  const days = { '2026-09-26': { assetId: 'a' }, '2026-09-27': { assetId: 'b' }, '2026-09-28': { shield: true }, '2026-09-29': { assetId: 'c' } };
+  const cdays = { '2026-09-27': { assetId: 'b', partnerAssetId: 'x' }, '2026-09-28': { shield: true } };
+  const pulls = { 'd:2026-09-27': { item: 'snail-green', dup: true } };
+  assert.deepEqual(boxes({ days, cdays, pulls, from: '2026-09-27' }), ['c:2026-09-27', 'd:2026-09-29']);
+  const dups = Object.fromEntries(Array.from({ length: 21 }, (_, i) => [`d:x${i}`, { dup: true }]));
+  assert.deepEqual(boxes({ days: {}, cdays: {}, pulls: { ...dups, 'b:0': { dup: false } }, from: '' }), ['b:1']);
+  assert.equal(shards(dups), 1);
+});
+
+const streak = (start, n, extra = {}) => Object.fromEntries(Array.from({ length: n }, (_, i) => [addDays(start, i), { assetId: 'p' + i, ...extra }]));
+test('titles', () => {
+  const t = (o) => [...titles({ days: {}, cdays: {}, pulls: {}, today: '2026-12-31', ...o })].sort();
+  assert.deepEqual(t({}), []);
+  assert.deepEqual(t({ days: streak('2026-10-01', 1) }), ['first']);
+  assert.ok(t({ days: streak('2026-10-01', 7) }).includes('week'));
+  const thirty = streak('2026-10-01', 30);
+  assert.ok(t({ days: thirty }).includes('tower') && t({ days: thirty }).includes('straight'));
+  const withShield = { ...streak('2026-10-01', 10), '2026-10-11': { shield: true }, ...streak('2026-10-12', 20) };
+  assert.ok(t({ days: withShield }).includes('tower') && !t({ days: withShield }).includes('straight'));
+  assert.ok(t({ days: { ...streak('2026-01-01', 3), ...streak('2026-02-01', 7) } }).includes('comeback'));
+  assert.ok(!t({ days: streak('2026-02-01', 7) }).includes('comeback'));
+  assert.ok(t({ pulls: { a: { item: 'bat-purple', shiny: true } } }).includes('shiny'));
+  assert.ok(t({ pulls: { a: { item: 'dragon-red', shiny: false } } }).includes('legend'));
+  assert.ok(t({ cdays: streak('2026-10-01', 30, { partnerAssetId: 'q' }) }).includes('couple'));
+  const fifty = Object.fromEntries(MONSTERS.slice(0, 50).map((m, i) => [`d:${i}`, { item: m.id }]));
+  assert.ok(t({ pulls: fifty }).includes('dex50') && !t({ pulls: fifty }).includes('dex100'));
+});
+
+test('pull sync diffs', () => {
+  const pulls = { 'd:2026-10-01': { item: 'bat-purple', shiny: false, dup: false, at: 't' }, 'b:0': { item: 'x', shiny: false, dup: true, at: '' } };
+  assert.deepEqual(pullsToPush(pulls, [{ box: 'b:0' }]), ['d:2026-10-01']);
+  assert.deepEqual(pullsToRestore([{ box: 'b:0', item: 'x', shiny: false, dup: true, at: null },
+    { box: 'b:1', item: 'y', shiny: true, dup: false, at: 't' }], pulls),
+  [{ box: 'b:1', doc: { item: 'y', shiny: true, dup: false, at: 't' } }]);
+});
+
+test('backup accepts pull docs', () => {
+  assert.ok(validBackup({ version: 1, docs: [['pulls/d:2026-10-01', { item: 'a' }], ['pulls/c:2026-10-01', {}], ['pulls/b:3', {}]], photos: [] }));
+  assert.ok(!validBackup({ version: 1, docs: [['pulls/../x', {}]], photos: [] }));
 });
