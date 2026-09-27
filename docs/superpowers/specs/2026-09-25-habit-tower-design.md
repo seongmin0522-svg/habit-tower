@@ -26,7 +26,7 @@ claude.ai 비공개 Artifact. capabilities: `db`(기록), `assets`(사진). 로�
   - `current`: `{ keys }` — 지금 쌓는 탑의 날짜들(1~30개), 없으면 `null`. 30개 채운 탑은 다음 날 블럭이 올라가기 전까지 `current`(깃발 상태).
   - `past`: `[{ keys, kind: 'built' | 'fell' }]` 최신 순. 30개짜리는 `built`, 끊긴 나머지(1~29개)는 `fell`.
 - `pendingFall(days, today, seenFall)` → 가장 최근에 끊긴 `fell` 탑이 있고 그 마지막 날 ≠ `seenFall`이고 현재 탑이 없으면 그 탑, 아니면 `null`.
-- `buddyFor(floors)` → 몬스터 친구. `MONSTERS[floor((floors-1)/4)]`, 0층이면 달팽이, 27층부터 드래곤(골렘은 25~26층).
+- ~~`buddyFor(floors)`~~ → 2026-09-27 보상 시스템으로 대체: 몬스터 친구는 가방에서 장착 (`2026-09-27-habit-tower-rewards-design.md`).
 
 ## 저장 — `db.js`
 - `connect()`: `claude.use('db')` / `?dev` devdb / `null`(읽기 전용 배너).

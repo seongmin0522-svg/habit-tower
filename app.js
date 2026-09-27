@@ -110,7 +110,9 @@ function App() {
   }, [look.bg]);
   // After a new photo: the box shows up once the brick has landed and nothing else is on screen.
   useEffect(() => {
-    if (revealNext && !anim && !fall && !modal && unopened.length) { setRevealNext(false); openReveal(); }
+    if (!revealNext || anim || fall || modal) return;
+    setRevealNext(false); // one chance per photo: a box that turns up later waits in the bag
+    if (unopened.length) openReveal();
   }, [revealNext, anim, fall, modal, unopened.length]);
   const openReveal = () => { setRevealBox(unopened[0]); setModal('reveal'); };
   const onEquip = (patch) => actions.equip(patch).then(() => { setToast('장착했어요'); cloudApi?.sync(); }, fail);
