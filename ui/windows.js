@@ -1,4 +1,4 @@
-import { html, useState } from './h.js';
+import { html, useState, useEffect } from './h.js';
 import { Sprite, CHARACTERS } from './sprites.js';
 import { TIER } from './scene.js';
 import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
@@ -74,6 +74,25 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
 const EMAIL_KEY = 'habit-tower-email';
 const lastEmail = () => { try { return localStorage.getItem(EMAIL_KEY) ?? ''; } catch { return ''; } };
 
+// Settings "알림": the 9pm reminder on this phone. The state comes from the phone (permission, subscription).
+function PushRow({ api }) {
+  const [st, setSt] = useState(null); // null while checking
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  useEffect(() => { api.pushState().then(setSt, () => setSt('unsupported')); }, []);
+  const flip = (f) => {
+    setBusy(true);
+    setMsg('');
+    f().catch((e) => setMsg(e.message)).then(api.pushState).then(setSt).finally(() => setBusy(false));
+  };
+  return html`<p>알림 <span class="muted small">— 밤 9시, 오늘 벽돌 아직이면</span>
+    ${st === 'off' && html` <button type="button" class="btn green sm" disabled=${busy} onClick=${() => flip(api.pushOn)}>켜기</button>`}
+    ${st === 'on' && html` <button type="button" class="btn blue sm" disabled=${busy} onClick=${() => flip(api.pushOff)}>끄기</button>`}
+    ${st === 'unsupported' && html`<br /><span class="muted small">홈 화면에 추가한 앱에서만 알림이 돼요</span>`}
+    ${st === 'denied' && html`<br /><span class="muted small">폰 설정에서 이 앱 알림을 허용해 주세요</span>`}
+    ${msg && html`<br /><span class="small" role="status">${msg}</span>`}</p>`;
+}
+
 // Settings "커플" section: email code sign-in, name, invite code, leave, sign out.
 function CoupleBox({ cloud, api }) {
   const [email, setEmail] = useState(cloud.email ?? lastEmail());
@@ -124,6 +143,7 @@ function CoupleBox({ cloud, api }) {
         <label>${TOWER_HEIGHT}층 보상 <span class="muted small">— 커플 탑이 완성되면 해줄 것</span>
           <input maxlength="40" placeholder="예: 삼겹살 🍖" value=${reward} onInput=${val(setReward)}
             onBlur=${() => reward.trim() !== (cloud.coupleReward ?? '') && act(() => api.setCoupleInfo({ reward }))} /></label>`}
+      <${PushRow} api=${api} />
       <span>
         ${cloud.coupleId && (leaving
           ? html`<button type="button" class="btn danger sm" disabled=${busy} onClick=${() => act(api.leave, () => setLeaving(false))}>정말 끊기</button>`
