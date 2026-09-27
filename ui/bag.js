@@ -1,11 +1,13 @@
 // The bag: unopened boxes, the collection book, what to wear, titles. And the box reveal.
-import { html, useState } from './h.js';
+import { html, useState, useRef, useEffect } from './h.js';
 import { Win } from './windows.js';
-import { Sprite } from './sprites.js';
+import { Sprite, Chest } from './sprites.js';
 import { monsterUrl } from './monsters.js';
 import { TIER as DEFAULT_BRICK } from './scene.js';
 import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY_RATE, STARTER } from '../catalog.js';
 import { sfx } from '../sound.js';
+import { buzz } from '../haptic.js';
+import { glowAt } from '../logic.js';
 
 const tierOf = (id) => TIERS.find((t) => t.id === id) ?? TIERS[0];
 
@@ -23,29 +25,61 @@ export function ItemIcon({ id, kind, shiny, character }) {
 
 const boxName = (b) => (b.startsWith('c:') ? '💞 커플 상자' : b.startsWith('b:') ? '🎁 보너스 상자' : '🎁 인증 상자');
 
-// One box, two taps: shake, then open. The pull is saved (onOpen) before it shows.
-// onEquip(pull) wears it; left = boxes still unopened after this one.
+// One box, tapped open. The pull is rolled and saved on the first tap; its tier sets the taps it takes
+// (TIERS[].taps). A box still shut past a lower tier's count glows the next tier's color (glowAt),
+// then bursts. onEquip(pull) wears it; left = boxes still unopened after this one.
+const HINT = { rare: '빛이 새어 나와요… 레어 이상!', epic: '보랏빛이…! 희귀 이상!', legend: '금빛이다!! 전설 확정!' };
+const BURST_MS = { common: 700, rare: 900, epic: 1200, legend: 1600 };
+const BITS = { common: 8, rare: 12, epic: 16, legend: 24 };
+
 export function BoxReveal({ box, left, shards, onOpen, onEquip, onNext, onClose }) {
-  const [stage, setStage] = useState('closed'); // closed | shake | opening | open
   const [pull, setPull] = useState(null);
-  const tap = async () => {
-    if (stage === 'closed') { setStage('shake'); sfx('shake'); return; }
-    if (stage !== 'shake') return;
-    setStage('opening');
-    try {
-      const p = await onOpen(box);
-      setPull(p);
-      setStage('open');
-      sfx('open');
-      setTimeout(() => sfx(p.shiny ? 'shiny' : ITEMS.get(p.item)?.tier ?? 'common'), 250);
-    } catch { setStage('shake'); }
-  };
+  const [taps, setTaps] = useState(0);
+  const [flash, setFlash] = useState(0);            // bumps restart the white flash
+  const [stage, setStage] = useState('shut');       // shut | burst | open
+  const count = useRef(0), busy = useRef(false);
   const it = pull && ITEMS.get(pull.item), tier = it && tierOf(it.tier);
-  return html`<${Win} title=${boxName(box)} onClose=${stage === 'opening' ? null : onClose} cls="reveal-win">
+  const glow = glowAt(taps), glowColor = glow && tierOf(glow).color;
+
+  useEffect(() => {
+    if (stage !== 'burst') return;
+    const t = setTimeout(() => setStage('open'), BURST_MS[tier.id]);
+    return () => clearTimeout(t);
+  }, [stage]);
+
+  const tap = async () => {
+    if (stage !== 'shut' || busy.current) return;
+    let p = pull;
+    if (!p) {
+      busy.current = true;
+      try { p = await onOpen(box); setPull(p); } catch { return; } finally { busy.current = false; }
+    }
+    const tr = tierOf(ITEMS.get(p.item)?.tier), n = ++count.current;
+    setTaps(n);
+    if (n >= tr.taps) {
+      setStage('burst'); setFlash((f) => f + 1);
+      sfx('open'); buzz(tr.id);
+      setTimeout(() => sfx(p.shiny ? 'shiny' : tr.id), 250);
+    } else if (glowAt(n) !== glowAt(n - 1)) {
+      setFlash((f) => f + 1); sfx('open'); buzz('glow');
+    } else { sfx('shake'); buzz('tap'); }
+  };
+
+  const hint = taps === 0 ? '상자를 두드려 보세요' : HINT[glow] ?? '한 번 더!';
+  return html`<${Win} title=${boxName(box)} onClose=${taps > 0 && stage !== 'open' ? null : onClose}
+    cls=${'reveal-win' + (stage === 'burst' ? ' quake t-' + tier.id : '')}>
+    ${flash > 0 && html`<i key=${flash} class="flash" />`}
     <div class="body pad center">
       ${stage !== 'open' ? html`
-        <button class=${'giftbox ' + stage} onClick=${tap} aria-label="상자 열기">🎁</button>
-        <p class="big">${stage === 'closed' ? '상자를 두드려 보세요' : stage === 'shake' ? '한 번 더!' : '두근두근…'}</p>
+        <div class=${'chestwrap' + (glow ? ' glow' : '') + (stage === 'burst' ? ' burst' : '')}
+          style=${{ '--gc': stage === 'burst' ? tier.color : glowColor || '#fff' }}>
+          <span class="rays" />
+          ${stage === 'burst' && html`<span class="bits">${Array.from({ length: BITS[tier.id] }, (_, k) => html`<i key=${k}
+            style=${{ '--a': `${(360 / BITS[tier.id]) * k}deg` }} />`)}</span>`}
+          <button key=${taps} class=${'chest' + (taps ? ' hit' : '')} onClick=${tap} aria-label="상자 두드리기">
+            <${Chest} glow=${glowColor} cracks=${taps} /></button>
+        </div>
+        <p class="big" aria-live="polite">${stage === 'burst' ? '두근두근…' : hint}</p>
         <p class="muted small">${box.startsWith('d:') || box.startsWith('c:') ? `${box.slice(2)} 인증 보상` : '조각 10개 보상'}</p>`
       : html`
         <div class=${'prize t-' + it.tier + (pull.shiny ? ' sparkle' : '')} style=${{ '--tc': tier.color }}>
@@ -84,7 +118,7 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
     ${ITEMS.get(id).base ? html`<img class="pix" src=${monsterUrl(id)} alt="" />` : html`<i class="q">?</i>`}</span>`;
 
   const boxTab = html`<div class="pad center">
-    <div class="giftbox idle">🎁</div>
+    <div class="chest bagchest" aria-hidden="true"><${Chest} px=${5} /></div>
     <p class="big">${unopened.length ? `안 연 상자 ${unopened.length}개` : '안 연 상자가 없어요'}</p>
     ${unopened.length > 0 && html`<button class="btn green big" onClick=${onReveal}>열기</button>`}
     <p class="muted small">사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개</p>

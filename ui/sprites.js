@@ -43,3 +43,22 @@ export function Sprite({ id, px = 3, skin }) {
   return html`<svg class="sprite" width=${16 * px} height=${18 * px} viewBox="0 0 16 18"
     shape-rendering="crispEdges" role="img" aria-label=${c.name}>${rects}</svg>`;
 }
+
+// 16x14 treasure chest. Rows 0-5 are the lid (class "lid", it flies off on open); row 6 is the seam,
+// lit in the glow color when there is one. cracks: how many crack pixels show on the body, lit the same.
+const CHEST_PAL = { K: '#2b1d14', W: '#a0662a', w: '#6b4423', G: '#f2c230', L: '#ffe14d' };
+const CHEST = [
+  '..KKKKKKKKKKKK..', '.KWWWWWWWWWWWWK.', 'KWWWWWWWWWWWWWWK', 'KGGGGGGGGGGGGGGK', 'KWWWWWWWWWWWWWWK', 'KwwwwwwKKwwwwwwK',
+  'KKKKKKKLLKKKKKKK', 'KWWWWWWLLWWWWWWK', 'KWWWWWWKKWWWWWWK', 'KGGGGGGGGGGGGGGK', 'KWWWWWWWWWWWWWWK', 'KWWWWWWWWWWWWWWK',
+  'KwwwwwwwwwwwwwwK', '.KKKKKKKKKKKKKK.',
+];
+const CRACKS = [[3, 8], [12, 8], [5, 10], [10, 11], [2, 11], [13, 10], [6, 12], [9, 10], [4, 7], [11, 7]];
+export function Chest({ px = 6, glow, cracks = 0 }) {
+  const cell = (x, y, fill) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`;
+  const rows = (from, to) => CHEST.slice(from, to).flatMap((row, j) => [...row].map((k, x) => {
+    const y = from + j, fill = glow && y === 6 && k === 'K' ? glow : CHEST_PAL[k];
+    return fill ? cell(x, y, fill) : null;
+  }));
+  return html`<svg width=${16 * px} height=${14 * px} viewBox="0 0 16 14" shape-rendering="crispEdges" aria-hidden="true">
+    <g class="lid">${rows(0, 6)}</g><g>${rows(6, 14)}</g>${CRACKS.slice(0, cracks).map(([x, y]) => cell(x, y, glow ?? CHEST_PAL.K))}</svg>`;
+}

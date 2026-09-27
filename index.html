@@ -245,10 +245,32 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .trow.sel { border-color: #f39a1e; box-shadow: 0 0 0 3px #ffd27a; } .trow:disabled { background: #eee; }
 .shardbar { height: 8px; margin: 10px auto 2px; max-width: 220px; background: #ddd6c0; border: 1px solid var(--outline); border-radius: 4px; overflow: hidden; }
 .shardbar i { display: block; height: 100%; background: linear-gradient(90deg,#8fd35a,#f2c230); }
-.giftbox { display: block; margin: 8px auto; font-size: 64px; line-height: 1.1; background: none; border: 0; padding: 0; }
-.giftbox.idle { animation: breathe 1.6s ease-in-out infinite; }
-.giftbox.shake { animation: wobble .5s ease-in-out infinite; } .giftbox.opening { animation: wobble .15s linear infinite; }
-@keyframes wobble { 25% { transform: rotate(-12deg) scale(1.05); } 75% { transform: rotate(12deg) scale(1.05); } }
+.chestwrap { position: relative; display: grid; place-items: center; width: 180px; height: 130px; margin: 4px auto; --gc: #fff; }
+.chest { position: relative; z-index: 1; background: none; border: 0; padding: 0; cursor: pointer; animation: breathe 1.6s ease-in-out infinite; }
+.chest.hit { animation: hit .22s cubic-bezier(.2,1.8,.4,1); }
+.bagchest { display: block; width: max-content; margin: 8px auto; cursor: default; }
+.chest svg { display: block; filter: drop-shadow(0 3px 0 rgba(0,0,0,.35)); }
+.glow .chest svg { filter: drop-shadow(0 0 5px var(--gc)) drop-shadow(0 0 14px var(--gc)); }
+.chest .lid { transform-box: fill-box; transform-origin: 0% 100%; }
+.burst .chest { animation: none; } .burst .chest .lid { animation: lidoff .45s cubic-bezier(.3,1.4,.5,1) forwards; }
+.rays { position: absolute; inset: -20px; border-radius: 50%; opacity: 0; pointer-events: none; transition: opacity .3s;
+  background: repeating-conic-gradient(color-mix(in srgb, var(--gc) 75%, transparent) 0 10deg, transparent 10deg 30deg);
+  -webkit-mask: radial-gradient(circle, #000 15%, transparent 70%); mask: radial-gradient(circle, #000 15%, transparent 70%); animation: spin 6s linear infinite; }
+.glow .rays { opacity: .4; } .burst .rays { opacity: 1; animation-duration: 1.4s; }
+.bits { position: absolute; left: 50%; top: 50%; z-index: 2; }
+.bits i { position: absolute; width: 6px; height: 6px; background: var(--gc); box-shadow: 0 0 4px #fff; animation: bit .7s ease-out both; }
+.bits i:nth-child(3n) { background: #fff; }
+.flash { position: fixed; inset: 0; z-index: 5; background: #fff; pointer-events: none; animation: flash .45s ease-out both; }
+.reveal-win.quake { animation: quake .4s; } .reveal-win.quake.t-epic { animation: quake .12s 4; } .reveal-win.quake.t-legend { animation: quake .1s 8; }
+@keyframes hit { 0% { transform: scale(1.18,.8) translateY(6px); } 60% { transform: scale(.94,1.08) translateY(-6px); } }
+@keyframes lidoff { to { transform: translate(-4px,-10px) rotate(-28deg); opacity: 0; } }
+@keyframes bit { 0% { opacity: 1; transform: rotate(var(--a)) translateX(0); } 100% { opacity: 0; transform: rotate(var(--a)) translateX(90px) scale(.5); } }
+@keyframes flash { from { opacity: .85; } to { opacity: 0; } }
+@keyframes quake { 20%, 60% { transform: translate(-6px, 3px); } 40%, 80% { transform: translate(6px, -3px); } }
+@media (prefers-reduced-motion: reduce) {
+  .reveal-win.quake, .chest, .chest.hit, .rays { animation: none; }
+  .flash { animation-duration: .2s; opacity: .3; }
+}
 .prize { display: grid; place-items: center; width: 120px; height: 120px; margin: 4px auto 8px; border-radius: 50%;
   background: radial-gradient(circle, #fff 30%, color-mix(in srgb, var(--tc) 55%, #fff) 60%, transparent 71%); animation: pop .45s cubic-bezier(.2,1.6,.4,1) both; }
 .prize .pix { width: 80px; height: 80px; } .prize .flagicon { font-size: 48px; } .prize .swatch { width: 70px; height: 60px; } .prize .bricks i { width: 56px; height: 16px; }
