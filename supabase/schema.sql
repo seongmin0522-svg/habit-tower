@@ -206,3 +206,13 @@ grant execute on function public.remind_config(), public.remind_targets() to ser
 
 create extension if not exists pg_net with schema extensions; -- not public (advisor); its functions live in schema net
 create extension if not exists pg_cron;
+
+-- 21:00 KST = 12:00 UTC (cron.timezone is GMT).
+select cron.schedule('habit-remind', '0 12 * * *', $$
+  select net.http_post(
+    url := 'https://bmghacmswvmrhfiwddie.supabase.co/functions/v1/remind',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 10000)
+$$);
