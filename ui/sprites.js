@@ -1,4 +1,5 @@
 import { html } from './h.js';
+import { ITEMS } from '../catalog.js';
 
 // Original 16x18 pixel characters. '.' = transparent; shared keys in BASE.
 export const CHARACTERS = [
@@ -29,11 +30,14 @@ export const CHARACTERS = [
 ];
 const BASE = { K: '#2b1d14', S: '#ffdcb8', W: '#ffffff', E: '#2b1d14', B: '#ff9e9e' };
 
-export function Sprite({ id, px = 3 }) {
+// skin: a catalog 'char-<class>-<variant>' id; it recolors only its own class.
+export function Sprite({ id, px = 3, skin }) {
   const c = CHARACTERS.find((x) => x.id === id) ?? CHARACTERS[0];
+  const sk = ITEMS.get(skin);
+  const pal = sk?.cls === c.id ? { ...c.pal, ...sk.pal } : c.pal;
   const rects = [];
   c.map.forEach((row, y) => [...row].forEach((k, x) => {
-    const fill = c.pal[k] || BASE[k];
+    const fill = pal[k] || BASE[k];
     if (fill) rects.push(html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`);
   }));
   return html`<svg class="sprite" width=${16 * px} height=${18 * px} viewBox="0 0 16 18"
