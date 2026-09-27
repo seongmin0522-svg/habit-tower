@@ -257,3 +257,22 @@ begin
 end $$;
 revoke execute on function public.set_couple_skin(jsonb) from public, anon;
 grant execute on function public.set_couple_skin(jsonb) to authenticated;
+
+-- Partner push (2026-09-27): my photo for today lands, my partner's phone hears about it.
+-- Insert only: a retake is an update, so at most one per person per day. Shield days and late uploads of past days send nothing.
+create function public.notify_partner() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.photo_path is not null and new.day = (now() at time zone 'Asia/Seoul')::date then
+    perform net.http_post(
+      url := 'https://bmghacmswvmrhfiwddie.supabase.co/functions/v1/remind',
+      headers := jsonb_build_object('Content-Type', 'application/json',
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
+      body := jsonb_build_object('partner_of', new.user_id),
+      timeout_milliseconds := 10000);
+  end if;
+  return null;
+end $$;
+revoke execute on function public.notify_partner() from public, anon, authenticated;
+create trigger days_notify_partner after insert on public.days
+  for each row execute function public.notify_partner();

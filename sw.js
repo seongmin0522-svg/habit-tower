@@ -44,10 +44,11 @@ self.addEventListener('fetch', (e) => {
   }));
 });
 
-// 9pm reminder from supabase/functions/remind. Tapping it brings the app forward (or opens it).
+// Pushes from supabase/functions/remind: the 9pm reminder (tag 'remind') and partner news (tag 'partner'),
+// on separate tags so one doesn't replace the other. Tapping brings the app forward (or opens it).
 self.addEventListener('push', (e) => {
-  const { title = '해빗 타워', body = '' } = e.data?.json() ?? {};
-  e.waitUntil(self.registration.showNotification(title, { body, icon: 'icons/icon-192.png', tag: 'remind' }));
+  const { title = '해빗 타워', body = '', tag = 'remind' } = e.data?.json() ?? {};
+  e.waitUntil(self.registration.showNotification(title, { body, icon: 'icons/icon-192.png', tag }));
 });
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
