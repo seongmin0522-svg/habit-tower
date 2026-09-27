@@ -2,7 +2,7 @@ import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES } from './catalog.js';
-import { initSound, sfx } from './sound.js';
+import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
@@ -33,6 +33,9 @@ function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  const [sound, setSound] = useState(getPrefs());
+  useEffect(() => onPrefs(setSound), []);
+  const muted = !sound.bgm && !sound.sfx;
   const [backup, setBackup] = useState(null);
   useEffect(() => {
     connect().then(setDb, () => setDb(null));
@@ -256,6 +259,8 @@ function App() {
         <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('calendar')}>달력</button>
         <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('album')}>앨범</button>
         <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => setModal('setup')}>설정</button>
+        <button class="btn blue sm mute" aria-pressed=${!muted} aria-label=${muted ? '소리 켜기' : '소리 끄기'}
+          onClick=${() => setPrefs({ bgm: muted, sfx: muted })}>${muted ? '🔇' : '🔊'}</button>
       </span>
     </header>
     ${coupled && html`<nav class="tabs" role="tablist">${[['me', '나'], ['couple', '❤ 커플'], ['partner', partnerName]].map(([id, label]) => html`

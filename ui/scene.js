@@ -64,7 +64,7 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
   const n = shown.length;
-  const px = look.monsters.length > 1 ? 2.75 : 3.5; // the couple crew is four wide: keep it on a 360px phone
+  const px = look.monsters.length > 1 ? 2.6 : 3.5; // the couple crew is four wide: keep it on a 360px phone
   const flag = ITEMS.get(look.flag)?.icon ?? '🚩';
 
   // Hand-off: the flying brick starts exactly where the crew holds it at the jump's peak.

@@ -212,6 +212,9 @@ input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inh
 .nametag { position: absolute; left: 50%; top: calc(100% + 4px); transform: translateX(-50%); z-index: 1; font-size: 10px; color: #2b1d14; white-space: nowrap;
   background: linear-gradient(#ffe89a,#f2c230); border: 1px solid #8a6a10; border-radius: 8px; padding: 0 6px; }
 .hud .gold { white-space: nowrap; }
+.hud .mute { padding: 2px 4px; }
+@media (max-width: 400px) { .hud { padding-left: 10px; padding-right: 10px; gap: 6px; } .hud .ttlbox { gap: 6px; } .hud .btn.sm { padding: 2px 5px; } .hud > span { gap: 3px; } }
+select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid #9a9a9a; background: #fffdf5; padding: 3px 4px; color: var(--ink); }
 .bag-win { max-width: 440px; height: 100%; max-height: 640px; } .reveal-win { max-width: 300px; }
 .bag-win .tabs { border-radius: 3px 3px 0 0; }
 .bag { flex: 1; min-height: 0; }

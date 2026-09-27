@@ -2,14 +2,15 @@
 // the page request decides — network if it answers within 2.5s, else the whole launch runs from cache
 // (weak signal in a gym basement shouldn't mean a blank screen). The CDN bundle is pinned by version,
 // so cache first. Photos are blob: URLs and never pass through here; Supabase requests bypass the worker.
+// Audio (audio/*.mp3) isn't in SHELL: sound.js fetches it whole on first play and the fetch handler keeps it.
 // Our own files are always revalidated (cache: 'no-cache'): GitHub Pages lets browsers keep them 10 minutes,
 // which right after a deploy could pair a new app.js with an old windows.js and break the page.
-const CACHE = 'habit-tower-v7';
+const CACHE = 'habit-tower-v8';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
-  './', 'index.html', 'app.js', 'logic.js', 'db.js', 'localdb.js', 'devdb.js', 'cloud.js', 'config.js', 'image.js', 'report.js', 'manifest.webmanifest',
-  'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js',
+  './', 'index.html', 'app.js', 'logic.js', 'catalog.js', 'db.js', 'localdb.js', 'devdb.js', 'cloud.js', 'config.js', 'image.js', 'report.js',
+  'sound.js', 'manifest.webmanifest', 'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js', 'ui/bag.js',
   'fonts/Galmuri11.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js',
 ];

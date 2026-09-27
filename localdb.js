@@ -113,7 +113,7 @@ export async function openLocal(urls) {
       if (!validBackup(data)) throw new Error('해빗 타워 백업 파일이 아니에요');
       for (const [id, url] of data.photos) await assets.put(id, await (await fetch(url)).blob());
       for (const [path, body] of data.docs) await doc(path).set(body);
-      return { days: data.docs.length - (data.docs.some(([p]) => p === 'habit/me') ? 1 : 0), photos: data.photos.length };
+      return { days: data.docs.filter(([p]) => p.startsWith('days/')).length, photos: data.photos.length };
     },
     // Wipes every record and photo on this phone. The caller reloads the page afterwards.
     async reset() {

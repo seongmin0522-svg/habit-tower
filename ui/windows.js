@@ -3,6 +3,7 @@ import { Sprite, CHARACTERS } from './sprites.js';
 import { TIER } from './scene.js';
 import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
 import { photoUrl } from '../db.js';
+import { TRACKS, getPrefs, setPrefs, onPrefs } from '../sound.js';
 
 export function Win({ title, onClose, children, cls = '' }) {
   return html`<div class="overlay" onClick=${onClose}>
@@ -39,6 +40,7 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
         </button>`)}</div>
       <p class="muted small">매일 인증 사진을 찍으면 벽돌이 한 층 올라가요. ${TOWER_HEIGHT}층이면 탑 완성, 하루 빼먹으면 쌓던 탑이 무너져요.</p>
       <div class="foot"><span /><button class="btn green" disabled=${saving || !title.trim()}>${habit ? '저장' : '시작하기'}</button></div>
+      <${SoundBox} />
       ${backup && html`<div class="backup">
         <div class="lbl">백업 <span class="muted small">— 기록과 사진은 이 폰에만 있어요. 가끔 내보내 두세요.</span></div>
         <span>
@@ -67,6 +69,22 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
       ${cloudApi && cloud && html`<${CoupleBox} cloud=${cloud} api=${cloudApi} />`}
     </form>
   </${Win}>`;
+}
+
+// Music and effects, per phone.
+function SoundBox() {
+  const [p, setP] = useState(getPrefs());
+  useEffect(() => onPrefs(setP), []);
+  const sw = (key, label) => html`<button type="button" class=${'btn sm ' + (p[key] ? 'green' : 'blue')} aria-pressed=${p[key]}
+    onClick=${() => setPrefs({ [key]: !p[key] })}>${label} ${p[key] ? '켜짐' : '꺼짐'}</button>`;
+  return html`<div class="backup">
+    <div class="lbl">소리</div>
+    <span>${sw('bgm', '🎵 배경음악')}${sw('sfx', '🔔 효과음')}</span>
+    <select class="track" value=${String(p.track)} aria-label="배경음악 곡" disabled=${!p.bgm}
+      onChange=${(e) => setPrefs({ track: e.target.value === 'random' ? 'random' : Number(e.target.value) })}>
+      ${TRACKS.map((t) => html`<option key=${t.id} value=${String(t.id)}>${t.id}. ${t.name}</option>`)}<option value="random">🔀 랜덤</option>
+    </select>
+  </div>`;
 }
 
 // Phones often reload the page while the user reads the mail, so the sign-in fields never hide
