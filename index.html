@@ -172,6 +172,9 @@ input:not([type=file]) { display: block; width: 100%; margin-top: 3px; font: inh
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tabs button[aria-selected="true"] { color: var(--gold); box-shadow: inset 0 -3px var(--gold); }
 .blk img.half, .carried img.half { float: left; width: 50%; }
+.blk .wait, .carried .wait { float: left; width: 50%; height: 100%; display: grid; place-items: center; font-style: normal; font-weight: bold;
+  color: #fff; background: rgba(0,0,0,.28); outline: 2px dashed rgba(255,255,255,.85); outline-offset: -3px; text-shadow: 0 1px 0 #000; }
+.halfblk:not(.new) .wait { animation: breathe 1.6s ease-in-out infinite; }
 .duo { display: flex; } .duo figure { margin: 0; flex: 1; min-width: 0; }
 .duo figcaption { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; text-align: center; }
 .duo input.note { text-align: center; margin: 0; } .said { font-style: italic; overflow-wrap: anywhere; }

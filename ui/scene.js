@@ -54,12 +54,19 @@ const Photo = ({ day, eager }) => {
   return day.partnerAssetId ? html`${img(day.assetId, 'half')}${img(day.partnerAssetId, 'half')}` : img(day.assetId);
 };
 
+// Half brick: the one photo on its side, a dashed "?" where the missing one goes.
+const HalfPhoto = ({ half }) => {
+  const img = html`<img class="half" src=${photoUrl(half.assetId, true)} alt="" draggable="false" />`, wait = html`<i class="wait">?</i>`;
+  return half.side === 'l' ? html`${img}${wait}` : html`${wait}${img}`;
+};
+
 // keys: current tower's days, floor 1 first. anim: null | {kind:'stack'} | {kind:'fall', keys}.
 // look: { monsters: [{id, shiny}] (one each), hero, partnerHero (character color skins), brick, flag } — catalog ids or null.
 // onDone: the stack sequence (incl. the camera trip) finished.
 // badge(key): optional {l, r} reaction emoji for the brick's bottom corners.
 // tag: the title worn, shown like a name tag under the crew.
-export function Scene({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge }) {
+// half: null | {side: 'l'|'r', assetId} — today's couple brick while one of us is still missing (not a floor).
+export function Scene({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
@@ -102,7 +109,7 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
         const target = Math.max(0, mid(b, stage)[1] - stage.clientHeight * .35);
         if (target < stage.scrollTop) cancel = glide(stage, target, fd, easeOut);
       }, 1400),
-      setTimeout(() => { sfx('brick'); if (n === TOWER_HEIGHT) setTimeout(() => sfx('top'), 300); }, 1400 + fd),
+      setTimeout(() => { sfx('brick'); if (n === TOWER_HEIGHT && !half) setTimeout(() => sfx('top'), 300); }, 1400 + fd),
       setTimeout(() => { cancel = glide(stage, bottom(), 700, easeInOut, onDone); }, 1400 + fd + 1100),
     ];
     return () => { timers.forEach(clearTimeout); cancel(); };
@@ -110,7 +117,8 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
 
   return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
     <div class="crew" aria-hidden="true">
-      <i class="carried" style=${{ '--c': brickColor(look.brick, Math.max(n - 1, 0)) }}><${Photo} day=${days[shown.at(-1)]} eager /></i>
+      <i class="carried" style=${{ '--c': brickColor(look.brick, half ? n : Math.max(n - 1, 0)) }}>${half
+        ? html`<${HalfPhoto} half=${half} />` : html`<${Photo} day=${days[shown.at(-1)]} eager />`}</i>
       ${look.monsters.map((m, i) => html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')}><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></span>`)}
       <span class="hero"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
       ${partnerCharacter && html`<span class="hero"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
@@ -118,14 +126,16 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
     </div>
     <div class="tower">
       ${n === TOWER_HEIGHT && !falling && html`<div class="flag">${flag}${stacking && html`<span class="sparks">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => html`<i key=${k} style=${{ '--a': `${k * 45}deg` }} />`)}</span>`}</div>`}
-      ${stacking && html`<span class="plus">+1층</span><span class="dust" />`}
+      ${stacking && html`<span class="plus">${half ? '½' : '+1층'}</span><span class="dust" />`}
       <div class="stack">${shown.map((key, i) => html`
-        <button key=${key} class=${'blk' + (stacking && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
+        <button key=${key} class=${'blk' + (stacking && !half && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
           style=${{ '--c': brickColor(look.brick, i), '--i': i, ...(falling ? scatter(i, n) : {}) }}
           aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} />${
           ['l', 'r'].map((side) => badge?.(key)?.[side] && html`<span key=${side} class=${'badge ' + side}>${badge(key)[side]}</span>`)}</button>`)}
+        ${half && !falling && html`<div class=${'blk halfblk' + (stacking ? ' new' : '')} style=${{ '--c': brickColor(look.brick, n) }}
+          role="img" aria-label="오늘 반쪽 벽돌 · 상대 인증 기다리는 중"><${HalfPhoto} half=${half} /></div>`}
       </div>
-      ${rubble && !n && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
+      ${rubble && !n && !half && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
       <div class="base" />
     </div>
   </div>`;

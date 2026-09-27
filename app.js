@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, coupleDays, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
+import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES } from './catalog.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
@@ -81,6 +81,7 @@ function App() {
   const badge = (k) => ({ me: { r: got[k] }, couple: { l: got[k], r: gave[k] }, partner: { r: gave[k] } })[view];
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
+  const half = view === 'couple' ? halfBrick(state.days, pdays, today) : null;
   const builtTowers = past.filter((t) => t.kind === 'built');
   const built = builtTowers.length;
   const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
@@ -200,10 +201,9 @@ function App() {
     let t;
     try {
       // Start the walk-in before the block appears, so it never flashes on top first.
-      // If my partner already certified today, the brick goes on the couple tower.
       const r = await actions.certify(file, ({ retake }) => {
         if (retake) return;
-        if (coupled) setTab(pdays[today]?.assetId ? 'couple' : 'me');
+        // Stay on this tab: the couple tab stacks a full brick, or a half one while my partner hasn't certified.
         setAnim({ kind: 'stack' });
         t = setTimeout(() => setAnim(null), STACK_MS);
       });
@@ -276,7 +276,7 @@ function App() {
         ${state.habit && html`<${Scene} key=${view}
           character=${view === 'partner' ? partner.character : state.habit.character}
           partnerCharacter=${view === 'couple' ? partner.character : null} look=${look} tag=${badgeName}
-          keys=${keys} days=${days} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
+          keys=${keys} days=${days} half=${half} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
           onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
           onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
         <div class="ground" />
