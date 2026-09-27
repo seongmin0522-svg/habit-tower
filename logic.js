@@ -39,7 +39,8 @@ export const MONSTERS = [
 ];
 
 // The monster buddy grows up every 4 floors and starts over when the tower falls.
-export const buddyFor = (floors) => MONSTERS[Math.min(Math.floor(Math.max(floors - 1, 0) / 4), MONSTERS.length - 1)];
+// The dragon comes early (27) so it stays 4 floors like the others; the golem gets 25-26.
+export const buddyFor = (floors) => floors >= 27 ? MONSTERS.at(-1) : MONSTERS[Math.floor(Math.max(floors - 1, 0) / 4)];
 
 // Consecutive certified days, oldest first. cut: the day the user chose to start over — a run ends there.
 // A shield day keeps a run going without adding a floor (it's in end, not in keys), and starts nothing by itself.

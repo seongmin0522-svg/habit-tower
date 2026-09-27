@@ -45,10 +45,10 @@ test('pendingFall: newest broken tower until seen', () => {
   assert.equal(pendingFall(D(run('2026-08-01', 30)), T, null), null); // ended exactly complete
 });
 
-test('buddyFor evolves every 4 floors', () => {
+test('buddyFor evolves every 4 floors, dragon from 27', () => {
   assert.equal(MONSTERS.length, 8);
   const id = (n) => buddyFor(n).id;
-  assert.deepEqual([0, 1, 4, 5, 28, 29, 30].map(id), ['snail', 'snail', 'snail', 'mushroom', 'golem', 'dragon', 'dragon']);
+  assert.deepEqual([0, 1, 4, 5, 25, 26, 27, 30].map(id), ['snail', 'snail', 'snail', 'mushroom', 'golem', 'golem', 'dragon', 'dragon']);
 });
 
 test('validBackup accepts only known paths and image data URLs', () => {
