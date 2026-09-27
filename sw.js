@@ -50,8 +50,12 @@ self.addEventListener('push', (e) => {
   const { title = '해빗 타워', body = '', tag = 'remind' } = e.data?.json() ?? {};
   e.waitUntil(self.registration.showNotification(title, { body, icon: 'icons/icon-192.png', tag }));
 });
+// A partner push tapped while the app is open also tells it to show the couple tab (a fresh launch opens there anyway).
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true })
-    .then((ws) => (ws[0] ? ws[0].focus() : self.clients.openWindow('./'))));
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((ws) => {
+    if (!ws[0]) return self.clients.openWindow('./');
+    if (e.notification.tag === 'partner') ws[0].postMessage({ tab: 'couple' });
+    return ws[0].focus();
+  }));
 });

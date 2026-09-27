@@ -60,6 +60,12 @@ function App() {
     document.addEventListener('visibilitychange', onShow);
     return () => document.removeEventListener('visibilitychange', onShow);
   }, [cloudApi]);
+  // Partner push tapped with the app open (sw.js): show the couple tab with fresh partner data.
+  useEffect(() => {
+    const onMsg = (e) => { if (e.data?.tab !== 'couple') return; setTab('couple'); cloudApi?.sync(); };
+    navigator.serviceWorker?.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker?.removeEventListener('message', onMsg);
+  }, [cloudApi]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
   const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current), [db, assets]);
 
