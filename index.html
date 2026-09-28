@@ -302,6 +302,31 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .pr-hint { position: absolute; left: 0; right: 0; bottom: 76px; margin: 0; z-index: 2000; text-align: center; color: #fff; font-size: 12px;
   text-shadow: 0 1px 0 #000; pointer-events: none; }
 .crew .pet { background: none; border: 0; padding: 0; cursor: pointer; }
+.pr-tray { display: flex; justify-content: center; gap: 10px; padding: 8px 12px max(10px, env(safe-area-inset-bottom)); background: rgba(0,0,0,.3); }
+.pr-pet { touch-action: none; }
+.pr-body { display: block; transform-origin: 50% 100%; }
+.pr-bubble { position: absolute; bottom: 100%; left: 50%; margin-bottom: 6px; background: #fff; border: 6px solid #2b1d14; border-radius: 22px; padding: 8px 10px 4px; line-height: 0; }
+.pr-bubble svg { display: block; }
+.m-jump { animation: mjump .5s ease-out 2; }
+.m-bounce { animation: mbounce .18s ease-in-out 4 alternate; }
+.m-chew { animation: mchew .14s ease-in-out 5 alternate; }
+.m-droop { animation: mdroop .5s ease-out both; }
+.m-hop { animation: mhop .3s ease-out; }
+.m-sway { animation: msway 1.6s ease-in-out infinite alternate; }
+.m-stomp { animation: mstomp .1s ease-in-out 8 alternate; }
+.m-wiggle { animation: mwiggle .12s ease-in-out 8 alternate; }
+.m-shake { animation: mshake .07s linear 8 alternate; }
+.m-spin { animation: mspin .6s ease-in-out; }
+@keyframes mjump { 40% { transform: translateY(-40%) scale(.95, 1.08); } 80% { transform: scale(1.1, .9); } }
+@keyframes mbounce { to { transform: translateY(-12%); } }
+@keyframes mchew { to { transform: scale(1.07, .9); } }
+@keyframes mdroop { to { transform: translateY(4%) scale(1.04, .9); } }
+@keyframes mhop { 50% { transform: translateY(-18%); } }
+@keyframes msway { from { transform: rotate(-4deg); } to { transform: rotate(4deg); } }
+@keyframes mstomp { to { transform: translateY(-6%) rotate(3deg); } }
+@keyframes mwiggle { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+@keyframes mshake { from { transform: translateX(-5%); } to { transform: translateX(5%); } }
+@keyframes mspin { to { transform: rotate(360deg); } }
 </style>
 </head>
 <body>

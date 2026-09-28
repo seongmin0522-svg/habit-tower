@@ -8,6 +8,7 @@ import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
+import { DAILY } from './pet.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
@@ -20,7 +21,7 @@ initSound();
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
-  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, loaded: false });
+  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, loaded: false });
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
@@ -318,8 +319,10 @@ function App() {
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts}
-      onFeed=${(n) => actions.feedPet(myPet.id, n).catch(fail)} onClose=${() => setModal(null)} />`}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} foodLeft=${DAILY.food - (state.play[today]?.fed ?? 0)}
+      onThrowFood=${() => actions.throwFood().catch((e) => { fail(e); throw e; })}
+      onFeed=${(n, kind) => actions.feedPet(myPet.id, n, kind).catch((e) => { fail(e); throw e; })}
+      onWake=${() => actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
       shards=${shards(state.pulls)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}
