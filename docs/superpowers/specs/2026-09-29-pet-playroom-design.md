@@ -8,7 +8,7 @@ Date: 2026-09-29. Stage ① of three pet stages chosen by 도균님:
 
 Pokémon GO–style play with my equipped monster: flick food or a toy with a finger, the pet catches, eats or
 fetches it, shows an emotion, and gains hearts. Hearts raise a per-pet level that pays out rewards.
-The pet never dies, leaves, or loses hearts.
+The pet never dies or leaves. Hearts drop only when I wake a sleeping pet, and never below the current level.
 
 ## Entry and screen
 
@@ -57,8 +57,10 @@ The pet never dies, leaves, or loses hearts.
 - Rolled once per day at the first open: hungry 20%, bored 20%, else fine. Between 23:00 and 06:00 KST the pet is always sleepy.
 - Hungry: shows 🍖 bubble. The first food eaten that day +2 extra.
 - Bored: shows … bubble. The first toy hit that day +2 extra.
-- Sleepy: the pet sleeps (💤). The first throw only wakes it, sulking: the item comes back to the tray, no hearts,
+- Sleepy: the pet sleeps (💤). The first throw only wakes it, angry: −3 hearts, the item comes back to the tray,
   no food used. It then stays awake until the playroom closes.
+- Heart floor: a loss never takes hearts below the start of the current level (770 once the star gauge is full),
+  so a level, its box and a shiny unlock are never taken back. The loss is clamped when it is recorded.
 - Petting: rubbing the pet (3+ direction changes while the finger is over it) → shy reaction, +1 once per day.
   Petting a sleeping pet makes it smile in its sleep (same +1, same once per day) without waking it.
 - Mood bonuses do not count toward the toy cap.
@@ -66,7 +68,7 @@ The pet never dies, leaves, or loses hearts.
 ## Emotions (10)
 
 Pixel speech-bubble icon above the head plus a body motion (CSS):
-joy 💗 (bounce), excited (jump), yum (chew squish), spit (shake, item flies out), sulk 💢 (turn away),
+joy 💗 (bounce), excited (jump), yum (chew squish), spit (shake, item flies out), angry 💢 (red face, stomping, on being woken),
 sleepy 💤 (slow sway), surprised ❗ (hop back), sad 💧 (droop, on a miss), shy /// (wiggle, on petting),
 moved 💞 (spin, on level up). Bubbles are drawn as pixel icons, not emoji, so Galaxy and iPhone look the same.
 
@@ -88,21 +90,23 @@ moved 💞 (spin, on level up). Bubbles are drawn as pixel icons, not emoji, so 
 ## Data
 
 - Local docs (IndexedDB, same `db.doc` API):
-  - `pets/<monsterId>` = `{ hearts, tastes: { <food>: 'like' | 'hate' } }`.
+  - `pets/<monsterId>` = `{ gained, lost, tastes: { <food>: 'like' | 'hate' } }`. Hearts = `gained − lost`.
+    Both counters only grow, so every merge can take the larger of each.
   - `play/<day>` = `{ food: [...kinds left], toyHearts, petted, mood, moodUsed }`. Not included in the backup file.
   - `pulls/p:<monsterId>:<level>` for opened level boxes.
 - `boxes()` also lists level boxes (takes pets). `owned()` also adds `<id>*` for pets at 770+ hearts (takes pets).
+- Hearts per pet in this spec always means `gained − lost`.
 - Backup: `DOC_PATH` allows `pets/<id>` and `pulls/p:<id>:<n>`. Export skips `play/` docs, so an import still validates.
 - Cloud (Supabase):
-  - New table `pets (user_id, monster, hearts int, tastes jsonb, updated_at, primary key (user_id, monster))`,
+  - New table `pets (user_id, monster, gained int, lost int, tastes jsonb, updated_at, primary key (user_id, monster))`,
     RLS own rows only. Partner read comes with stage ②.
-  - Sync: push where local hearts > cloud, restore where cloud > local (hearts only grow, so the larger wins).
-    Tastes merge as a union.
+  - Sync: per pet, take the larger `gained` and the larger `lost` from phone and cloud, push or restore whichever side
+    is behind. Tastes merge as a union.
   - `pulls.box` check constraint gains `p:[a-z]+-[a-z]+:\d{1,2}`.
 
 ## Files
 
-- `pet.js` (new): pure rules — throw physics, judgement, hearts, level from hearts, day food roll helpers.
+- `pet.js` (new): pure rules — throw physics, judgement, hearts, heart floor, level from hearts, day food roll helpers.
 - `pet.test.mjs` (new): tests for `pet.js` (picked up by `node --test`).
 - `ui/playroom.js` (new): the window, pointer input, animation loop, pet behavior, emotions.
 - `catalog.js`: FOODS, TOYS, ACCESSORIES, tastes, level constants.
@@ -133,7 +137,8 @@ Each step is its own commit. Push only after 도균님 confirms.
 ## Testing
 
 - `pet.test.mjs`: flick velocity from samples, spin detection, landing point, judgement bands, hearts (taste ×2,
-  hate 0, combo from the 3rd hit, curve +1, miss 1, toy cap 10, mood bonus outside the cap), level from hearts
+  hate 0, combo from the 3rd hit, curve +1, miss 1, toy cap 10, mood bonus outside the cap, wake −3 clamped at the
+  level start and at 770, merge takes the larger of each counter), level from hearts
   (0 → 1, 10 → 2, 270 → 10, 769 no shiny, 770 shiny).
 - `logic.test.mjs`: `boxes()` lists `p:` boxes up to the level and skips opened ones; `owned()` shiny from pets;
   `validBackup` accepts `pets/` and `p:` pulls.
