@@ -263,3 +263,9 @@ test('glowAt: the glow is the least the box can be, never more than it is', () =
   const rank = (id) => TIERS.findIndex((t) => t.id === id);
   for (const [i, t] of TIERS.entries()) assert.ok(rank(glowAt(t.taps - 1)) <= i, t.id); // one tap before it opens
 });
+
+test('validBackup accepts pet heart docs', () => {
+  assert.equal(validBackup({ version: 1, docs: [['pets/snail-green', { gained: 3, lost: 0 }]], photos: [] }), true);
+  assert.equal(validBackup({ version: 1, docs: [['pets/Snail!', { gained: 3 }]], photos: [] }), false);
+  assert.equal(validBackup({ version: 1, docs: [['pets/snail-green/x', {}]], photos: [] }), false);
+});

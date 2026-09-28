@@ -135,7 +135,7 @@ export function splitReactions(rows, uid) {
 
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
-const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}))$/;
+const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5})|pets\/[a-z]+-[a-z]+)$/;
 const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function validBackup(b) {
   return isPlain(b) && b.version === 1 && Array.isArray(b.docs) && Array.isArray(b.photos)

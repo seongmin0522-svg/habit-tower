@@ -48,13 +48,13 @@ export async function connectAssets() {
   };
 }
 
-// `loaded` flips true only after server-definitive snapshots of all three sources.
+// `loaded` flips true only after server-definitive snapshots of all four sources.
 export function subscribe(db, onState, onError) {
-  const st = { habit: null, days: {}, pulls: {}, loaded: false };
+  const st = { habit: null, days: {}, pulls: {}, pets: {}, loaded: false };
   const seen = new Set();
   const emit = (part, s) => {
     if (!s.metadata.fromCache) seen.add(part);
-    st.loaded = seen.size === 3;
+    st.loaded = seen.size === 4;
     onState({ ...st });
   };
   const offs = [
@@ -67,6 +67,10 @@ export function subscribe(db, onState, onError) {
       st.pulls = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
       emit('pulls', s);
     }, onError),
+    db.collection('pets').onSnapshot((s) => {
+      st.pets = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      emit('pets', s);
+    }, onError),
   ];
   return () => offs.forEach((off) => off());
 }
@@ -77,6 +81,7 @@ export function makeActions(db, assets, getState) {
     if (!s?.loaded) throw new Error('데이터를 아직 불러오는 중이에요');
     return s;
   };
+  let petWrites = Promise.resolve(); // feeds write one after another: each reads the doc the last one wrote
   return {
     async setHabit({ title, character }) {
       const s = ready();
@@ -146,6 +151,20 @@ export function makeActions(db, assets, getState) {
         if (!ok) throw new Error('아직 없는 아이템이에요');
       }
       await db.doc('habit/me').set({ ...s.habit, look: { ...s.habit?.look, ...patch } });
+    },
+
+    // Hearts for a pet: pets/<monsterId> = {gained, lost}. Both only grow; hearts = gained − lost.
+    // Reads the doc itself, not React state, so two quick feeds can't overwrite each other.
+    // async so a not-ready or bad call rejects instead of throwing inside the playroom's animation loop.
+    async feedPet(id, n) {
+      ready();
+      if (!ITEMS.get(id)?.base || !(n > 0)) throw new Error('먹이를 줄 수 없어요');
+      const run = petWrites.then(async () => {
+        const ref = db.doc(`pets/${id}`), snap = await ref.get(), p = snap.exists ? snap.data() : {};
+        await ref.set({ ...p, gained: (p.gained ?? 0) + n, lost: p.lost ?? 0 });
+      });
+      petWrites = run.catch(() => {});
+      return run;
     },
 
     // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).
