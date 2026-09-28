@@ -193,6 +193,13 @@ test('roll picks tier by weight, item by index, shiny for monsters only', () => 
   assert.ok(roll(COUPLE_POOL, [0.99, 0.5, 0]).item.couple);
 });
 
+test('boxes never give brick colors, and every tier still has items', () => {
+  for (const pool of [POOL, COUPLE_POOL]) {
+    assert.ok(!pool.some((i) => i.kind === 'brick'));
+    for (const t of TIERS) assert.ok(pool.some((i) => i.tier === t.id), t.id);
+  }
+});
+
 test('owned always has the starter; shiny counts apart', () => {
   const o = owned({ 'd:2026-10-01': { item: 'bat-purple', shiny: true } });
   assert.ok(o.has(STARTER) && o.has('bat-purple*') && !o.has('bat-purple'));

@@ -4,7 +4,7 @@ import { Win } from './windows.js';
 import { Sprite, Chest } from './sprites.js';
 import { monsterUrl } from './monsters.js';
 import { TIER as DEFAULT_BRICK } from './scene.js';
-import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY_RATE, STARTER } from '../catalog.js';
+import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY_RATE, STARTER, POOL, COUPLE_POOL } from '../catalog.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 import { glowAt } from '../logic.js';
@@ -111,8 +111,10 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
   const pick = (id, shiny) => { setPicked({ id, shiny }); sfx('tap'); };
   const monsters = MONSTERS.filter((m) => have.has(m.id)).length;
   const shinies = MONSTERS.filter((m) => have.has(m.id + '*')).length;
-  const skins = SKINS.filter((s) => !s.couple && have.has(s.id)).length;
-  const duo = SKINS.filter((s) => s.couple && have.has(s.id)).length;
+  // The dex lists what boxes can give, plus anything I own that they no longer do (brick colors).
+  const dexSkins = SKINS.filter((s) => (POOL.includes(s) || COUPLE_POOL.includes(s) || have.has(s.id)) && (!s.couple || coupleSkin));
+  const skins = POOL.filter((s) => !s.base && have.has(s.id)).length;
+  const duo = COUPLE_POOL.filter((s) => have.has(s.id)).length;
 
   const cell = (id, shiny, on, onClick) => html`<button key=${id + (shiny ? '*' : '')} class=${'cell' + (on ? ' sel' : '')}
     style=${{ '--tc': tierOf(ITEMS.get(id).tier).color }} onClick=${onClick} aria-label=${ITEMS.get(id).name}>
@@ -131,13 +133,13 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
   </div>`;
 
   const dexTab = html`<div class="pad">
-    <p class="dexsum">몬스터 ${monsters}/${MONSTERS.length} · ✨ ${shinies}/${MONSTERS.length} · 스킨 ${skins}/40${coupleSkin && ` · 💞 ${duo}/10`}</p>
+    <p class="dexsum">몬스터 ${monsters}/${MONSTERS.length} · ✨ ${shinies}/${MONSTERS.length} · 스킨 ${skins}/${POOL.length - MONSTERS.length}${coupleSkin && ` · 💞 ${duo}/${COUPLE_POOL.length}`}</p>
     ${picked && html`<p class="picked">${picked.shiny ? '✨ 이로치 ' : ''}${ITEMS.get(picked.id).name} <span class="tier" style=${{ background: tierOf(ITEMS.get(picked.id).tier).color }}>${tierOf(ITEMS.get(picked.id).tier).name}</span></p>`}
     ${TIERS.map((t) => html`<section key=${t.id}><h3 style=${{ color: t.color }}>${t.name}</h3><div class="grid">${
       MONSTERS.filter((m) => m.tier === t.id).map((m) => (have.has(m.id) ? cell(m.id, false, false, () => pick(m.id)) : unknown(m.id)))}</div></section>`)}
     <section><h3>✨ 이로치</h3>${shinies ? html`<div class="grid">${MONSTERS.filter((m) => have.has(m.id + '*')).map((m) => cell(m.id, true, false, () => pick(m.id, true)))}</div>`
       : html`<p class="muted small">아직 없어요 · 몬스터가 나올 때 ${SHINY_RATE * 100}% 확률</p>`}</section>
-    <section><h3>스킨</h3><div class="grid">${SKINS.filter((s) => !s.couple || coupleSkin).map((s) => (have.has(s.id) ? cell(s.id, false, false, () => pick(s.id)) : unknown(s.id)))}</div></section>
+    <section><h3>스킨</h3><div class="grid">${dexSkins.map((s) => (have.has(s.id) ? cell(s.id, false, false, () => pick(s.id)) : unknown(s.id)))}</div></section>
   </div>`;
 
   // Wear: default first, then what I own of that kind.

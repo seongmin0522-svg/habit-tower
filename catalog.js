@@ -223,8 +223,9 @@ export const SKINS = [
 ];
 
 export const ITEMS = new Map([...MONSTERS, ...SKINS].map((x) => [x.id, x]));
-export const POOL = [...MONSTERS, ...SKINS.filter((s) => !s.couple)];
-export const COUPLE_POOL = SKINS.filter((s) => s.couple);
+// Brick colors never drop from boxes (도균님, 2026-09-28); ones already pulled stay wearable.
+export const POOL = [...MONSTERS, ...SKINS.filter((s) => !s.couple && s.kind !== 'brick')];
+export const COUPLE_POOL = SKINS.filter((s) => s.couple && s.kind !== 'brick');
 export const KIND_NAME = { char: '캐릭터 색', bg: '배경', brick: '벽돌', flag: '깃발' };
 
 export const TITLES = [
