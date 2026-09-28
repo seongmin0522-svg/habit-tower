@@ -220,8 +220,9 @@ function App() {
     } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
   };
 
-  const camera = (label, cls) => html`<label class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
-    <input type="file" accept="image/*" capture="environment" hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onChange=${onPhoto} />
+  // capture forces the camera; without it the phone opens the gallery picker.
+  const camera = (label, cls, capture = 'environment') => html`<label class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
+    <input type="file" accept="image/*" capture=${capture} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onChange=${onPhoto} />
     ${busy ? '올리는 중…' : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
@@ -294,8 +295,8 @@ function App() {
         : view === 'partner'
           ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? '오늘 완료 ✓' : '오늘 아직'}</span>${pokeBtn}`
           : doneToday
-            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}${view === 'couple' && pokeBtn}`
-            : html`${camera('📷 인증하고 쌓기', 'green big')}${view === 'couple' && pokeBtn}`}
+            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}${!busy && camera('🖼️ 갤러리', 'blue sm', null)}${view === 'couple' && pokeBtn}`
+            : html`${camera('📷 인증하고 쌓기', 'green big')}${!busy && camera('🖼️ 갤러리', 'blue sm', null)}${view === 'couple' && pokeBtn}`}
       ${cloud?.userId && cloud.syncFailed
         ? html`<button class="btn danger sm" onClick=${() => cloudApi.sync()}>⚠ 동기화 안 됨 · 다시</button>`
         : pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
