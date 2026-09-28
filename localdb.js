@@ -101,7 +101,7 @@ export async function openLocal(urls) {
 
   const backup = {
     async save() {
-      const docs = await entries(idb, 'docs');
+      const docs = (await entries(idb, 'docs')).filter(([p]) => !p.startsWith('play/')); // daily limits: not backup material
       const photos = [];
       for (const [id, blob] of await entries(idb, 'photos')) if (!id.startsWith('t:')) photos.push([id, await toDataUrl(blob)]); // thumbnails rebuild
       return new Blob([JSON.stringify({ version: 1, docs, photos })], { type: 'application/json' });

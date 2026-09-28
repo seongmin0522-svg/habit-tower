@@ -61,3 +61,41 @@ export function judge(land, pet) {
   const d = Math.hypot(land.x - pet.x, land.z - pet.z);
   return THROW.bands.find(([, r]) => d <= r)?.[0] ?? 'miss';
 }
+
+// Daily limits (per phone, reset at KST midnight): food pieces, toy hearts, petting hearts.
+export const DAILY = { food: 5, toyHearts: 10, pet: 1 };
+
+// Levels: Lv n -> n+1 takes 10 + 5(n − 1) hearts, Lv 1–10 (270 hearts). The star gauge ends at 770 (shiny).
+export const MAX_LEVEL = 10, STAR_FULL = 770, WAKE_LOSS = 3;
+export const levelStart = (n) => 10 * (n - 1) + (5 * (n - 1) * (n - 2)) / 2;
+export function levelOf(hearts) {
+  let n = 1;
+  while (n < MAX_LEVEL && levelStart(n + 1) <= hearts) n++;
+  return n;
+}
+
+// Waking a sleeping pet costs up to WAKE_LOSS hearts, but never drops a level or undoes a full star gauge.
+export function wakeLoss(hearts) {
+  const floor = hearts >= STAR_FULL ? STAR_FULL : levelStart(levelOf(hearts));
+  return Math.max(0, Math.min(WAKE_LOSS, hearts - floor));
+}
+
+// 23:00–05:59 KST: the pet sleeps.
+export function isNight(now = new Date()) {
+  const h = (now.getUTCHours() + 9) % 24;
+  return h >= 23 || h < 6;
+}
+
+// play/<day> = {fed, toyHearts, petted}. useFood: the day's record after one more piece, or null when none are left.
+export const useFood = (play) => ((play.fed ?? 0) >= DAILY.food ? null : { ...play, fed: (play.fed ?? 0) + 1 });
+
+// How many of n hearts a kind of play may still give today, and the day's record after it.
+// 'food' is limited by useFood at the throw, 'toy' by the daily toy hearts, 'pet' to once a day.
+export function grant(play, kind, n) {
+  if (kind === 'toy') {
+    const got = Math.max(0, Math.min(n, DAILY.toyHearts - (play.toyHearts ?? 0)));
+    return { n: got, play: { ...play, toyHearts: (play.toyHearts ?? 0) + got } };
+  }
+  if (kind === 'pet') return play.petted ? { n: 0, play } : { n: Math.min(n, DAILY.pet), play: { ...play, petted: true } };
+  return { n, play };
+}

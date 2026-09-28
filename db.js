@@ -3,6 +3,7 @@ import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
+import { useFood, grant, wakeLoss } from './pet.js';
 
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
@@ -48,13 +49,13 @@ export async function connectAssets() {
   };
 }
 
-// `loaded` flips true only after server-definitive snapshots of all four sources.
+// `loaded` flips true only after server-definitive snapshots of all five sources.
 export function subscribe(db, onState, onError) {
-  const st = { habit: null, days: {}, pulls: {}, pets: {}, loaded: false };
+  const st = { habit: null, days: {}, pulls: {}, pets: {}, play: {}, loaded: false };
   const seen = new Set();
   const emit = (part, s) => {
     if (!s.metadata.fromCache) seen.add(part);
-    st.loaded = seen.size === 4;
+    st.loaded = seen.size === 5;
     onState({ ...st });
   };
   const offs = [
@@ -71,6 +72,11 @@ export function subscribe(db, onState, onError) {
       st.pets = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
       emit('pets', s);
     }, onError),
+    // ponytail: one small play/<day> doc per day played, never cleaned up; prune if it ever matters.
+    db.collection('play').onSnapshot((s) => {
+      st.play = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      emit('play', s);
+    }, onError),
   ];
   return () => offs.forEach((off) => off());
 }
@@ -81,7 +87,12 @@ export function makeActions(db, assets, getState) {
     if (!s?.loaded) throw new Error('데이터를 아직 불러오는 중이에요');
     return s;
   };
-  let petWrites = Promise.resolve(); // feeds write one after another: each reads the doc the last one wrote
+  // Pet writes run one after another and read the docs themselves (not React state), so quick taps can't
+  // overwrite each other.
+  let petWrites = Promise.resolve();
+  const petWrite = (f) => { const run = petWrites.then(f); petWrites = run.catch(() => {}); return run; };
+  const data = async (ref) => { const s = await ref.get(); return s.exists ? s.data() : {}; };
+  const checkPet = (id) => { if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요'); };
   return {
     async setHabit({ title, character }) {
       const s = ready();
@@ -153,18 +164,44 @@ export function makeActions(db, assets, getState) {
       await db.doc('habit/me').set({ ...s.habit, look: { ...s.habit?.look, ...patch } });
     },
 
-    // Hearts for a pet: pets/<monsterId> = {gained, lost}. Both only grow; hearts = gained − lost.
-    // Reads the doc itself, not React state, so two quick feeds can't overwrite each other.
-    // async so a not-ready or bad call rejects instead of throwing inside the playroom's animation loop.
-    async feedPet(id, n) {
+    // Pet play. Hearts: pets/<monsterId> = {gained, lost}, both only grow; hearts = gained − lost.
+    // Daily limits: play/<day> = {fed, toyHearts, petted} (pet.js useFood / grant).
+    // async: a not-ready or bad call rejects instead of throwing inside the playroom's animation loop.
+
+    // One piece of today's food leaves the tray (at the throw).
+    async throwFood() {
       ready();
-      if (!ITEMS.get(id)?.base || !(n > 0)) throw new Error('먹이를 줄 수 없어요');
-      const run = petWrites.then(async () => {
-        const ref = db.doc(`pets/${id}`), snap = await ref.get(), p = snap.exists ? snap.data() : {};
-        await ref.set({ ...p, gained: (p.gained ?? 0) + n, lost: p.lost ?? 0 });
+      return petWrite(async () => {
+        const ref = db.doc(`play/${todayKST()}`), next = useFood(await data(ref));
+        if (!next) throw new Error('오늘 먹이를 다 줬어요');
+        await ref.set(next);
       });
-      petWrites = run.catch(() => {});
-      return run;
+    },
+
+    // kind: 'food' | 'toy' | 'pet'. Resolves to the hearts actually given after today's limits.
+    async feedPet(id, n, kind = 'food') {
+      ready();
+      checkPet(id);
+      if (!(n > 0)) return 0;
+      return petWrite(async () => {
+        const day = db.doc(`play/${todayKST()}`), g = grant(await data(day), kind, n);
+        if (!g.n) return 0;
+        if (kind !== 'food') await day.set(g.play);
+        const ref = db.doc(`pets/${id}`), p = await data(ref);
+        await ref.set({ ...p, gained: (p.gained ?? 0) + g.n, lost: p.lost ?? 0 });
+        return g.n;
+      });
+    },
+
+    // Woken at night: up to 3 hearts off, never below the current level (pet.js wakeLoss). Resolves to the loss.
+    async wakePet(id) {
+      ready();
+      checkPet(id);
+      return petWrite(async () => {
+        const ref = db.doc(`pets/${id}`), p = await data(ref), loss = wakeLoss((p.gained ?? 0) - (p.lost ?? 0));
+        if (loss) await ref.set({ ...p, gained: p.gained ?? 0, lost: (p.lost ?? 0) + loss });
+        return loss;
+      });
     },
 
     // Day markers on habit/me: seenFall / seenCoupleFall (collapse shown), cutMe / cutCouple (started over).

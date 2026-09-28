@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge } from './pet.js';
+import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant } from './pet.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -67,4 +67,50 @@ test('judge: bands by ground distance from the pet', () => {
   assert.equal(judge({ x: 0.1, z: 0.45 }, pet), 'nice');
   assert.equal(judge({ x: 0.5, z: 0.6 }, pet), 'miss');
   assert.deepEqual(FOOD_HEARTS, { excellent: 5, great: 3, nice: 2, miss: 1 });
+});
+
+test('levels: 10 + 5(n − 1) hearts per level, Lv 10 at 270', () => {
+  assert.equal(levelOf(0), 1);
+  assert.equal(levelOf(9), 1);
+  assert.equal(levelOf(10), 2);
+  assert.equal(levelOf(25), 3);
+  assert.equal(levelOf(269), 9);
+  assert.equal(levelOf(270), 10);
+  assert.equal(levelOf(5000), 10);
+  assert.equal(levelStart(3), 25);
+  assert.equal(levelStart(10), 270);
+});
+
+test('wakeLoss: 3 hearts, never below the level start, never below 770 once reached', () => {
+  assert.equal(wakeLoss(40), 3);   // Lv 3 starts at 25
+  assert.equal(wakeLoss(26), 1);
+  assert.equal(wakeLoss(25), 0);
+  assert.equal(wakeLoss(0), 0);
+  assert.equal(wakeLoss(771), 1);
+  assert.equal(wakeLoss(800), 3);
+});
+
+test('isNight: 23:00–05:59 KST', () => {
+  assert.equal(isNight(new Date('2026-09-29T14:00:00Z')), true);  // 23:00 KST
+  assert.equal(isNight(new Date('2026-09-29T20:59:00Z')), true);  // 05:59 KST
+  assert.equal(isNight(new Date('2026-09-29T21:00:00Z')), false); // 06:00 KST
+  assert.equal(isNight(new Date('2026-09-29T13:59:00Z')), false); // 22:59 KST
+});
+
+test('useFood: 5 pieces a day', () => {
+  let play = {};
+  for (let i = 0; i < 5; i++) { play = useFood(play); assert.ok(play); }
+  assert.equal(play.fed, 5);
+  assert.equal(useFood(play), null);
+});
+
+test('grant: food as is, toy hearts capped at 10 a day, petting once', () => {
+  assert.deepEqual(grant({}, 'food', 5), { n: 5, play: {} });
+  let r = grant({ toyHearts: 9 }, 'toy', 1);
+  assert.deepEqual(r, { n: 1, play: { toyHearts: 10 } });
+  assert.equal(grant(r.play, 'toy', 1).n, 0);
+  assert.deepEqual(grant({ toyHearts: 8 }, 'toy', 5), { n: 2, play: { toyHearts: 10 } });
+  r = grant({}, 'pet', 1);
+  assert.deepEqual(r, { n: 1, play: { petted: true } });
+  assert.equal(grant(r.play, 'pet', 1).n, 0);
 });
