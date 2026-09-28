@@ -220,9 +220,11 @@ function App() {
     } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
   };
 
-  // capture forces the camera; without it the phone opens the gallery picker.
-  const camera = (label, cls, capture = 'environment') => html`<label class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
-    <input type="file" accept="image/*" capture=${capture} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onChange=${onPhoto} />
+  // capture forces the camera; without it the phone opens the gallery picker. The attribute must be absent,
+  // not null: phones expose `capture` as a property and Preact would set it to "", which still means camera.
+  // The key keeps Preact from turning one button's input into the other's when the bar re-renders.
+  const camera = (label, cls, capture = 'environment') => html`<label key=${capture ? 'camera' : 'gallery'} class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
+    <input type="file" accept="image/*" ...${capture ? { capture } : {}} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onChange=${onPhoto} />
     ${busy ? '올리는 중…' : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
