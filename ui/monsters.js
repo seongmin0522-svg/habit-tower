@@ -174,18 +174,124 @@ function shinyColor(hex) {
 }
 
 // The art and final colors for a catalog monster ('snail-green'): its variant palette goes over the base art's.
-function paint(id, shiny) {
+// Expressions redraw the art's own eyes, so every monster gets every face. Eye cells: 'E' plus a 'W' highlight
+// touching it, or the letter and rows here for monsters drawn without 'E' eyes.
+// rows: where the eyes are, when the same letter is also a nose or buttons.
+const EYE_SPEC = {
+  skeleton: { k: 'R', rows: [5] }, golem: { k: 'Y', rows: [3] }, pumpkin: { k: 'Y', rows: [7] }, knight: { k: 'R', rows: [6] },
+  fox: { k: 'E', rows: [6, 7] }, wolf: { k: 'E', rows: [5, 6] }, snowman: { k: 'E', rows: [4] },
+};
+export const FACES = ['blink', 'joy', 'excited', 'yum', 'sad', 'surprised', 'sleepy', 'angry', 'shy', 'spit', 'moved'];
+const TEAR = '#6ec6ff', BLUSH = '#ff8ab0', RED = '#ff5a4a';
+const NEAR = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+
+// Each eye: its cells and bounding box, from connected eye cells.
+const eyeCache = new Map();
+function eyesOf(base) {
+  if (eyeCache.has(base)) return eyeCache.get(base);
+  const map = ART[base].map, spec = EYE_SPEC[base] ?? { k: 'E' };
+  const isEye = (x, y) => map[y]?.[x] === spec.k && (!spec.rows || spec.rows.includes(y));
+  const mark = new Set();
+  map.forEach((row, y) => [...row].forEach((c, x) => {
+    const inRows = !spec.rows || spec.rows.includes(y);
+    if (isEye(x, y) || (inRows && spec.k === 'E' && c === 'W' && NEAR.some(([dx, dy]) => isEye(x + dx, y + dy)))) mark.add(`${x},${y}`);
+  }));
+  const eyes = [], seen = new Set();
+  for (const start of mark) {
+    if (seen.has(start)) continue;
+    const cells = [], todo = [start];
+    seen.add(start);
+    while (todo.length) {
+      const [x, y] = todo.pop().split(',').map(Number);
+      cells.push([x, y]);
+      for (const [dx, dy] of NEAR) {
+        const n = `${x + dx},${y + dy}`;
+        if (mark.has(n) && !seen.has(n)) { seen.add(n); todo.push(n); }
+      }
+    }
+    const xs = cells.map((c) => c[0]), ys = cells.map((c) => c[1]);
+    eyes.push({ cells, x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) });
+  }
+  eyeCache.set(base, eyes);
+  return eyes;
+}
+
+// The art's letter grid with a face drawn in, plus literal colors (tears, blush) that ignore the palette.
+function faced(base, face) {
+  const map = ART[base].map, grid = map.map((r) => [...r]), lit = new Map(), eyes = eyesOf(base);
+  if (!face || !eyes.length) return { grid, lit };
+  const eyeAt = new Set(eyes.flatMap((e) => e.cells.map(([x, y]) => `${x},${y}`)));
+  const skin = (x, y) => map[y]?.[x] && !'.K'.includes(map[y][x]) && !eyeAt.has(`${x},${y}`);
+  const counts = {};
+  for (const r of map) for (const c of r) if (!'.K'.includes(c)) counts[c] = (counts[c] ?? 0) + 1;
+  const common = Object.keys(counts).sort((a, b) => counts[b] - counts[a])[0];
+  const mid = eyes.reduce((a, e) => a + e.x0 + e.x1, 0) / (2 * eyes.length);
+  const free = (x, y) => x >= 0 && x < 16 && y >= 0 && y < 16 && (map[y][x] === '.' || skin(x, y)); // marks may hang off the art
+  const ink = (x, y) => { if (free(x, y)) grid[y][x] = 'K'; };
+  const drop = (x, y, color) => { const ty = [y, y + 1].find((ty) => free(x, ty)); if (ty != null) lit.set(`${x},${ty}`, color); };
+  const flush = (x, y, color) => { if (skin(x, y)) lit.set(`${x},${y}`, color); }; // blush stays on the face
+  for (const e of eyes) {
+    const around = [...Array(e.x1 - e.x0 + 1)].flatMap((_, i) => [[e.x0 + i, e.y0 - 1], [e.x0 + i, e.y1 + 1]])
+      .concat([[e.x0 - 1, e.y0], [e.x1 + 1, e.y0]]);
+    const [bx, by] = around.find(([x, y]) => skin(x, y)) ?? [];
+    // An eye on a stalk tip has nothing around it; one in a dark socket closes with the monster's main color.
+    const body = bx != null ? map[by][bx] : around.some(([x, y]) => map[y]?.[x] === '.') ? '.' : common;
+    const left = (e.x0 + e.x1) / 2 < mid, inner = left ? e.x1 : e.x0, outer = left ? e.x0 : e.x1;
+    const tall = e.y1 > e.y0, y = e.y0;
+    const blank = () => e.cells.forEach(([x, cy]) => { grid[cy][x] = body; });
+    const line = (ly) => { for (let x = e.x0; x <= e.x1; x++) grid[ly][x] = 'K'; };
+    const closed = () => {                                                                                              // —
+      if (tall) { blank(); line(e.y1); return; }
+      if (free(e.x0 - 1, y) || free(e.x1 + 1, y)) { ink(e.x0 - 1, y); ink(e.x1 + 1, y); } else blank(); // socket: lid
+    };
+    const happy = () => {
+      if (tall) { blank(); line(e.y0); return; }
+      blank(); ink(e.x0 - 1, y); ink(e.x1 + 1, y); for (let x = e.x0; x <= e.x1; x++) ink(x, y - 1);                // ^
+    };
+    const cheeks = (color) => [e.x0, e.x1].forEach((x) => flush(x, e.y1 + 1, color));
+    if (face === 'blink' || face === 'sleepy' || face === 'yum') closed();
+    else if (face === 'shy') { closed(); cheeks(BLUSH); }
+    else if (face === 'joy') { happy(); cheeks(BLUSH); }
+    else if (face === 'excited') happy();
+    else if (face === 'moved') { happy(); drop(outer, e.y1 + 1, TEAR); }
+    else if (face === 'sad') {
+      if (tall) e.cells.forEach(([x, cy]) => { if (cy === e.y0) grid[cy][x] = body; });
+      drop(outer, e.y1 + 1, TEAR);
+    } else if (face === 'surprised') { // taller eyes, or when there's no room, a smaller or white pupil
+      let grew = 0;
+      for (let x = e.x0; x <= e.x1; x++) if (free(x, e.y0 - 1)) { grid[e.y0 - 1][x] = map[e.y0][x] === 'W' ? 'W' : map[e.y1][x]; grew++; }
+      const pupil = e.cells.filter(([x, cy]) => map[cy][x] !== 'W');
+      if (!grew) (pupil.length > 1 ? pupil.slice(1) : pupil).forEach(([x, cy]) => { grid[cy][x] = 'W'; });
+    } else if (face === 'angry') {
+      ink(inner, e.y0 - 1); ink(inner + (left ? 1 : -1), e.y0 - 2);
+      cheeks(RED);
+    } else if (face === 'spit') {
+      blank();
+      if (tall) {
+        grid[e.y0][left ? e.x0 : e.x1] = 'K'; grid[e.y1][left ? e.x1 : e.x0] = 'K';                                    // \ /
+        grid[e.y1][left ? e.x0 : e.x1] = 'K';
+      } else for (const [dx, dy] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) ink(e.x0 + dx, y + dy);                        // ×
+    }
+  }
+  return { grid, lit };
+}
+
+// face: one of FACES, or null for the normal art.
+export function paint(id, shiny, face = null) {
   const m = MONSTERS.find((x) => x.id === id) ?? MONSTERS[0];
   const art = ART[m.base], pal = { ...art.pal, ...m.pal };
   if (shiny) for (const k in pal) pal[k] = shinyColor(pal[k]);
-  const cells = [];
-  art.map.forEach((row, y) => [...row].forEach((k, x) => { const fill = pal[k] || BASE[k]; if (fill) cells.push([x, y, fill]); }));
+  const { grid, lit } = faced(m.base, face), cells = [];
+  grid.forEach((row, y) => row.forEach((k, x) => {
+    const fill = lit.get(`${x},${y}`) ?? (pal[k] || BASE[k]);
+    if (fill) cells.push([x, y, fill]);
+  }));
   return { m, cells };
 }
 
 // shiny: the rare recolor; the sparkle around it is CSS (.sparkle in index.html).
-export function Monster({ id, px = 2, shiny = false }) {
-  const { m, cells } = paint(id, shiny);
+export function Monster({ id, px = 2, shiny = false, face = null }) {
+  const { m, cells } = paint(id, shiny, face);
   return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16"
     shape-rendering="crispEdges" role="img" aria-label=${(shiny ? '이로치 ' : '') + m.name}>${
     cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
