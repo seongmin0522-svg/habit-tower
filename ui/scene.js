@@ -4,6 +4,7 @@ import { Monster } from './monsters.js';
 import { TOWER_HEIGHT } from '../logic.js';
 import { ITEMS } from '../catalog.js';
 import { sfx } from '../sound.js';
+import { buzz } from '../haptic.js';
 import { photoUrl } from '../db.js';
 
 export const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
@@ -109,7 +110,7 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
         const target = Math.max(0, mid(b, stage)[1] - stage.clientHeight * .35);
         if (target < stage.scrollTop) cancel = glide(stage, target, fd, easeOut);
       }, 1400),
-      setTimeout(() => { sfx('brick'); if (n === TOWER_HEIGHT && !half) setTimeout(() => sfx('top'), 300); }, 1400 + fd),
+      setTimeout(() => { sfx('brick'); buzz('stack'); if (n === TOWER_HEIGHT && !half) setTimeout(() => { sfx('top'); buzz('top'); }, 300); }, 1400 + fd),
       setTimeout(() => { cancel = glide(stage, bottom(), 700, easeInOut, onDone); }, 1400 + fd + 1100),
     ];
     return () => { timers.forEach(clearTimeout); cancel(); };

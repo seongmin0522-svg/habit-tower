@@ -3,6 +3,7 @@ import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldD
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES } from './catalog.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
+import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
@@ -150,6 +151,7 @@ function App() {
     if (!pf) return;
     if (coupled) setTab(pf.scope);
     setAnim({ kind: 'fall', keys: pf.keys });
+    buzz('fall');
     setTimeout(() => setFall(pf), FALL_MS);
   }, [state.loaded, state.habit, today, anim, fall, coupled, cloud?.synced, cdays, cutCouple]);
 
@@ -224,7 +226,7 @@ function App() {
   // not null: phones expose `capture` as a property and Preact would set it to "", which still means camera.
   // The key keeps Preact from turning one button's input into the other's when the bar re-renders.
   const camera = (label, cls, capture = 'environment') => html`<label key=${capture ? 'camera' : 'gallery'} class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
-    <input type="file" accept="image/*" ...${capture ? { capture } : {}} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onChange=${onPhoto} />
+    <input type="file" accept="image/*" ...${capture ? { capture } : {}} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onClick=${() => buzz('tap')} onChange=${onPhoto} />
     ${busy ? '올리는 중…' : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
@@ -252,6 +254,7 @@ function App() {
   const partnerDone = !!pdays[today]?.assetId;
   // Nudge through the phone's share sheet (KakaoTalk etc.); no push server needed. Else copy the text.
   const poke = () => {
+    buzz('tap');
     const text = `${partnerName}! 오늘 ${partner.habit || '인증'} 아직이야 👉 우리 탑 무너진다 😱\n${location.origin}${location.pathname}`;
     if (navigator.share) navigator.share({ text }).catch((e) => e.name !== 'AbortError' && fail(e));
     else navigator.clipboard?.writeText(text).then(() => setToast('문구를 복사했어요 — 카톡에 붙여넣어 주세요'), fail);

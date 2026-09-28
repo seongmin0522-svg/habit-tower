@@ -4,6 +4,7 @@ import { TIER } from './scene.js';
 import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
 import { photoUrl } from '../db.js';
 import { TRACKS, getPrefs, setPrefs, onPrefs } from '../sound.js';
+import { buzz, testBuzz } from '../haptic.js';
 
 export function Win({ title, onClose, children, cls = '' }) {
   return html`<div class="overlay" onClick=${onClose}>
@@ -74,12 +75,19 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
 // Music and effects, per phone.
 function SoundBox() {
   const [p, setP] = useState(getPrefs());
+  const [vibeTest, setVibeTest] = useState(null);
   useEffect(() => onPrefs(setP), []);
   const sw = (key, label) => html`<button type="button" class=${'btn sm ' + (p[key] ? 'green' : 'blue')} aria-pressed=${p[key]}
     onClick=${() => setPrefs({ [key]: !p[key] })}>${label} ${p[key] ? '켜짐' : '꺼짐'}</button>`;
   return html`<div class="backup">
     <div class="lbl">소리</div>
-    <span>${sw('bgm', '🎵 배경음악')}${sw('sfx', '🔔 효과음')}${sw('vibe', '📳 진동')}</span>
+    <span>${sw('bgm', '🎵 배경음악')}${sw('sfx', '🔔 효과음')}${sw('vibe', '📳 진동')}
+      <button type="button" class="btn sm blue" onClick=${() => setVibeTest(testBuzz())}>📳 진동 테스트</button></span>
+    ${vibeTest && html`<p class="muted small">${{
+      ok: '폰이 진동 요청을 받았어요. 안 떨렸다면 폰 설정 → 소리 및 진동 → 진동 세기에서 터치·시스템 진동을 켜 주세요.',
+      blocked: '브라우저가 진동을 막았어요. 이 문구를 캡처해서 알려 주세요.',
+      ios: '아이폰은 웹에서 짧은 톡 한 번만 가능해요. 톡도 안 느껴지면 설정 → 사운드 및 햅틱 → 시스템 햅틱을 켜 주세요.',
+    }[vibeTest]}</p>`}
     <select class="track" value=${String(p.track)} aria-label="배경음악 곡" disabled=${!p.bgm}
       onChange=${(e) => setPrefs({ track: e.target.value === 'random' ? 'random' : Number(e.target.value) })}>
       ${TRACKS.map((t) => html`<option key=${t.id} value=${String(t.id)}>${t.id}. ${t.name}</option>`)}<option value="random">🔀 랜덤</option>
@@ -192,7 +200,7 @@ function Side({ id, who, mine, theirs }) {
       ${mine && html`<${NoteBox} note=${mine.note} onSave=${mine.onSave} />`}
       ${theirs?.note && html`<span class="said">“${theirs.note}”</span>`}
       ${theirs && html`<span class="reacts">${EMOJI.map((e) => html`<button key=${e} type="button" class=${theirs.gave === e ? 'on' : ''}
-        aria-pressed=${theirs.gave === e} onClick=${() => theirs.onReact(theirs.gave === e ? null : e)}>${e}</button>`)}</span>`}
+        aria-pressed=${theirs.gave === e} onClick=${() => { buzz('tap'); theirs.onReact(theirs.gave === e ? null : e); }}>${e}</button>`)}</span>`}
     </figcaption>
   </figure>`;
 }
