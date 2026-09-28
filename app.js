@@ -7,6 +7,7 @@ import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
+import { Playroom } from './ui/playroom.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
@@ -19,12 +20,12 @@ initSound();
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
-  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, loaded: false });
+  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, loaded: false });
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | {key, n (0 = not a floor)}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | {key, n (0 = not a floor)}
   const [revealNext, setRevealNext] = useState(false); // a new box waits for the stacking to finish
   const [revealBox, setRevealBox] = useState(null);    // the box on the reveal window (it stays after it's opened)
   const [busy, setBusy] = useState(false);
@@ -111,6 +112,9 @@ function App() {
       bg: cSkin.bg, brick: cSkin.brick, flag: cSkin.flag, badge: myLook.badge },
   }[view];
   const badgeName = TITLES.find((t) => t.id === look.badge)?.name;
+  const myPet = buddy(myLook);
+  const petHearts = ((p) => (p?.gained ?? 0) - (p?.lost ?? 0))(state.pets[myPet.id]);
+  const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
     const bg = ITEMS.get(look.bg), st = document.documentElement.style;
@@ -291,7 +295,7 @@ function App() {
           partnerCharacter=${view === 'couple' ? partner.character : null} look=${look} tag=${badgeName}
           keys=${keys} days=${days} half=${half} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
           onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
-          onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} />`}
+          onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} onPet=${onPet} />`}
         <div class="ground" />
       </div>
     </main>
@@ -314,6 +318,8 @@ function App() {
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts}
+      onFeed=${(n) => actions.feedPet(myPet.id, n).catch(fail)} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
       shards=${shards(state.pulls)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}

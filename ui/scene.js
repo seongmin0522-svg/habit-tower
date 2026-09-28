@@ -67,7 +67,8 @@ const HalfPhoto = ({ half }) => {
 // badge(key): optional {l, r} reaction emoji for the brick's bottom corners.
 // tag: the title worn, shown like a name tag under the crew.
 // half: null | {side: 'l'|'r', assetId} — today's couple brick while one of us is still missing (not a floor).
-export function Scene({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half }) {
+// onPet: open the playroom by tapping my pet (the first monster), or null when it isn't mine / not now.
+export function Scene({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half, onPet }) {
   const falling = anim?.kind === 'fall';
   const stacking = anim?.kind === 'stack';
   const shown = falling ? anim.keys : keys;
@@ -117,13 +118,15 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
   }, [stacking]);
 
   return html`<div ref=${ref} class=${'scene' + (stacking ? ' stacking' : '') + (falling ? ' falling' : '') + (n === TOWER_HEIGHT ? ' topped' : '')}>
-    <div class="crew" aria-hidden="true">
-      <i class="carried" style=${{ '--c': brickColor(look.brick, half ? n : Math.max(n - 1, 0)) }}>${half
+    <div class="crew">
+      <i class="carried" aria-hidden="true" style=${{ '--c': brickColor(look.brick, half ? n : Math.max(n - 1, 0)) }}>${half
         ? html`<${HalfPhoto} half=${half} />` : html`<${Photo} day=${days[shown.at(-1)]} eager />`}</i>
-      ${look.monsters.map((m, i) => html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')}><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></span>`)}
-      <span class="hero"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
-      ${partnerCharacter && html`<span class="hero"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
-      <span class="stars">★ ☆ ★</span>
+      ${look.monsters.map((m, i) => i === 0 && onPet
+        ? html`<button key=${i} type="button" class=${'mob pet' + (m.shiny ? ' sparkle' : '')} onClick=${onPet} aria-label="펫과 놀기"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></button>`
+        : html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')} aria-hidden="true"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></span>`)}
+      <span class="hero" aria-hidden="true"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
+      ${partnerCharacter && html`<span class="hero" aria-hidden="true"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
+      <span class="stars" aria-hidden="true">★ ☆ ★</span>
     </div>
     <div class="tower">
       ${n === TOWER_HEIGHT && !falling && html`<div class="flag">${flag}${stacking && html`<span class="sparks">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => html`<i key=${k} style=${{ '--a': `${k * 45}deg` }} />`)}</span>`}</div>`}
