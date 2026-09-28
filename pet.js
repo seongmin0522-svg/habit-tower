@@ -21,7 +21,8 @@ export const FOOD_HEARTS = { excellent: 5, great: 3, nice: 2, miss: 1 };
 export function flick(samples, width) {
   const last = samples.at(-1);
   if (!last) return null;
-  const first = samples.find((s) => s.t >= last.t - THROW.sampleMs);
+  // The last sample at or before the window's start, so the span is at least sampleMs even when events are sparse.
+  const first = samples.findLast((s) => s.t <= last.t - THROW.sampleMs) ?? samples[0];
   const dt = (last.t - first.t) / 1000;
   if (dt <= 0) return null;
   const up = (first.y - last.y) / width / dt, side = (last.x - first.x) / width / dt;
