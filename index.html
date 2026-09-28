@@ -282,6 +282,26 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .sparkle::after { content: '✨'; position: absolute; right: -4px; top: -6px; font-size: 14px; animation: twinkle 1.1s ease-in-out infinite; pointer-events: none; }
 .sparkle::before { content: '✦'; position: absolute; left: -2px; bottom: 6px; color: #fff59a; font-size: 12px; animation: twinkle 1.1s ease-in-out .55s infinite; pointer-events: none; }
 @keyframes twinkle { 50% { opacity: .2; transform: scale(.6); } }
+/* Pet playroom (ui/playroom.js) */
+.playroom { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--sky);
+  touch-action: none; user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
+.pr-top { display: flex; align-items: center; gap: 10px; padding: max(10px, env(safe-area-inset-top)) 14px 10px;
+  color: #fff; text-shadow: 0 1px 0 #000; }
+.pr-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pr-top .x { background: none; border: 0; color: #fff; font-size: 18px; padding: 4px 8px; }
+.pr-field { position: relative; flex: 1; overflow: hidden; }
+.pr-field::before { content: ''; position: absolute; left: 0; right: 0; top: 38%; bottom: 0; background: var(--grass); border-top: 2px solid #3f6e2c; }
+.pr-pet, .pr-item, .pr-shadow { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.pr-pet svg { display: block; }
+.pr-item { font-size: 44px; line-height: 1; padding: 10px; cursor: grab; touch-action: none; }
+.pr-shadow { width: 30px; height: 10px; border-radius: 50%; background: rgba(0,0,0,.25); }
+.pr-pop { position: absolute; left: 50%; top: 14%; margin: 0; z-index: 2000; font-size: 22px; font-weight: bold; color: #fff;
+  text-shadow: 0 2px 0 #000; white-space: nowrap; pointer-events: none; transform: translateX(-50%); animation: prpop 1.2s ease-out both; }
+@keyframes prpop { 0% { opacity: 0; transform: translate(-50%, 10px) scale(.6); } 20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+  80% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -20px); } }
+.pr-hint { position: absolute; left: 0; right: 0; bottom: 76px; margin: 0; z-index: 2000; text-align: center; color: #fff; font-size: 12px;
+  text-shadow: 0 1px 0 #000; pointer-events: none; }
+.crew .pet { background: none; border: 0; padding: 0; cursor: pointer; }
 </style>
 </head>
 <body>
