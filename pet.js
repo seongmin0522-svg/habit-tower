@@ -2,6 +2,7 @@
 // World: x across the field (−1 left … 1 right), z depth (0 = my hand, 1 = far), y height.
 // 1 world unit = half the screen width at z = 0. Time in seconds.
 // Spec: docs/superpowers/specs/2026-09-29-pet-playroom-design.md
+import { ACCESSORIES } from './catalog.js';
 
 // Every feel number lives here, to tune after the phone test.
 export const THROW = {
@@ -98,4 +99,25 @@ export function grant(play, kind, n) {
   }
   if (kind === 'pet') return play.petted ? { n: 0, play } : { n: Math.min(n, DAILY.pet), play: { ...play, petted: true } };
   return { n, play };
+}
+
+// pets: {<monsterId>: {gained, lost}} docs.
+export const heartsOf = (p) => (p?.gained ?? 0) - (p?.lost ?? 0);
+export function accsUnlocked(pets) {
+  const top = Math.max(1, ...Object.values(pets).map((p) => levelOf(heartsOf(p))));
+  return new Set(ACCESSORIES.filter((a) => top >= a.level).map((a) => a.id));
+}
+
+// Cloud sync. rows: my cloud pets {monster, gained, lost}. Both counters only grow, so per pet the larger of
+// each wins: push rows the cloud is behind on, restore docs the phone is behind on.
+export function mergePets(local, rows) {
+  const cloud = Object.fromEntries(rows.map((r) => [r.monster, r]));
+  const push = [], restore = [];
+  for (const id of new Set([...Object.keys(local), ...Object.keys(cloud)])) {
+    const l = local[id], c = cloud[id];
+    const m = { gained: Math.max(l?.gained ?? 0, c?.gained ?? 0), lost: Math.max(l?.lost ?? 0, c?.lost ?? 0) };
+    if (!l || l.gained !== m.gained || (l.lost ?? 0) !== m.lost) restore.push({ id, doc: { ...l, ...m } });
+    if (!c || c.gained !== m.gained || c.lost !== m.lost) push.push({ monster: id, ...m });
+  }
+  return { push, restore };
 }

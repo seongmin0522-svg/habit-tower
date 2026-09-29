@@ -1,6 +1,7 @@
 // Pure logic for Habit Tower. No DOM, no db — everything here is unit-tested.
 // Day keys are 'YYYY-MM-DD' strings in Korea time. A day counts when it has a photo.
 import { TIERS, SHINY_RATE, DUPS_PER_BONUS, STARTER, ITEMS, MONSTERS } from './catalog.js';
+import { levelOf, heartsOf, STAR_FULL } from './pet.js';
 
 const kstFormat = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -135,7 +136,7 @@ export function splitReactions(rows, uid) {
 
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
-const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5})|pets\/[a-z]+-[a-z]+)$/;
+const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})|pets\/[a-z]+-[a-z]+)$/;
 const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function validBackup(b) {
   return isPlain(b) && b.version === 1 && Array.isArray(b.docs) && Array.isArray(b.photos)
@@ -164,20 +165,25 @@ export function glowAt(taps) {
 }
 
 // What I have: item ids, a shiny monster as 'id*'. The starter snail comes free.
-export const owned = (pulls) => new Set([STARTER,
-  ...Object.values(pulls).filter((p) => p?.item).map((p) => p.item + (p.shiny ? '*' : ''))]);
+// pets: a pet with a full star gauge (STAR_FULL hearts) has its shiny form too.
+export const owned = (pulls, pets = {}) => new Set([STARTER,
+  ...Object.values(pulls).filter((p) => p?.item).map((p) => p.item + (p.shiny ? '*' : '')),
+  ...Object.keys(pets).filter((id) => heartsOf(pets[id]) >= STAR_FULL).map((id) => id + '*')]);
 
 const dupCount = (pulls) => Object.values(pulls).filter((p) => p?.dup).length;
 export const shards = (pulls) => dupCount(pulls) % DUPS_PER_BONUS;
 
-// Unopened boxes, oldest day first, bonus boxes last. Counted from the records, never stored.
-export function boxes({ days, cdays, pulls, from }) {
+// Unopened boxes, oldest day first, then pet level boxes ('p:<monsterId>:<level>', levels 2+), bonus boxes last.
+// Counted from the records, never stored.
+export function boxes({ days, cdays, pulls, from, pets = {} }) {
   const dated = [
     ...Object.keys(days).filter((k) => days[k]?.assetId && k >= from).map((k) => 'd:' + k),
     ...Object.keys(cdays).filter((k) => cdays[k]?.partnerAssetId && k >= from).map((k) => 'c:' + k),
   ].sort((a, b) => (a.slice(2) + a[0]).localeCompare(b.slice(2) + b[0]));
   const bonus = Array.from({ length: Math.floor(dupCount(pulls) / DUPS_PER_BONUS) }, (_, i) => 'b:' + i);
-  return [...dated, ...bonus].filter((b) => !pulls[b]);
+  const levels = Object.keys(pets).sort().flatMap((id) =>
+    Array.from({ length: levelOf(heartsOf(pets[id])) - 1 }, (_, i) => `p:${id}:${i + 2}`));
+  return [...dated, ...levels, ...bonus].filter((b) => !pulls[b]);
 }
 
 const fullTowers = (days, today) => {

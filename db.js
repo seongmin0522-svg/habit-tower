@@ -3,7 +3,7 @@ import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
-import { useFood, grant, wakeLoss } from './pet.js';
+import { useFood, grant, wakeLoss, accsUnlocked } from './pet.js';
 
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
@@ -142,21 +142,22 @@ export function makeActions(db, assets, getState) {
     async openBox(box, cdays = {}) {
       const s = ready();
       if (s.pulls[box]) return s.pulls[box];
-      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
+      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
       const r = [...crypto.getRandomValues(new Uint32Array(3))].map((n) => n / 2 ** 32);
       const { item, shiny } = roll(box.startsWith('c:') ? COUPLE_POOL : POOL, r);
-      const doc = { item: item.id, shiny, dup: owned(s.pulls).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
+      const doc = { item: item.id, shiny, dup: owned(s.pulls, s.pets).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
       await db.doc(`pulls/${box}`).set(doc);
       return doc;
     },
 
-    // What I wear: habit/me.look = {monster, shiny, char, bg, brick, flag, badge}; null = the default.
+    // What I wear: habit/me.look = {monster, shiny, char, bg, brick, flag, badge, acc}; null = the default.
     async equip(patch) {
       const s = ready();
-      const have = owned(s.pulls);
+      const have = owned(s.pulls, s.pets);
       for (const [k, v] of Object.entries(patch)) {
         if (v == null || k === 'shiny') continue;
         const ok = k === 'badge' ? TITLES.some((t) => t.id === v)
+          : k === 'acc' ? accsUnlocked(s.pets).has(v)
           : k === 'monster' ? have.has(v + (patch.shiny ? '*' : ''))
           : have.has(v) && ITEMS.get(v)?.kind === k && !ITEMS.get(v).couple;
         if (!ok) throw new Error('아직 없는 아이템이에요');

@@ -228,6 +228,13 @@ export const POOL = [...MONSTERS, ...SKINS.filter((s) => !s.couple && s.kind !==
 export const COUPLE_POOL = SKINS.filter((s) => s.couple && s.kind !== 'brick');
 export const KIND_NAME = { char: '캐릭터 색', bg: '배경', brick: '벽돌', flag: '깃발' };
 
+// Pet accessories: open the first time any pet reaches the level (pet.js accsUnlocked). Art in ui/monsters.js.
+export const ACCESSORIES = [
+  { id: 'ribbon', name: '리본', level: 3 },
+  { id: 'hat', name: '모자', level: 6 },
+  { id: 'crown', name: '왕관', level: 9 },
+];
+
 export const TITLES = [
   { id: 'first', name: '첫 벽돌', desc: '첫 인증' },
   { id: 'week', name: '일주일 개근', desc: '7일 연속 인증' },

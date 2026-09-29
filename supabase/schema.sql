@@ -282,3 +282,21 @@ create trigger days_notify_partner after insert on public.days
 alter publication supabase_realtime add table public.days, public.reactions;
 -- Signed-out clients never touch these; Realtime sends DELETE events without RLS, so anon gets no access at all.
 revoke all on public.days, public.reactions from anon;
+
+-- Pets (2026-09-29): hearts per pet, so a new phone keeps its pet levels. Both counters only grow;
+-- hearts = gained - lost, and a sync takes the larger of each. Level boxes are pulls 'p:<monsterId>:<level>'.
+alter table public.pulls drop constraint pulls_box_check;
+alter table public.pulls add constraint pulls_box_check
+  check (box ~ '^([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})$');
+create table public.pets (
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  monster text not null check (monster ~ '^[a-z]+-[a-z]+$'),
+  gained integer not null default 0 check (gained >= 0),
+  lost integer not null default 0 check (lost >= 0 and lost <= gained),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, monster)
+);
+alter table public.pets enable row level security;
+create policy "pets own" on public.pets for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+revoke all on public.pets from anon;

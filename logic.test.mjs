@@ -269,3 +269,13 @@ test('validBackup accepts pet heart docs', () => {
   assert.equal(validBackup({ version: 1, docs: [['pets/Snail!', { gained: 3 }]], photos: [] }), false);
   assert.equal(validBackup({ version: 1, docs: [['pets/snail-green/x', {}]], photos: [] }), false);
 });
+
+test('pet levels give boxes p:<id>:<lv>, and 770 hearts unlock the shiny', () => {
+  const pets = { 'slime-green': { gained: 30, lost: 0 }, 'bat-purple': { gained: 9, lost: 0 } }; // Lv 3, Lv 1
+  const b = boxes({ days: {}, cdays: {}, pulls: {}, from: '', pets });
+  assert.deepEqual(b, ['p:slime-green:2', 'p:slime-green:3']);
+  assert.deepEqual(boxes({ days: {}, cdays: {}, pulls: { 'p:slime-green:2': { item: 'x' } }, from: '', pets }), ['p:slime-green:3']);
+  assert.equal(owned({}, { 'slime-green': { gained: 769, lost: 0 } }).has('slime-green*'), false);
+  assert.equal(owned({}, { 'slime-green': { gained: 800, lost: 30 } }).has('slime-green*'), true);
+  assert.equal(validBackup({ version: 1, docs: [['pulls/p:slime-green:3', { item: 'x' }]], photos: [] }), true);
+});

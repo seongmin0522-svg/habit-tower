@@ -4,6 +4,7 @@
 import { SUPABASE_URL, SUPABASE_KEY, VAPID_PUBLIC } from './config.js';
 import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions, pullsToPush, pullsToRestore } from './logic.js';
+import { mergePets } from './pet.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
@@ -147,6 +148,13 @@ export async function openCloud(local, onChange) {
       user_id: uid, box, item: pulls[box].item, shiny: !!pulls[box].shiny, dup: !!pulls[box].dup, at: pulls[box].at || null }));
     if (newPulls.length) must(await sb.from('pulls').upsert(newPulls));
 
+    // Pet hearts, both ways: per pet the larger of each counter wins (pet.js mergePets).
+    // ponytail: a feed landing between the read and a restore write is lost; restores only happen on a phone behind the cloud.
+    const petRows = must(await sb.from('pets').select('monster, gained, lost').eq('user_id', uid));
+    const pets = mergePets(await localDocs('pets'), petRows);
+    for (const { id, doc } of pets.restore) await db.doc(`pets/${id}`).set(doc);
+    if (pets.push.length) must(await sb.from('pets').upsert(pets.push.map((r) => ({ user_id: uid, ...r, updated_at: new Date().toISOString() }))));
+
     const name = st.me.name || meRow?.name || '';
     if (habit) {
       must(await sb.from('profiles').upsert({
@@ -287,6 +295,7 @@ export async function openCloud(local, onChange) {
       }
       must(await sb.from('days').delete().eq('user_id', uid));
       must(await sb.from('pulls').delete().eq('user_id', uid));
+      must(await sb.from('pets').delete().eq('user_id', uid));
       await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });

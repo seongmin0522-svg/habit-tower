@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant } from './pet.js';
+import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets } from './pet.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -113,4 +113,29 @@ test('grant: food as is, toy hearts capped at 10 a day, petting once', () => {
   r = grant({}, 'pet', 1);
   assert.deepEqual(r, { n: 1, play: { petted: true } });
   assert.equal(grant(r.play, 'pet', 1).n, 0);
+});
+
+test('heartsOf, accsUnlocked: accessories open at Lv 3 / 6 / 9 of any pet', () => {
+  assert.equal(heartsOf({ gained: 30, lost: 4 }), 26);
+  assert.equal(heartsOf(undefined), 0);
+  assert.deepEqual([...accsUnlocked({})], []);
+  assert.deepEqual([...accsUnlocked({ 'slime-green': { gained: 25, lost: 0 } })], ['ribbon']);
+  assert.deepEqual([...accsUnlocked({ 'slime-green': { gained: 24 }, 'bat-purple': { gained: 180 } })], ['ribbon', 'hat']);
+  assert.deepEqual([...accsUnlocked({ 'slime-green': { gained: 220 } })], ['ribbon', 'hat', 'crown']);
+});
+
+test('mergePets: the larger of each counter wins, both ways', () => {
+  const r = mergePets(
+    { 'slime-green': { gained: 10, lost: 2 }, 'bat-purple': { gained: 5, lost: 0 } },
+    [{ monster: 'slime-green', gained: 12, lost: 1 }, { monster: 'pig-pink', gained: 7, lost: 0 }],
+  );
+  assert.deepEqual(r.push.sort((a, b) => a.monster.localeCompare(b.monster)), [
+    { monster: 'bat-purple', gained: 5, lost: 0 },
+    { monster: 'slime-green', gained: 12, lost: 2 },
+  ]);
+  assert.deepEqual(r.restore.sort((a, b) => a.id.localeCompare(b.id)), [
+    { id: 'pig-pink', doc: { gained: 7, lost: 0 } },
+    { id: 'slime-green', doc: { gained: 12, lost: 2 } },
+  ]);
+  assert.deepEqual(mergePets({ 'a-b': { gained: 3, lost: 0 } }, [{ monster: 'a-b', gained: 3, lost: 0 }]), { push: [], restore: [] });
 });
