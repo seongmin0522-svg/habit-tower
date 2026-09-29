@@ -1,7 +1,7 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
+import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
-import { ITEMS, STARTER, TITLES, ACCESSORIES } from './catalog.js';
+import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS } from './catalog.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
@@ -12,11 +12,15 @@ import { Battle } from './ui/battle.js';
 import { Maze } from './ui/maze.js';
 import { battleRecord } from './battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
+import { getAdmin, setAdmin, onAdmin } from './admin.js';
+import { ADMIN_IDS } from './config.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 const EMPTY = {};
+const ADMIN_FOOD = FOODS.flatMap((f) => Array(5).fill(f.id)); // admin test mode: a full tray that never empties
+const sandbox = (v) => Promise.resolve(v); // admin test mode: play results aren't saved
 // Monster buddy from a look: a catalog monster or the starter snail.
 const buddy = (l) => ({ id: ITEMS.get(l.monster)?.base ? l.monster : STARTER, shiny: !!(l.monster && l.shiny),
   acc: ACCESSORIES.some((a) => a.id === l.acc) ? l.acc : null });
@@ -74,7 +78,14 @@ function App() {
     return () => navigator.serviceWorker?.removeEventListener('message', onMsg);
   }, [cloudApi]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(''), 3000); return () => clearTimeout(t); }, [toast]);
-  const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current), [db, assets]);
+  // Admin test mode (admin.js): only for ADMIN_IDS while signed in.
+  const [adminPrefs, setAdminPrefs] = useState(getAdmin());
+  useEffect(() => onAdmin(setAdminPrefs), []);
+  // ?dev (in-memory, nothing real at stake) shows the switch too, so it can be tested locally.
+  const isAdminUser = ADMIN_IDS.includes(cloud?.userId) || MODE === 'dev', admin = isAdminUser && adminPrefs.on;
+  const adminRef = useRef(admin);
+  adminRef.current = admin;
+  const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current, () => adminRef.current), [db, assets]);
 
   const partner = cloud?.partner;
   const coupled = !!partner;
@@ -107,9 +118,9 @@ function App() {
   const clears = Object.keys(state.maze).length; // maze clear days: one box shard each
   const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom, pets: state.pets, clears }),
     [state.days, boxCdays, state.pulls, state.pets, clears]);
-  const have = useMemo(() => owned(state.pulls, state.pets), [state.pulls, state.pets]);
-  const earned = useMemo(() => titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today }),
-    [state.days, cdays, coupled, state.pulls, today]);
+  const have = useMemo(() => (admin ? allOwned() : owned(state.pulls, state.pets)), [admin, state.pulls, state.pets]);
+  const earned = useMemo(() => (admin ? new Set(TITLES.map((t) => t.id))
+    : titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today })), [admin, state.days, cdays, coupled, state.pulls, today]);
   const myLook = state.habit?.look ?? EMPTY, pLook = partner?.look ?? EMPTY, cSkin = cloud?.coupleSkin ?? EMPTY;
   const look = {
     me: { monsters: [buddy(myLook)], hero: myLook.char, bg: myLook.bg, brick: myLook.brick, flag: myLook.flag, badge: myLook.badge },
@@ -120,7 +131,7 @@ function App() {
   const badgeName = TITLES.find((t) => t.id === look.badge)?.name;
   const myPet = buddy(myLook);
   const petHearts = heartsOf(state.pets[myPet.id]);
-  const accs = useMemo(() => accsUnlocked(state.pets), [state.pets]);
+  const accs = useMemo(() => (admin ? new Set(ACCESSORIES.map((a) => a.id)) : accsUnlocked(state.pets)), [admin, state.pets]);
   // Tastes shown so far, per monster kind (every color of a kind shares them).
   const tastes = useMemo(() => {
     const out = {};
@@ -290,7 +301,7 @@ function App() {
     ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
     <header class="hud">
       <div class="ttlbox">
-        <b>${title}</b>
+        <b>${admin ? '🛠 ' : ''}${title}</b>
         <span class="gold">${keys.length}/${TOWER_HEIGHT}층</span>
         ${built > 0 && html`<button class="trophies" onClick=${() => setModal('shelf')} aria-label=${`완성한 탑 ${built}개 보기`}>🏰×${built}</button>`}
       </div>
@@ -333,28 +344,28 @@ function App() {
         : pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
       ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
     </footer>
-    ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)}
+    ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)} admin=${isAdminUser ? { ...adminPrefs, set: setAdmin } : null}
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
-    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: levelOf(petHearts) }} partner=${rival}
+    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
-      onRecord=${(won, vs) => actions.recordBattle(myPet.id, won).then((r) => {
+      onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {
         if (vs === 'partner') cloudApi.recordBattle({ mine: myPet.id, theirs: rival.pet.id, won }).catch(fail); else cloudApi?.sync();
         return r;
-      }, (e) => { fail(e); throw e; })}
+      }, (e) => { fail(e); throw e; }))}
       onClose=${() => setModal('play')} />`}
     ${modal === 'maze' && html`<${Maze} pet=${myPet} day=${today} best=${state.maze[today]?.ms ?? null}
-      onClear=${(ms) => actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; })}
+      onClear=${(ms) => (admin ? sandbox({ admin: true, best: ms }) : actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
       onClose=${() => setModal('play')} />`}
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')} food=${state.play[today]?.food}
-      tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => actions.openPlay().catch(fail)}
-      onThrowFood=${(k) => actions.throwFood(k).catch((e) => { fail(e); throw e; })}
-      onFeed=${(n, kind, food) => actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; })}
-      onWake=${() => actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })} onClose=${() => setModal(null)} />`}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')} food=${admin ? ADMIN_FOOD : state.play[today]?.food}
+      tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => admin || actions.openPlay().catch(fail)}
+      onThrowFood=${(k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; }))}
+      onFeed=${(n, kind, food) => (admin ? sandbox(n) : actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; }))}
+      onWake=${() => (admin ? sandbox(3) : actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; }))} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
       shards=${shards(state.pulls, clears)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}

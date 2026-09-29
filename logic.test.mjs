@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { todayKST, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
-  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick, glowAt } from './logic.js';
+  monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick, glowAt, allOwned } from './logic.js';
 import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL, TIERS } from './catalog.js';
 
 // n consecutive certified days starting at `start`
@@ -286,4 +286,10 @@ test('maze clears count as shards next to duplicates', () => {
   assert.equal(shards(pulls, 3), 1);
   assert.deepEqual(boxes({ days: {}, cdays: {}, pulls, from: '9999', clears: 3 }), ['b:0']);
   assert.equal(validBackup({ version: 1, docs: [['maze/2026-09-29', { ms: 1000, at: '' }]], photos: [] }), true);
+});
+
+test('allOwned: every monster, its shiny, and every skin', () => {
+  const all = allOwned();
+  for (const m of MONSTERS) { assert.ok(all.has(m.id)); assert.ok(all.has(m.id + '*')); }
+  for (const s of SKINS) assert.ok(all.has(s.id));
 });

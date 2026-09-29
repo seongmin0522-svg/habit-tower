@@ -109,7 +109,8 @@ export function Battle({ me, partner, onRecord, onSeen, onClose }) {
       setPhase('end');
       setBusy(false);
       onRecord(won, foeInfo.current.vs).then(
-        ({ counted, left }) => setEnd({ won, text: won ? '승리!' : '패배…', note: counted ? `${won ? '⚔️ +1 · ' : ''}오늘 남은 기록 ${left}판` : '오늘 기록은 끝났어요 (연습 경기)' }),
+        ({ counted, left, admin }) => setEnd({ won, text: won ? '승리!' : '패배…',
+          note: admin ? '🛠 관리자 모드 · 기록 안 함' : counted ? `${won ? '⚔️ +1 · ' : ''}오늘 남은 기록 ${left}판` : '오늘 기록은 끝났어요 (연습 경기)' }),
         () => {},
       );
     });

@@ -16,7 +16,8 @@ export function Win({ title, onClose, children, cls = '' }) {
 }
 
 // restart: null, or { label, floors, onRestart } for the tower on the tab being viewed.
-export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, onImport, onReset, cloud, cloudApi, restart }) {
+// admin: null, or {on, level, set(patch)} for accounts in ADMIN_IDS (admin.js test mode).
+export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, onImport, onReset, cloud, cloudApi, restart, admin }) {
   const [title, setTitle] = useState(habit?.title ?? '');
   const [character, setCharacter] = useState(habit?.character ?? CHARACTERS[0].id);
   const [saving, setSaving] = useState(false);
@@ -42,6 +43,7 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
       <p class="muted small">매일 인증 사진을 찍으면 벽돌이 한 층 올라가요. ${TOWER_HEIGHT}층이면 탑 완성, 하루 빼먹으면 쌓던 탑이 무너져요.</p>
       <div class="foot"><span /><button class="btn green" disabled=${saving || !title.trim()}>${habit ? '저장' : '시작하기'}</button></div>
       <${SoundBox} />
+      ${admin && html`<${AdminBox} admin=${admin} />`}
       ${backup && html`<div class="backup">
         <div class="lbl">백업 <span class="muted small">— 기록과 사진은 이 폰에만 있어요. 가끔 내보내 두세요.</span></div>
         <span>
@@ -70,6 +72,21 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
       ${cloudApi && cloud && html`<${CoupleBox} cloud=${cloud} api=${cloudApi} />`}
     </form>
   </${Win}>`;
+}
+
+// Admin test mode switch (only shown to ADMIN_IDS).
+function AdminBox({ admin }) {
+  return html`<div class="backup">
+    <div class="lbl">🛠 관리자 (도균님 계정에만 보여요)</div>
+    <span><button type="button" class=${'btn sm ' + (admin.on ? 'green' : 'blue')} aria-pressed=${admin.on}
+      onClick=${() => admin.set({ on: !admin.on })}>관리자 모드 ${admin.on ? '켜짐' : '꺼짐'}</button>
+    <select class="track" aria-label="대결 펫 레벨" value=${String(admin.level ?? '')} disabled=${!admin.on}
+      onChange=${(e) => admin.set({ level: e.target.value ? Number(e.target.value) : null })}>
+      <option value="">대결 레벨: 실제</option>
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((n) => html`<option key=${n} value=${String(n)}>대결 레벨: Lv ${n}</option>`)}
+    </select></span>
+    <p class="muted small">켜면 몬스터·이로치·스킨·칭호·악세서리 전부 해금, 먹이·대결·미로 매일 제한 없음. 놀이방·대결·미로 결과는 저장하지 않아요.</p>
+  </div>`;
 }
 
 // Music and effects, per phone.

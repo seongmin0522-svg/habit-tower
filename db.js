@@ -1,5 +1,5 @@
 // All persistence goes through here. The page never writes to db or assets directly.
-import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
+import { todayKST, addDays, shieldsLeft, boxes, roll, owned, allOwned } from './logic.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
@@ -85,7 +85,8 @@ export function subscribe(db, onState, onError) {
   return () => offs.forEach((off) => off());
 }
 
-export function makeActions(db, assets, getState) {
+// isAdmin(): admin test mode (admin.js): anything may be worn.
+export function makeActions(db, assets, getState, isAdmin = () => false) {
   const ready = () => {
     const s = getState();
     if (!s?.loaded) throw new Error('데이터를 아직 불러오는 중이에요');
@@ -159,11 +160,11 @@ export function makeActions(db, assets, getState) {
     // What I wear: habit/me.look = {monster, shiny, char, bg, brick, flag, badge, acc}; null = the default.
     async equip(patch) {
       const s = ready();
-      const have = owned(s.pulls, s.pets);
+      const have = isAdmin() ? allOwned() : owned(s.pulls, s.pets);
       for (const [k, v] of Object.entries(patch)) {
         if (v == null || k === 'shiny') continue;
         const ok = k === 'badge' ? TITLES.some((t) => t.id === v)
-          : k === 'acc' ? accsUnlocked(s.pets).has(v)
+          : k === 'acc' ? isAdmin() || accsUnlocked(s.pets).has(v)
           : k === 'monster' ? have.has(v + (patch.shiny ? '*' : ''))
           : have.has(v) && ITEMS.get(v)?.kind === k && !ITEMS.get(v).couple;
         if (!ok) throw new Error('아직 없는 아이템이에요');

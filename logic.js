@@ -1,6 +1,6 @@
 // Pure logic for Habit Tower. No DOM, no db — everything here is unit-tested.
 // Day keys are 'YYYY-MM-DD' strings in Korea time. A day counts when it has a photo.
-import { TIERS, SHINY_RATE, DUPS_PER_BONUS, STARTER, ITEMS, MONSTERS } from './catalog.js';
+import { TIERS, SHINY_RATE, DUPS_PER_BONUS, STARTER, ITEMS, MONSTERS, SKINS } from './catalog.js';
 import { levelOf, heartsOf, STAR_FULL } from './pet.js';
 
 const kstFormat = new Intl.DateTimeFormat('en-CA', {
@@ -169,6 +169,9 @@ export function glowAt(taps) {
 export const owned = (pulls, pets = {}) => new Set([STARTER,
   ...Object.values(pulls).filter((p) => p?.item).map((p) => p.item + (p.shiny ? '*' : '')),
   ...Object.keys(pets).filter((id) => heartsOf(pets[id]) >= STAR_FULL).map((id) => id + '*')]);
+
+// Admin test mode: the whole collection.
+export const allOwned = () => new Set([...MONSTERS.flatMap((m) => [m.id, m.id + '*']), ...SKINS.map((s) => s.id)]);
 
 const dupCount = (pulls) => Object.values(pulls).filter((p) => p?.dup).length;
 // clears: maze clear days, one shard each next to duplicates.

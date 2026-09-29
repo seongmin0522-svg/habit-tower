@@ -50,7 +50,8 @@ export function Maze({ pet, day, best, onClear, onClose }) {
       const ms = performance.now() - began.current;
       setDone({ ms });
       sfx('legend'); buzz('epic');
-      onClear(ms).then(({ first, best: b }) => setDone({ ms, note: first ? '🧩 상자 조각 +1' : `오늘 조각은 이미 받았어요 · 최고 ${clock(b)}` }), () => {});
+      onClear(ms).then(({ first, best: b, admin }) => setDone({ ms,
+        note: admin ? '🛠 관리자 모드 · 기록 안 함' : first ? '🧩 상자 조각 +1' : `오늘 조각은 이미 받았어요 · 최고 ${clock(b)}` }), () => {});
     }
   };
   const press = (dir) => { walk(dir); clearInterval(hold.current); hold.current = setInterval(() => walk(dir), REPEAT_MS); };
