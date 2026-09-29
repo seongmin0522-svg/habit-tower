@@ -1,6 +1,7 @@
 // Pet battles: stats, skills, one turn, the opponent's choice. Pure: randomness comes in as rng() -> [0, 1).
 // Spec: docs/superpowers/specs/2026-09-29-pet-battle-maze-design.md
-import { ITEMS, ELEMENT, ELEMENTS, BEATS, SPECIES } from './catalog.js';
+import { ITEMS, ELEMENT, ELEMENTS, BEATS, SPECIES, MONSTERS } from './catalog.js';
+import { roll } from './logic.js';
 
 const RARITY = { common: 1, rare: 1.15, epic: 1.3, legend: 1.5 };
 const BASE = { hp: 60, atk: 20, def: 15, spd: 15 };
@@ -114,4 +115,10 @@ export function battleRecord(rows, me, partner, seen = '') {
     fresh: ours.filter((r) => r.defender === me && r.at > seen).sort((a, b) => b.at.localeCompare(a.at))
       .map((r) => ({ at: r.at, won: r.winner === me })),
   };
+}
+
+// A wild maze monster: tier by the box odds, shiny like boxes, level within 1 of mine. r: four numbers in [0, 1).
+export function wildRoll([r1, r2, r3, r4], myLevel) {
+  const { item, shiny } = roll(MONSTERS, [r1, r2, r3]);
+  return { id: item.id, shiny, level: Math.max(1, Math.min(10, myLevel + Math.min(1, Math.floor(r4 * 3) - 1))) };
 }

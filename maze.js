@@ -52,3 +52,25 @@ export function mergeClears(local, rows) {
     push: Object.entries(local).filter(([d, c]) => !cloud[d] || c.ms < cloud[d].ms).map(([day, c]) => ({ day, ms: c.ms, at: c.at })),
   };
 }
+
+// The one path from start to exit (the maze is perfect), rooms in order.
+export function solve(m) {
+  const prev = new Map([[m.start.join(), null]]), todo = [m.start];
+  while (todo.length) {
+    const p = todo.shift();
+    if (p[0] === m.exit[0] && p[1] === m.exit[1]) break;
+    for (const d of Object.keys(DIRS)) {
+      const q = step(m, p, d);
+      if (q && !prev.has(q.join())) { prev.set(q.join(), p); todo.push(q); }
+    }
+  }
+  const path = [];
+  for (let p = m.exit; p; p = prev.get(p.join())) path.unshift(p);
+  return path;
+}
+
+// Roadmap: three rooms on the path at 1/4, 1/2, 3/4 of its length, so they're always passed in order.
+export function checkpoints(m) {
+  const path = solve(m), last = path.length - 1;
+  return [0.25, 0.5, 0.75].map((f) => path[Math.floor(last * f)]);
+}

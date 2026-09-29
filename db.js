@@ -226,6 +226,18 @@ export function makeActions(db, assets, getState, isAdmin = () => false) {
       });
     },
 
+    // A wild monster caught in today's maze: at most one a day, saved as the pull w:<day> (a duplicate is a shard).
+    // Resolves to {caught, dup}.
+    async capture(id, shiny) {
+      const s = ready();
+      if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요');
+      const box = `w:${todayKST()}`;
+      if (s.pulls[box]) return { caught: false };
+      const dup = owned(s.pulls, s.pets).has(id + (shiny ? '*' : ''));
+      await db.doc(`pulls/${box}`).set({ item: id, shiny: !!shiny, dup, at: new Date().toISOString() });
+      return { caught: true, dup };
+    },
+
     // Today's maze escaped in ms. The first clear of a day is a shard (the day's maze/<day> doc); a faster
     // run later only improves the time. Resolves to {first, best}.
     async clearMaze(ms) {

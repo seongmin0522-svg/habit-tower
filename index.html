@@ -306,6 +306,21 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .pr-lv small { font-weight: normal; }
 .pr-gauge { display: block; width: 70px; height: 8px; background: rgba(0,0,0,.35); border: 1px solid #fff; border-radius: 4px; overflow: hidden; }
 .pr-gauge > i { display: block; height: 100%; background: #ff6a9a; }
+/* Maze roadmap and encounters */
+.mz-road { display: flex; align-items: center; gap: 4px; padding: 4px 14px 6px; color: #888; font-weight: bold; }
+.mz-road b { font-size: 16px; opacity: .45; }
+.mz-road b.on { color: #ffd84a; opacity: 1; }
+.mz-road b.next { color: #fff; opacity: 1; animation: breathe 1.2s ease-in-out infinite; }
+.mz-road i { flex: 1; height: 3px; background: #555; border-radius: 2px; }
+.mz-road i.on { background: #ffd84a; }
+.mz-arrow { margin-left: 8px; color: #7cf; font-size: 18px; display: inline-block; transition: transform .2s; }
+.mz-floor.cp { fill: #cbe8a0; }
+.mz-floor.cp.done { fill: #f2e08a; }
+.mz-cp { fill: #2b1d14; font-weight: bold; }
+.mz-mini rect.cp { fill: #fff; }
+.mz-mini rect.cpdone { fill: #ffd84a; }
+.mz-flash { position: fixed; inset: 0; z-index: 30; background: #fff; animation: mzflash .45s steps(3) both; pointer-events: none; }
+@keyframes mzflash { 0%, 66% { opacity: 1; } 33%, 100% { opacity: 0; } }
 /* Pet battle (ui/battle.js) */
 .battle { position: fixed; inset: 0; z-index: 22; display: flex; flex-direction: column; background: var(--sky); user-select: none; -webkit-user-select: none; }
 .battle .pr-top b { flex: 1; }

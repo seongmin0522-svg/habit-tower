@@ -355,7 +355,9 @@ function App() {
         return r;
       }, (e) => { fail(e); throw e; }))}
       onClose=${() => setModal('play')} />`}
-    ${modal === 'maze' && html`<${Maze} pet=${myPet} day=${today} best=${state.maze[today]?.ms ?? null}
+    ${modal === 'maze' && html`<${Maze} pet=${myPet} level=${(admin && adminPrefs.level) || levelOf(petHearts)} day=${today} best=${state.maze[today]?.ms ?? null}
+      capturedToday=${!admin && !!state.pulls['w:' + today]}
+      onCapture=${(id, shiny) => (admin ? sandbox({ caught: true, admin: true }) : actions.capture(id, shiny).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
       onClear=${(ms) => (admin ? sandbox({ admin: true, best: ms }) : actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
       onClose=${() => setModal('play')} />`}
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}

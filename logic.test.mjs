@@ -293,3 +293,10 @@ test('allOwned: every monster, its shiny, and every skin', () => {
   for (const m of MONSTERS) { assert.ok(all.has(m.id)); assert.ok(all.has(m.id + '*')); }
   for (const s of SKINS) assert.ok(all.has(s.id));
 });
+
+test('a maze capture is a pull w:<day>: backed up, owned, never an unopened box', () => {
+  const pulls = { 'w:2026-09-29': { item: 'bat-purple', shiny: true, dup: false, at: '' } };
+  assert.equal(validBackup({ version: 1, docs: [['pulls/w:2026-09-29', pulls['w:2026-09-29']]], photos: [] }), true);
+  assert.ok(owned(pulls).has('bat-purple*'));
+  assert.deepEqual(boxes({ days: {}, cdays: {}, pulls, from: '' }), []);
+});

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MONSTERS, ELEMENT, ELEMENTS, SPECIES } from './catalog.js';
-import { mult, statsOf, skillsOf, fighter, start, turn, aiPick, battleRecord } from './battle.js';
+import { MONSTERS, ELEMENT, ELEMENTS, SPECIES, ITEMS } from './catalog.js';
+import { mult, statsOf, skillsOf, fighter, start, turn, aiPick, battleRecord, wildRoll } from './battle.js';
 
 // Deterministic randomness: cycles through the given values.
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -111,4 +111,14 @@ test('battleRecord: my wins and losses against my partner, and their challenges 
   assert.deepEqual({ win: r.win, lose: r.lose }, { win: 2, lose: 1 });
   assert.deepEqual(r.fresh, [{ at: '2026-09-29T03:00:00Z', won: true }, { at: '2026-09-29T02:00:00Z', won: false }]);
   assert.equal(battleRecord(rows, 'me', 'you', '2026-09-29T03:00:00Z').fresh.length, 0);
+});
+
+test('wildRoll: a monster by box tier odds, level ±1 of mine, clamped', () => {
+  const low = wildRoll([0, 0, 0.5, 0], 1), high = wildRoll([0.999, 0.999, 0.01, 0.99], 10);
+  assert.equal(ITEMS.get(low.id).tier, 'common');
+  assert.equal(low.level, 1); // 1 − 1 clamps to 1
+  assert.equal(ITEMS.get(high.id).tier, 'legend');
+  assert.equal(high.shiny, true);
+  assert.equal(high.level, 10); // 10 + 1 clamps to 10
+  assert.equal(wildRoll([0, 0, 0.5, 0.5], 5).level, 5);
 });

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { SIZE, mazeOf, step, inSight, mergeClears } from './maze.js';
+import { SIZE, mazeOf, step, inSight, mergeClears, solve, checkpoints } from './maze.js';
 
 test('the same day always gives the same maze, another day a different one', () => {
   assert.deepEqual(mazeOf('2026-09-29'), mazeOf('2026-09-29'));
@@ -44,4 +44,15 @@ test('mergeClears: the faster time wins, both ways', () => {
     [{ day: '2026-09-29', ms: 150000, at: 'c' }, { day: '2026-09-27', ms: 60000, at: 'd' }]);
   assert.deepEqual(r.restore, [['2026-09-29', { ms: 150000, at: 'c' }], ['2026-09-27', { ms: 60000, at: 'd' }]]);
   assert.deepEqual(r.push, [{ day: '2026-09-28', ms: 90000, at: 'a' }]);
+});
+
+test('checkpoints: three rooms on the start→exit path, in order, at about 1/4, 1/2, 3/4', () => {
+  const m = mazeOf('2026-09-29'), path = solve(m), cps = checkpoints(m);
+  assert.equal(cps.length, 3);
+  const at = cps.map((c) => path.findIndex((p) => p[0] === c[0] && p[1] === c[1]));
+  assert.ok(at.every((i) => i > 0));
+  assert.ok(at[0] < at[1] && at[1] < at[2] && at[2] < path.length - 1);
+  assert.equal(at[1], Math.floor((path.length - 1) / 2));
+  assert.deepEqual(path[0], m.start);
+  assert.deepEqual(path.at(-1), m.exit);
 });

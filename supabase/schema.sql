@@ -339,3 +339,7 @@ alter table public.maze_clears enable row level security;
 create policy "maze own" on public.maze_clears for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 revoke all on public.maze_clears from anon;
+-- Maze captures (2026-09-29): pulls 'w:<day>', at most one a day.
+alter table public.pulls drop constraint pulls_box_check;
+alter table public.pulls add constraint pulls_box_check
+  check (box ~ '^([dcw]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})$');
