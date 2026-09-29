@@ -49,13 +49,13 @@ export async function connectAssets() {
   };
 }
 
-// `loaded` flips true only after server-definitive snapshots of all five sources.
+// `loaded` flips true only after server-definitive snapshots of all six sources.
 export function subscribe(db, onState, onError) {
-  const st = { habit: null, days: {}, pulls: {}, pets: {}, play: {}, loaded: false };
+  const st = { habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, loaded: false };
   const seen = new Set();
   const emit = (part, s) => {
     if (!s.metadata.fromCache) seen.add(part);
-    st.loaded = seen.size === 5;
+    st.loaded = seen.size === 6;
     onState({ ...st });
   };
   const offs = [
@@ -76,6 +76,10 @@ export function subscribe(db, onState, onError) {
     db.collection('play').onSnapshot((s) => {
       st.play = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
       emit('play', s);
+    }, onError),
+    db.collection('maze').onSnapshot((s) => {
+      st.maze = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      emit('maze', s);
     }, onError),
   ];
   return () => offs.forEach((off) => off());
@@ -144,7 +148,7 @@ export function makeActions(db, assets, getState) {
     async openBox(box, cdays = {}) {
       const s = ready();
       if (s.pulls[box]) return s.pulls[box];
-      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
+      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets, clears: Object.keys(s.maze).length }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
       const r = [...crypto.getRandomValues(new Uint32Array(3))].map((n) => n / 2 ** 32);
       const { item, shiny } = roll(box.startsWith('c:') ? COUPLE_POOL : POOL, r);
       const doc = { item: item.id, shiny, dup: owned(s.pulls, s.pets).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
@@ -219,6 +223,16 @@ export function makeActions(db, assets, getState) {
         }
         return { counted: c.counted, left: DAILY.battles - (c.play.battles ?? 0) };
       });
+    },
+
+    // Today's maze escaped in ms. The first clear of a day is a shard (the day's maze/<day> doc); a faster
+    // run later only improves the time. Resolves to {first, best}.
+    async clearMaze(ms) {
+      ready();
+      if (!(ms > 0)) throw new Error('기록이 이상해요');
+      const ref = db.doc(`maze/${todayKST()}`), old = await data(ref), first = !old.ms;
+      if (first || ms < old.ms) await ref.set({ ms: Math.round(ms), at: new Date().toISOString() });
+      return { first, best: Math.min(ms, old.ms ?? ms) };
     },
 
     // Woken at night: up to 3 hearts off, never below the current level (pet.js wakeLoss). Resolves to the loss.

@@ -279,3 +279,11 @@ test('pet levels give boxes p:<id>:<lv>, and 770 hearts unlock the shiny', () =>
   assert.equal(owned({}, { 'slime-green': { gained: 800, lost: 30 } }).has('slime-green*'), true);
   assert.equal(validBackup({ version: 1, docs: [['pulls/p:slime-green:3', { item: 'x' }]], photos: [] }), true);
 });
+
+test('maze clears count as shards next to duplicates', () => {
+  const pulls = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`d:2026-09-${String(i + 1).padStart(2, '0')}`, { item: 'x', dup: true }]));
+  assert.equal(shards(pulls), 8);
+  assert.equal(shards(pulls, 3), 1);
+  assert.deepEqual(boxes({ days: {}, cdays: {}, pulls, from: '9999', clears: 3 }), ['b:0']);
+  assert.equal(validBackup({ version: 1, docs: [['maze/2026-09-29', { ms: 1000, at: '' }]], photos: [] }), true);
+});

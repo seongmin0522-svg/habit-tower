@@ -326,3 +326,16 @@ create policy "battles insert" on public.battles for insert to authenticated
 create policy "battles delete own" on public.battles for delete to authenticated
   using (challenger = (select auth.uid()));
 revoke all on public.battles from anon;
+
+-- Maze clears (2026-09-29): one row per day escaped, the best time; each day is one box shard.
+create table public.maze_clears (
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  day date not null,
+  ms integer not null check (ms > 0),
+  at timestamptz,
+  primary key (user_id, day)
+);
+alter table public.maze_clears enable row level security;
+create policy "maze own" on public.maze_clears for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+revoke all on public.maze_clears from anon;

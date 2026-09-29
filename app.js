@@ -9,6 +9,7 @@ import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.j
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
 import { Battle } from './ui/battle.js';
+import { Maze } from './ui/maze.js';
 import { battleRecord } from './battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 
@@ -24,12 +25,12 @@ initSound();
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
-  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, loaded: false });
+  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, loaded: false });
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | 'battle' | {key, n (0 = not a floor)}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | 'battle' | 'maze' | {key, n (0 = not a floor)}
   const [revealNext, setRevealNext] = useState(false); // a new box waits for the stacking to finish
   const [revealBox, setRevealBox] = useState(null);    // the box on the reveal window (it stays after it's opened)
   const [busy, setBusy] = useState(false);
@@ -103,8 +104,9 @@ function App() {
 
   // Rewards. Couple boxes only once this launch has synced my partner's days.
   const boxCdays = coupled && cloud?.synced ? cdays : EMPTY;
-  const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom, pets: state.pets }),
-    [state.days, boxCdays, state.pulls, state.pets]);
+  const clears = Object.keys(state.maze).length; // maze clear days: one box shard each
+  const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom, pets: state.pets, clears }),
+    [state.days, boxCdays, state.pulls, state.pets, clears]);
   const have = useMemo(() => owned(state.pulls, state.pets), [state.pulls, state.pets]);
   const earned = useMemo(() => titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today }),
     [state.days, cdays, coupled, state.pulls, today]);
@@ -342,16 +344,19 @@ function App() {
         return r;
       }, (e) => { fail(e); throw e; })}
       onClose=${() => setModal('play')} />`}
-    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
+    ${modal === 'maze' && html`<${Maze} pet=${myPet} day=${today} best=${state.maze[today]?.ms ?? null}
+      onClear=${(ms) => actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; })}
+      onClose=${() => setModal('play')} />`}
+    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} food=${state.play[today]?.food}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')} food=${state.play[today]?.food}
       tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => actions.openPlay().catch(fail)}
       onThrowFood=${(k) => actions.throwFood(k).catch((e) => { fail(e); throw e; })}
       onFeed=${(n, kind, food) => actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; })}
       onWake=${() => actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
-      shards=${shards(state.pulls)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
+      shards=${shards(state.pulls, clears)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}

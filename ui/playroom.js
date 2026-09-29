@@ -55,7 +55,7 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // monster has shown. onThrowFood(kind): one piece leaves the tray. onFeed(n, kind, food): resolves to the hearts given
 // after today's limits, and records a taste. wins: the pet's ⚔️ wins. onBattle(): open the battle screen.
 // onWake(): woken at night, resolves to the hearts lost.
-export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onClose }) {
+export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze, onClose }) {
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
   const cb = useRef();
   cb.current = { onThrowFood, onFeed, onWake, food };
@@ -294,6 +294,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   return html`<div class="playroom" role="dialog" aria-label="펫과 놀기">
     <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b>${gauge}
       <button class="btn sm orange" onClick=${onBattle} aria-label="대결">⚔️</button>
+      <button class="btn sm orange" onClick=${onMaze} aria-label="미로">🧩</button>
       <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
     <div class="pr-field" ref=${field}>
       <span class="pr-shadow" ref=${shadowEl} />

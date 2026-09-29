@@ -5,6 +5,7 @@ import { SUPABASE_URL, SUPABASE_KEY, VAPID_PUBLIC } from './config.js';
 import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions, pullsToPush, pullsToRestore } from './logic.js';
 import { mergePets } from './pet.js';
+import { mergeClears } from './maze.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
@@ -155,6 +156,12 @@ export async function openCloud(local, onChange) {
     const pets = mergePets(await localDocs('pets'), petRows);
     for (const { id, doc } of pets.restore) await db.doc(`pets/${id}`).set(doc);
     if (pets.push.length) must(await sb.from('pets').upsert(pets.push.map((r) => ({ user_id: uid, ...r, updated_at: new Date().toISOString() }))));
+
+    // Maze clears (shards), both ways: per day the faster time wins (maze.js mergeClears).
+    const clearRows = must(await sb.from('maze_clears').select('day, ms, at').eq('user_id', uid));
+    const clears = mergeClears(await localDocs('maze'), clearRows);
+    for (const [day, doc] of clears.restore) await db.doc(`maze/${day}`).set(doc);
+    if (clears.push.length) must(await sb.from('maze_clears').upsert(clears.push.map((r) => ({ user_id: uid, ...r, at: r.at || null }))));
 
     const name = st.me.name || meRow?.name || '';
     if (habit) {
@@ -309,6 +316,7 @@ export async function openCloud(local, onChange) {
       must(await sb.from('pulls').delete().eq('user_id', uid));
       must(await sb.from('pets').delete().eq('user_id', uid));
       must(await sb.from('battles').delete().eq('challenger', uid));
+      must(await sb.from('maze_clears').delete().eq('user_id', uid));
       await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });

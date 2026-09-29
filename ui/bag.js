@@ -130,7 +130,7 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
     ${unopened.length > 0 && html`<button class="btn green big" onClick=${onReveal}>열기</button>`}
     <p class="muted small">사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개 · 펫 레벨업 = 상자 1개</p>
     <div class="shardbar" aria-label=${`조각 ${shards}/${DUPS_PER_BONUS}`}><i style=${{ width: `${(shards / DUPS_PER_BONUS) * 100}%` }} /></div>
-    <p class="small">조각 ${shards}/${DUPS_PER_BONUS} — 이미 있는 게 나오면 조각 1개, ${DUPS_PER_BONUS}개면 보너스 상자</p>
+    <p class="small">조각 ${shards}/${DUPS_PER_BONUS} — 이미 있는 게 나오거나 🧩 미로를 탈출하면(하루 1번) 조각 1개, ${DUPS_PER_BONUS}개면 보너스 상자</p>
     <p class="muted small">${TIERS.map((t) => `${t.name} ${t.weight}%`).join(' · ')} · 이로치 ${SHINY_RATE * 100}%</p>
   </div>`;
 

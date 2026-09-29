@@ -136,7 +136,7 @@ export function splitReactions(rows, uid) {
 
 // Backup files come from outside the app: accept only our own doc paths, plain-object bodies
 // and image data URLs, so a bad or tampered file can't write anything else.
-const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})|pets\/[a-z]+-[a-z]+)$/;
+const DOC_PATH = /^(habit\/me|days\/\d{4}-\d{2}-\d{2}|pulls\/([dc]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})|pets\/[a-z]+-[a-z]+|maze\/\d{4}-\d{2}-\d{2})$/;
 const isPlain = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 export function validBackup(b) {
   return isPlain(b) && b.version === 1 && Array.isArray(b.docs) && Array.isArray(b.photos)
@@ -171,16 +171,17 @@ export const owned = (pulls, pets = {}) => new Set([STARTER,
   ...Object.keys(pets).filter((id) => heartsOf(pets[id]) >= STAR_FULL).map((id) => id + '*')]);
 
 const dupCount = (pulls) => Object.values(pulls).filter((p) => p?.dup).length;
-export const shards = (pulls) => dupCount(pulls) % DUPS_PER_BONUS;
+// clears: maze clear days, one shard each next to duplicates.
+export const shards = (pulls, clears = 0) => (dupCount(pulls) + clears) % DUPS_PER_BONUS;
 
 // Unopened boxes, oldest day first, then pet level boxes ('p:<monsterId>:<level>', levels 2+), bonus boxes last.
 // Counted from the records, never stored.
-export function boxes({ days, cdays, pulls, from, pets = {} }) {
+export function boxes({ days, cdays, pulls, from, pets = {}, clears = 0 }) {
   const dated = [
     ...Object.keys(days).filter((k) => days[k]?.assetId && k >= from).map((k) => 'd:' + k),
     ...Object.keys(cdays).filter((k) => cdays[k]?.partnerAssetId && k >= from).map((k) => 'c:' + k),
   ].sort((a, b) => (a.slice(2) + a[0]).localeCompare(b.slice(2) + b[0]));
-  const bonus = Array.from({ length: Math.floor(dupCount(pulls) / DUPS_PER_BONUS) }, (_, i) => 'b:' + i);
+  const bonus = Array.from({ length: Math.floor((dupCount(pulls) + clears) / DUPS_PER_BONUS) }, (_, i) => 'b:' + i);
   const levels = Object.keys(pets).sort().flatMap((id) =>
     Array.from({ length: levelOf(heartsOf(pets[id])) - 1 }, (_, i) => `p:${id}:${i + 2}`));
   return [...dated, ...levels, ...bonus].filter((b) => !pulls[b]);
