@@ -81,9 +81,11 @@ export function wakeLoss(hearts) {
   return Math.max(0, Math.min(WAKE_LOSS, hearts - floor));
 }
 
+export const hourKST = (now = new Date()) => (now.getUTCHours() + 9) % 24;
+
 // 23:00–05:59 KST: the pet sleeps.
 export function isNight(now = new Date()) {
-  const h = (now.getUTCHours() + 9) % 24;
+  const h = hourKST(now);
   return h >= 23 || h < 6;
 }
 

@@ -2,7 +2,7 @@ import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS, SHOP } from './catalog.js';
-import { balance } from './shop.js';
+import { balance, placeIn } from './shop.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
@@ -85,9 +85,7 @@ function App() {
   useEffect(() => onAdmin(setAdminPrefs), []);
   // ?dev (in-memory, nothing real at stake) shows the switch too, so it can be tested locally.
   const isAdminUser = ADMIN_IDS.includes(cloud?.userId) || MODE === 'dev', admin = isAdminUser && adminPrefs.on;
-  const adminRef = useRef(admin);
-  adminRef.current = admin;
-  const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current, () => adminRef.current), [db, assets]);
+  const actions = useMemo(() => db && makeActions(db, assets, () => stateRef.current), [db, assets]);
 
   const partner = cloud?.partner;
   const coupled = !!partner;
@@ -123,7 +121,10 @@ function App() {
   const have = useMemo(() => (admin ? allOwned() : owned(state.pulls, state.pets)), [admin, state.pulls, state.pets]);
   const earned = useMemo(() => (admin ? new Set(TITLES.map((t) => t.id))
     : titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today })), [admin, state.days, cdays, coupled, state.pulls, today]);
-  const myLook = state.habit?.look ?? EMPTY, pLook = partner?.look ?? EMPTY, cSkin = cloud?.coupleSkin ?? EMPTY;
+  // Admin test mode wears and decorates from its own memo (admin.js), never my real records.
+  const myLook = admin ? { ...state.habit?.look, ...adminPrefs.look } : state.habit?.look ?? EMPTY;
+  const pLook = partner?.look ?? EMPTY, cSkin = admin ? { ...cloud?.coupleSkin, ...adminPrefs.coupleSkin } : cloud?.coupleSkin ?? EMPTY;
+  const myRoom = admin ? adminPrefs.room ?? state.room : state.room;
   const look = {
     me: { monsters: [buddy(myLook)], hero: myLook.char, bg: myLook.bg, brick: myLook.brick, flag: myLook.flag, badge: myLook.badge },
     partner: { monsters: [buddy(pLook)], hero: pLook.char, bg: pLook.bg, brick: pLook.brick, flag: pLook.flag, badge: pLook.badge },
@@ -148,7 +149,7 @@ function App() {
     const pet = buddy(pLook);
     return { name: partnerName, pet: { ...pet, level: levelOf(heartsOf(partner.pets?.[pet.id])) },
       record: battleRecord(cloud.battles ?? [], cloud.userId, partner.id, state.habit?.seenBattle ?? '') };
-  }, [coupled, cloud, partner, state.habit?.seenBattle]);
+  }, [coupled, cloud, partner, partnerName, state.habit?.seenBattle]);
   // Room shop: coins are derived from records (shop.js), admin mode owns everything for free.
   const bought = admin ? ALL_SHOP : state.shop;
   const coins = admin ? null : balance({ days: state.days, maze: state.maze, pets: state.pets, pulls: state.pulls }, state.shop);
@@ -166,8 +167,10 @@ function App() {
     if (unopened.length) openReveal();
   }, [revealNext, anim, fall, modal, unopened.length]);
   const openReveal = () => { setRevealBox(unopened[0]); setModal('reveal'); };
-  const onEquip = (patch) => actions.equip(patch).then(() => { setToast('장착했어요'); cloudApi?.sync(); }, fail);
-  const onEquipCouple = (patch) => cloudApi.setCoupleSkin(patch).then(() => setToast('우리 탑에 적용했어요'), fail);
+  const onEquip = (patch) => (admin ? sandbox(setAdmin({ look: { ...adminPrefs.look, ...patch } })).then(() => setToast('🛠 장착 (저장 안 함)'))
+    : actions.equip(patch).then(() => { setToast('장착했어요'); cloudApi?.sync(); }, fail));
+  const onEquipCouple = (patch) => (admin ? sandbox(setAdmin({ coupleSkin: { ...adminPrefs.coupleSkin, ...patch } })).then(() => setToast('🛠 적용 (저장 안 함)'))
+    : cloudApi.setCoupleSkin(patch).then(() => setToast('우리 탑에 적용했어요'), fail));
   // A couple skin from the reveal goes on the couple tower; anything else on me.
   const wear = (p) => {
     const it = ITEMS.get(p.item);
@@ -359,7 +362,8 @@ function App() {
     ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
       onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {
-        if (vs === 'partner') cloudApi.recordBattle({ mine: myPet.id, theirs: rival.pet.id, won }).catch(fail); else cloudApi?.sync();
+        // Only the day's counted battles go on our shared record, so rematches can't flood it.
+        if (vs === 'partner' && r.counted) cloudApi.recordBattle({ mine: myPet.id, theirs: rival.pet.id, won }).catch(fail); else cloudApi?.sync();
         return r;
       }, (e) => { fail(e); throw e; }))}
       onClose=${() => setModal('play')} />`}
@@ -372,9 +376,10 @@ function App() {
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
     ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')}
-      room=${state.room} bought=${bought} coins=${coins}
+      room=${myRoom} bought=${bought} coins=${coins}
       onBuy=${(id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
-      onPlace=${(where, i, id) => actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
+      onPlace=${(where, i, id) => (admin ? sandbox(setAdmin({ room: placeIn(myRoom, where, i, id) }))
+        : actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; }))}
       onVisit=${rival ? () => setModal('visit') : null} food=${admin ? ADMIN_FOOD : state.play[today]?.food}
       tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => admin || actions.openPlay().catch(fail)}
       onThrowFood=${(k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; }))}

@@ -120,5 +120,5 @@ export function battleRecord(rows, me, partner, seen = '') {
 // A wild maze monster: tier by the box odds, shiny like boxes, level within 1 of mine. r: four numbers in [0, 1).
 export function wildRoll([r1, r2, r3, r4], myLevel) {
   const { item, shiny } = roll(MONSTERS, [r1, r2, r3]);
-  return { id: item.id, shiny, level: Math.max(1, Math.min(10, myLevel + Math.min(1, Math.floor(r4 * 3) - 1))) };
+  return { id: item.id, shiny, level: Math.max(1, Math.min(10, myLevel + Math.floor(r4 * 3) - 1)) };
 }

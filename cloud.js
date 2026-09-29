@@ -163,7 +163,9 @@ export async function openCloud(local, onChange) {
     const petRows = must(await sb.from('pets').select('monster, gained, lost, tastes, wins').eq('user_id', uid));
     const pets = mergePets(await localDocs('pets'), petRows);
     for (const { id, doc } of pets.restore) await db.doc(`pets/${id}`).set(doc);
-    if (pets.push.length) must(await sb.from('pets').upsert(pets.push.map((r) => ({ user_id: uid, ...r, updated_at: new Date().toISOString() }))));
+    // Every row carries every column: a bulk upsert fills a key missing from one row with NULL, which NOT NULL rejects.
+    if (pets.push.length) must(await sb.from('pets').upsert(pets.push.map((r) => ({ user_id: uid, monster: r.monster, gained: r.gained, lost: r.lost,
+      tastes: r.tastes ?? {}, wins: r.wins ?? 0, updated_at: new Date().toISOString() }))));
 
     // Maze clears (shards), both ways: per day the faster time wins (maze.js mergeClears).
     const clearRows = must(await sb.from('maze_clears').select('day, ms, at').eq('user_id', uid));
@@ -197,7 +199,7 @@ export async function openCloud(local, onChange) {
     // Battles: my partner's pet levels for their side, and our record (RLS: only the two of us).
     const partnerPets = partner ? Object.fromEntries(must(await sb.from('pets').select('monster, gained, lost, wins').eq('user_id', partner.id))
       .map((r) => [r.monster, r])) : {};
-    const battles = must(await sb.from('battles').select('challenger, defender, winner, at').order('at', { ascending: false }).limit(300));
+    const battles = must(await sb.from('battles').select('challenger, defender, winner, at').order('at', { ascending: false }).limit(2000)); // at most 3 counted a day each
     const info = (meRow?.couple_id && must(await sb.rpc('couple_info'))) || {};
     // Reactions: got = on my photos (from my partner), gave = mine on theirs. day -> emoji.
     const { got, gave } = splitReactions(must(await sb.from('reactions').select('owner, day, emoji')), uid);

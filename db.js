@@ -1,7 +1,7 @@
 // All persistence goes through here. The page never writes to db or assets directly.
-import { todayKST, addDays, shieldsLeft, boxes, roll, owned, allOwned } from './logic.js';
-import { canBuy, placeOk, SLOTS } from './shop.js';
-import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS, SHOP } from './catalog.js';
+import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
+import { canBuy, placeOk, placeIn } from './shop.js';
+import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
 import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, countBattle, DAILY } from './pet.js';
@@ -91,8 +91,7 @@ export function subscribe(db, onState, onError) {
   return () => offs.forEach((off) => off());
 }
 
-// isAdmin(): admin test mode (admin.js): anything may be worn.
-export function makeActions(db, assets, getState, isAdmin = () => false) {
+export function makeActions(db, assets, getState) {
   const ready = () => {
     const s = getState();
     if (!s?.loaded) throw new Error('데이터를 아직 불러오는 중이에요');
@@ -156,7 +155,7 @@ export function makeActions(db, assets, getState, isAdmin = () => false) {
       const s = ready();
       if (s.pulls[box]) return s.pulls[box];
       if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets, clears: Object.keys(s.maze).length }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
-      const r = [...crypto.getRandomValues(new Uint32Array(3))].map((n) => n / 2 ** 32);
+      const r = rnd(3);
       const { item, shiny } = roll(box.startsWith('c:') ? COUPLE_POOL : POOL, r);
       const doc = { item: item.id, shiny, dup: owned(s.pulls, s.pets).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
       await db.doc(`pulls/${box}`).set(doc);
@@ -166,11 +165,11 @@ export function makeActions(db, assets, getState, isAdmin = () => false) {
     // What I wear: habit/me.look = {monster, shiny, char, bg, brick, flag, badge, acc}; null = the default.
     async equip(patch) {
       const s = ready();
-      const have = isAdmin() ? allOwned() : owned(s.pulls, s.pets);
+      const have = owned(s.pulls, s.pets);
       for (const [k, v] of Object.entries(patch)) {
         if (v == null || k === 'shiny') continue;
         const ok = k === 'badge' ? TITLES.some((t) => t.id === v)
-          : k === 'acc' ? isAdmin() || accsUnlocked(s.pets).has(v)
+          : k === 'acc' ? accsUnlocked(s.pets).has(v)
           : k === 'monster' ? have.has(v + (patch.shiny ? '*' : ''))
           : have.has(v) && ITEMS.get(v)?.kind === k && !ITEMS.get(v).couple;
         if (!ok) throw new Error('아직 없는 아이템이에요');
@@ -252,12 +251,9 @@ export function makeActions(db, assets, getState, isAdmin = () => false) {
     },
     // room/me = {slots: [8 furniture ids or null], building, theme}. where: 'slot' | 'building' | 'theme'.
     async place(where, i, id) {
-      const s = ready(), bought = isAdmin() ? Object.fromEntries([...SHOP.keys()].map((k) => [k, {}])) : s.shop;
-      if (!placeOk(bought, where, i, id)) throw new Error('놓을 수 없어요');
-      const room = { slots: Array(SLOTS.length).fill(null), building: null, theme: null, ...s.room };
-      if (where === 'slot') room.slots = room.slots.map((x, j) => (j === i ? id : x === id && id ? null : x)); // one of each
-      else room[where] = id;
-      await db.doc('room/me').set(room);
+      const s = ready();
+      if (!placeOk(s.shop, where, i, id)) throw new Error('놓을 수 없어요');
+      await db.doc('room/me').set(placeIn(s.room, where, i, id));
     },
 
     // Today's maze escaped in ms. The first clear of a day is a shard (the day's maze/<day> doc); a faster

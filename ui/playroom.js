@@ -3,14 +3,13 @@
 // the counts, the pet's face and the judgement pop-up.
 import { html, useState, useEffect, useRef } from './h.js';
 import { Monster } from './monsters.js';
-import { ITEMS, ACCESSORIES, FOODS } from '../catalog.js';
+import { ITEMS, ACCESSORIES, FOODS, FURNITURE } from '../catalog.js';
 import { flick, spinOf, at, landing, judge, foodHearts, tasteOf, isNight, levelOf, levelStart, MAX_LEVEL, STAR_FULL } from '../pet.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 
 import { RoomLayer, Shop, PlaceSheet, HORIZON, HAND } from './room.js';
 import { SLOTS, skyAt } from '../shop.js';
-import { FURNITURE } from '../catalog.js';
 const PET_PX = 9;                  // monster pixel size at z = 0
 const WANDER = { x: 0.6, z: [0.45, 0.85], walk: 0.15, run: 0.6 }; // where the pet strolls, speeds in units/s
 const GROUND = { x: [-0.9, 0.9], z: [0.15, 1.4] };                 // a missed item rolls back inside this
@@ -87,6 +86,8 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     clearTimeout(s.emoTimer);
     if (ms) s.emoTimer = setTimeout(() => setEmo(rest()), ms);
   };
+  // Hearts from play here; the time lets the level-up celebration tell them from hearts a sync brought in.
+  const feed = (...a) => { st.current.fedAt = performance.now(); return cb.current.onFeed(...a); };
   const say = (text) => setPop({ text, key: performance.now() });
   const gave = (n, text) => n > 0 && say(`${text} +${n}💗`);
 
@@ -113,6 +114,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     const fresh = ACCESSORIES.filter((a) => accs.has(a.id) && !was.accs.has(a.id));
     seen.current = { lv, star, accs };
     if (lv <= was.lv && (star === was.star || !star)) return;
+    if (performance.now() - (st.current.fedAt ?? -1e9) > 5000) return; // hearts from a sync, not from playing here
     const t = setTimeout(() => {
       emote('moved', 1800); sfx('rare'); buzz('epic');
       say(star && !was.star ? '✨ 이로치 변신 해금!'
@@ -143,7 +145,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       sfx(j === 'excellent' || taste === 'like' ? 'rare' : 'common');
       buzz(j === 'excellent' ? 'rare' : 'tap');
     }
-    paid.then(() => cb.current.onFeed(foodHearts(j, taste), 'food', food))
+    paid.then(() => feed(foodHearts(j, taste), 'food', food))
       .then((n) => gave(n, taste === 'like' ? `${SAY[j]} 좋아해요!` : SAY[j]), () => {});
     ready(taste === 'hate' ? 1100 : EAT_MS);
   };
@@ -171,7 +173,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (it.kind === 'ball') {
       if (j !== 'miss') {
         emote('joy', 800); sfx('common'); buzz('tap');
-        cb.current.onFeed(1, 'toy').then((n) => (n > 0 ? gave(n, '잡았다!') : say('잡았다!')), () => {});
+        feed(1, 'toy').then((n) => (n > 0 ? gave(n, '잡았다!') : say('잡았다!')), () => {});
         it.pos = { x: p.x, y: 0, z: p.z };
         return pickUp(now);
       }
@@ -299,7 +301,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (r.turns < 3) return;
     s.rub = null; s.rubbed = true;
     emote('shy', 1500); sfx('tap'); buzz('tap');
-    cb.current.onFeed(1, 'pet').then((n) => gave(n, s.pet.asleep ? '쿨쿨…' : '헤헤'), () => {});
+    feed(1, 'pet').then((n) => gave(n, s.pet.asleep ? '쿨쿨…' : '헤헤'), () => {});
   };
   const petUp = () => { s.rub = null; };
 

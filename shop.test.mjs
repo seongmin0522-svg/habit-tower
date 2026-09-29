@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COIN, income, balance, canBuy, skyAt, placeOk, SLOTS } from './shop.js';
+import { COIN, income, balance, canBuy, skyAt, placeOk, placeIn, SLOTS } from './shop.js';
 
 const rec = {
   days: { '2026-09-27': { assetId: 'a' }, '2026-09-28': { shield: true }, '2026-09-29': { assetId: 'b' } },
@@ -47,4 +47,14 @@ test('skyAt: KST morning 6–10, day 10–17, sunset 17–20, night otherwise', 
   assert.equal(at(18), 'sunset');
   assert.equal(at(22), 'night');
   assert.equal(at(3), 'night');
+});
+
+test('placeIn: one of each furniture, building and theme set by name', () => {
+  let room = placeIn(null, 'slot', 2, 'cushion');
+  assert.deepEqual(room.slots, [null, null, 'cushion', null, null, null, null, null]);
+  room = placeIn(room, 'slot', 5, 'cushion'); // moves it
+  assert.deepEqual(room.slots, [null, null, null, null, null, 'cushion', null, null]);
+  room = placeIn(room, 'building', 0, 'tent');
+  assert.equal(room.building, 'tent');
+  assert.equal(placeIn(room, 'slot', 5, null).slots[5], null);
 });

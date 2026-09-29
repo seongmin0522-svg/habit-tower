@@ -1,7 +1,7 @@
 // Coins and the room shop (spec: docs/superpowers/specs/2026-09-29-encounters-shop-design.md). Pure.
 // Coins are never stored: income from my records minus the prices of what I bought (shop/<id> docs).
 import { SHOP } from './catalog.js';
-import { heartsOf, levelOf } from './pet.js';
+import { heartsOf, levelOf, hourKST } from './pet.js';
 
 export const COIN = { photo: 10, maze: 5, win: 3, dup: 5, level: 20 };
 
@@ -31,8 +31,15 @@ export function placeOk(bought, where, i, id) {
   return !!bought[id] && SHOP.get(id)?.kind === kind;
 }
 
+// The room after putting id (or null) there. A piece of furniture sits in one slot at a time: placing it moves it.
+export function placeIn(room, where, i, id) {
+  const r = { slots: Array(SLOTS.length).fill(null), building: null, theme: null, ...room };
+  if (where !== 'slot') return { ...r, [where]: id };
+  return { ...r, slots: r.slots.map((x, j) => (j === i ? id : id && x === id ? null : x)) };
+}
+
 // The playroom sky follows the real KST hour.
 export function skyAt(now = new Date()) {
-  const h = (now.getUTCHours() + 9) % 24;
+  const h = hourKST(now);
   return h >= 6 && h < 10 ? 'morning' : h >= 10 && h < 17 ? 'day' : h >= 17 && h < 20 ? 'sunset' : 'night';
 }

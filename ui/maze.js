@@ -139,7 +139,8 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
     </g>`);
   }
   const shift = `translate(${VIEW / 2 - pos[0] - 0.5}px, ${VIEW / 2 - pos[1] - 0.5}px)`;
-  const elapsed = done ? done.ms : t0 ? Math.max(0, now - t0 - paused.current) : 0;
+  // During a wild battle the clock stands still at the moment it began.
+  const elapsed = done ? done.ms : t0 ? Math.max(0, (wild || flash ? pauseAt.current : now) - t0 - paused.current) : 0;
   const target = cps[reached] ?? maze.exit;
   const angle = (Math.atan2(target[1] - pos[1], target[0] - pos[0]) * 180) / Math.PI;
 

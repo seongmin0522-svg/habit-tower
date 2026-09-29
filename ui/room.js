@@ -44,7 +44,7 @@ export function Shop({ coins, bought, onBuy, onClose }) {
   const [tab, setTab] = useState('furniture');
   const [busy, setBusy] = useState(null);
   const list = TABS.find((t) => t[0] === tab)[2];
-  const buy = (id) => { setBusy(id); onBuy(id).finally(() => setBusy(null)); };
+  const buy = (id) => { setBusy(id); onBuy(id).catch(() => {}).finally(() => setBusy(null)); }; // the app already toasted a failure
   return html`<${Win} title="🏪 상점" onClose=${onClose} cls="shop-win">
     <div class="pad">
       <p class="shop-coins">🪙 ${coins ?? '∞'}<small class="muted"> · 인증 ${COIN.photo} · 미로 ${COIN.maze} · 대결 승리 ${COIN.win} · 중복 ${COIN.dup} · 펫 레벨업 ${COIN.level}</small></p>
