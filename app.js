@@ -1,21 +1,22 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
-import { ITEMS, STARTER, TITLES } from './catalog.js';
+import { ITEMS, STARTER, TITLES, ACCESSORIES } from './catalog.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
-import { DAILY } from './pet.js';
+import { DAILY, heartsOf, levelOf, accsUnlocked } from './pet.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
 const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 const EMPTY = {};
 // Monster buddy from a look: a catalog monster or the starter snail.
-const buddy = (l) => ({ id: ITEMS.get(l.monster)?.base ? l.monster : STARTER, shiny: !!(l.monster && l.shiny) });
+const buddy = (l) => ({ id: ITEMS.get(l.monster)?.base ? l.monster : STARTER, shiny: !!(l.monster && l.shiny),
+  acc: ACCESSORIES.some((a) => a.id === l.acc) ? l.acc : null });
 initSound();
 
 function App() {
@@ -100,9 +101,9 @@ function App() {
 
   // Rewards. Couple boxes only once this launch has synced my partner's days.
   const boxCdays = coupled && cloud?.synced ? cdays : EMPTY;
-  const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom }),
-    [state.days, boxCdays, state.pulls]);
-  const have = useMemo(() => owned(state.pulls), [state.pulls]);
+  const unopened = useMemo(() => boxes({ days: state.days, cdays: boxCdays, pulls: state.pulls, from: rewardsFrom, pets: state.pets }),
+    [state.days, boxCdays, state.pulls, state.pets]);
+  const have = useMemo(() => owned(state.pulls, state.pets), [state.pulls, state.pets]);
   const earned = useMemo(() => titles({ days: state.days, cdays: coupled ? cdays : EMPTY, pulls: state.pulls, today }),
     [state.days, cdays, coupled, state.pulls, today]);
   const myLook = state.habit?.look ?? EMPTY, pLook = partner?.look ?? EMPTY, cSkin = cloud?.coupleSkin ?? EMPTY;
@@ -114,7 +115,10 @@ function App() {
   }[view];
   const badgeName = TITLES.find((t) => t.id === look.badge)?.name;
   const myPet = buddy(myLook);
-  const petHearts = ((p) => (p?.gained ?? 0) - (p?.lost ?? 0))(state.pets[myPet.id]);
+  const petHearts = heartsOf(state.pets[myPet.id]);
+  const accs = useMemo(() => accsUnlocked(state.pets), [state.pets]);
+  const petLv = useMemo(() => Object.fromEntries(Object.entries(state.pets)
+    .filter(([, p]) => heartsOf(p) > 0).map(([id, p]) => [id, levelOf(heartsOf(p))])), [state.pets]);
   const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
@@ -316,10 +320,10 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
-    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook}
+    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} foodLeft=${DAILY.food - (state.play[today]?.fed ?? 0)}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} accs=${accs} foodLeft=${DAILY.food - (state.play[today]?.fed ?? 0)}
       onThrowFood=${() => actions.throwFood().catch((e) => { fail(e); throw e; })}
       onFeed=${(n, kind) => actions.feedPet(myPet.id, n, kind).catch((e) => { fail(e); throw e; })}
       onWake=${() => actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })} onClose=${() => setModal(null)} />`}

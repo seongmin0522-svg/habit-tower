@@ -276,6 +276,24 @@ function faced(base, face) {
   return { grid, lit };
 }
 
+// Pet accessories (catalog.js ACCESSORIES), sat on the top of the head: the highest pixel in the art's middle columns.
+const ACC_ART = {
+  ribbon: ['KK...KK', 'KPK.KPK', 'KPPRPPK', 'KPK.KPK', 'KK...KK'],
+  hat: ['.KKKKK.', '.KDDDK.', '.KDDDK.', '.KRRRK.', 'KKKKKKK'],
+  crown: ['K.K.K.K', 'KYKYKYK', 'KYYRYYK', 'KKKKKKK'],
+};
+const ACC_INK = { K: '#2b1d14', P: '#ff8ab0', R: '#e8402a', D: '#3a3a4a', Y: '#f2c230' };
+export const accCells = (acc) => (ACC_ART[acc] ?? []).flatMap((row, y) => [...row].map((c, x) => ACC_INK[c] && [x, y, ACC_INK[c]]).filter(Boolean));
+const headCache = new Map();
+function headTop(base) {
+  if (headCache.has(base)) return headCache.get(base);
+  const map = ART[base].map, xs = map.flatMap((r) => [...r].map((c, x) => (c !== '.' ? x : null)).filter((x) => x != null));
+  const cx = Math.round((Math.min(...xs) + Math.max(...xs)) / 2);
+  const y = map.findIndex((r) => [cx - 1, cx, cx + 1].some((x) => r[x] && r[x] !== '.'));
+  headCache.set(base, [cx, y]);
+  return [cx, y];
+}
+
 // face: one of FACES, or null for the normal art.
 export function paint(id, shiny, face = null) {
   const m = MONSTERS.find((x) => x.id === id) ?? MONSTERS[0];
@@ -290,12 +308,20 @@ export function paint(id, shiny, face = null) {
 }
 
 // shiny: the rare recolor; the sparkle around it is CSS (.sparkle in index.html).
-export function Monster({ id, px = 2, shiny = false, face = null }) {
+// acc: an ACCESSORIES id or null. It may stick out above the 16x16 box (overflow stays visible).
+export function Monster({ id, px = 2, shiny = false, face = null, acc = null }) {
   const { m, cells } = paint(id, shiny, face);
-  return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16"
+  const art = ACC_ART[acc], [cx, top] = art ? headTop(m.base) : [0, 0];
+  const ox = cx - Math.floor((art?.[0].length ?? 0) / 2), oy = top - (art?.length ?? 0) + 1;
+  return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16" overflow="visible"
     shape-rendering="crispEdges" role="img" aria-label=${(shiny ? '이로치 ' : '') + m.name}>${
-    cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
+    cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}${
+    art && accCells(acc).map(([x, y, fill]) => html`<rect x=${ox + x} y=${oy + y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
 }
+
+// An accessory alone, for the bag.
+export const AccIcon = ({ acc, px = 4 }) => html`<svg width=${7 * px} height=${5 * px} viewBox="0 0 7 5" shape-rendering="crispEdges">${
+  accCells(acc).map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
 
 // The same picture as an image URL, for grids (the bag shows up to 200): one <img> instead of ~150 <rect>s each.
 const urls = new Map();

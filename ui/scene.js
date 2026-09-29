@@ -122,8 +122,8 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
       <i class="carried" aria-hidden="true" style=${{ '--c': brickColor(look.brick, half ? n : Math.max(n - 1, 0)) }}>${half
         ? html`<${HalfPhoto} half=${half} />` : html`<${Photo} day=${days[shown.at(-1)]} eager />`}</i>
       ${look.monsters.map((m, i) => i === 0 && onPet
-        ? html`<button key=${i} type="button" class=${'mob pet' + (m.shiny ? ' sparkle' : '')} onClick=${onPet} aria-label="펫과 놀기"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></button>`
-        : html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')} aria-hidden="true"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} /></span>`)}
+        ? html`<button key=${i} type="button" class=${'mob pet' + (m.shiny ? ' sparkle' : '')} onClick=${onPet} aria-label="펫과 놀기"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} acc=${m.acc} /></button>`
+        : html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')} aria-hidden="true"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} acc=${m.acc} /></span>`)}
       <span class="hero" aria-hidden="true"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
       ${partnerCharacter && html`<span class="hero" aria-hidden="true"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
       <span class="stars" aria-hidden="true">★ ☆ ★</span>

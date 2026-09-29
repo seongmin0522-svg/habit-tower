@@ -3,8 +3,8 @@
 // the counts, the pet's face and the judgement pop-up.
 import { html, useState, useEffect, useRef } from './h.js';
 import { Monster } from './monsters.js';
-import { ITEMS } from '../catalog.js';
-import { flick, spinOf, at, landing, judge, FOOD_HEARTS, DAILY, isNight } from '../pet.js';
+import { ITEMS, ACCESSORIES } from '../catalog.js';
+import { flick, spinOf, at, landing, judge, FOOD_HEARTS, DAILY, isNight, levelOf, levelStart, MAX_LEVEL, STAR_FULL } from '../pet.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 
@@ -48,10 +48,10 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
   el.style.transform = `translate(${left}px, ${top}px) scale(${sx}, ${sy}) translate(-50%, -100%)`;
 };
 
-// pet: {id, shiny}. hearts: its hearts. foodLeft: today's food.
+// pet: {id, shiny, acc}. hearts: its hearts. accs: unlocked accessory ids (any pet). foodLeft: today's food.
 // onThrowFood(): one food leaves the tray. onFeed(n, kind): resolves to the hearts given after today's limits.
 // onWake(): woken at night, resolves to the hearts lost.
-export function Playroom({ pet, hearts, foodLeft, onThrowFood, onFeed, onWake, onClose }) {
+export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onWake, onClose }) {
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
   const cb = useRef();
   cb.current = { onThrowFood, onFeed, onWake, foodLeft };
@@ -86,6 +86,21 @@ export function Playroom({ pet, hearts, foodLeft, onThrowFood, onFeed, onWake, o
     next();
     return () => { clearTimeout(t); clearTimeout(s.emoTimer); };
   }, []);
+
+  // Level up: moved face, a box, maybe an accessory; the star gauge ending unlocks the shiny.
+  const seen = useRef({ lv: levelOf(hearts), star: hearts >= STAR_FULL, accs });
+  useEffect(() => {
+    const was = seen.current, lv = levelOf(hearts), star = hearts >= STAR_FULL;
+    const fresh = ACCESSORIES.filter((a) => accs.has(a.id) && !was.accs.has(a.id));
+    seen.current = { lv, star, accs };
+    if (lv <= was.lv && (star === was.star || !star)) return;
+    const t = setTimeout(() => {
+      emote('moved', 1800); sfx('rare'); buzz('epic');
+      say(star && !was.star ? '✨ 이로치 변신 해금!'
+        : `Lv ${lv}! 🎁 상자 +${lv - was.lv}${fresh.length ? ` · ${fresh.map((a) => a.name).join('·')} 열림` : ''}`);
+    }, 900); // after the heart pop-up
+    return () => clearTimeout(t);
+  }, [hearts]);
 
   const walkTo = (x, z, speed) => { s.pet.tx = x; s.pet.tz = z; s.pet.speed = speed; };
   // Next item on the throw spot; out of food switches to the ball.
@@ -251,18 +266,23 @@ export function Playroom({ pet, hearts, foodLeft, onThrowFood, onFeed, onWake, o
 
   const pick = (k) => { if (s.item.mode === 'ready' && (k !== 'food' || foodLeft > 0)) { setKind(k); sfx('tap'); } };
   const [face, icon, motion] = EMO[emo] ?? [blink ? 'blink' : null, null, null];
+  const lv = levelOf(hearts), max = lv === MAX_LEVEL;
+  const [from, to] = max ? [levelStart(MAX_LEVEL), STAR_FULL] : [levelStart(lv), levelStart(lv + 1)];
+  const gauge = html`<span class="pr-lv">${max ? '⭐' : `Lv ${lv}`}
+    <i class="pr-gauge" aria-label=${`${Math.min(hearts, to) - from}/${to - from}`}><i style=${{ width: `${Math.min(1, (hearts - from) / (to - from)) * 100}%` }} /></i>
+    <small>💗 ${hearts}</small></span>`;
   const hint = s.pet.asleep ? '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)'
     : kind === 'food' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
 
   return html`<div class="playroom" role="dialog" aria-label="펫과 놀기">
-    <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b><span>💗 ${hearts}</span>
+    <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b>${gauge}
       <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
     <div class="pr-field" ref=${field}>
       <span class="pr-shadow" ref=${shadowEl} />
       <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label="펫 쓰다듬기"
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
-        <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} /></span>
+        <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
       </span>
       <span class="pr-item" ref=${itemEl} role="button" aria-label=${kind === 'food' ? '먹이 던지기' : '공 던지기'}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
