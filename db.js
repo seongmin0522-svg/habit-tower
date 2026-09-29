@@ -3,7 +3,7 @@ import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
-import { useFood, grant, wakeLoss, accsUnlocked } from './pet.js';
+import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, DAILY } from './pet.js';
 
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
@@ -93,6 +93,8 @@ export function makeActions(db, assets, getState) {
   const petWrite = (f) => { const run = petWrites.then(f); petWrites = run.catch(() => {}); return run; };
   const data = async (ref) => { const s = await ref.get(); return s.exists ? s.data() : {}; };
   const checkPet = (id) => { if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요'); };
+  const rnd = (k) => [...crypto.getRandomValues(new Uint32Array(k))].map((n) => n / 2 ** 32);
+  const today = async () => { const ref = db.doc(`play/${todayKST()}`); return [ref, dayFood(await data(ref), rnd(DAILY.food))]; };
   return {
     async setHabit({ title, character }) {
       const s = ready();
@@ -165,31 +167,41 @@ export function makeActions(db, assets, getState) {
       await db.doc('habit/me').set({ ...s.habit, look: { ...s.habit?.look, ...patch } });
     },
 
-    // Pet play. Hearts: pets/<monsterId> = {gained, lost}, both only grow; hearts = gained − lost.
-    // Daily limits: play/<day> = {fed, toyHearts, petted} (pet.js useFood / grant).
+    // Pet play. Hearts: pets/<monsterId> = {gained, lost, tastes}, counters only grow; hearts = gained − lost.
+    // Daily: play/<day> = {food: [kinds left], fed, toyHearts, petted} (pet.js dayFood / useFood / grant).
     // async: a not-ready or bad call rejects instead of throwing inside the playroom's animation loop.
 
-    // One piece of today's food leaves the tray (at the throw).
-    async throwFood() {
+    // Today's food, rolled the first time the playroom opens that day.
+    async openPlay() {
       ready();
       return petWrite(async () => {
-        const ref = db.doc(`play/${todayKST()}`), next = useFood(await data(ref));
-        if (!next) throw new Error('오늘 먹이를 다 줬어요');
+        const [ref, play] = await today();
+        if (!(await ref.get()).data()?.food) await ref.set(play);
+      });
+    },
+
+    // One piece of that kind leaves the tray (at the throw).
+    async throwFood(kind) {
+      ready();
+      return petWrite(async () => {
+        const [ref, play] = await today(), next = useFood(play, kind);
+        if (!next) throw new Error('그 먹이는 오늘 다 줬어요');
         await ref.set(next);
       });
     },
 
     // kind: 'food' | 'toy' | 'pet'. Resolves to the hearts actually given after today's limits.
-    async feedPet(id, n, kind = 'food') {
+    // food: the food eaten, so a liked or hated taste is recorded the first time (even at 0 hearts).
+    async feedPet(id, n, kind = 'food', food = null) {
       ready();
       checkPet(id);
-      if (!(n > 0)) return 0;
       return petWrite(async () => {
-        const day = db.doc(`play/${todayKST()}`), g = grant(await data(day), kind, n);
-        if (!g.n) return 0;
-        if (kind !== 'food') await day.set(g.play);
-        const ref = db.doc(`pets/${id}`), p = await data(ref);
-        await ref.set({ ...p, gained: (p.gained ?? 0) + g.n, lost: p.lost ?? 0 });
+        const day = db.doc(`play/${todayKST()}`), g = n > 0 ? grant(await data(day), kind, n) : { n: 0 };
+        const ref = db.doc(`pets/${id}`), p = await data(ref), taste = food && tasteOf(id, food);
+        const learn = taste && p.tastes?.[food] !== taste;
+        if (!g.n && !learn) return 0;
+        if (g.n && kind !== 'food') await day.set(g.play);
+        await ref.set({ ...p, gained: (p.gained ?? 0) + g.n, lost: p.lost ?? 0, ...(learn ? { tastes: { ...p.tastes, [food]: taste } } : {}) });
         return g.n;
       });
     },

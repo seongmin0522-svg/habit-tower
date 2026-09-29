@@ -4,7 +4,7 @@ import { Win } from './windows.js';
 import { Sprite, Chest } from './sprites.js';
 import { monsterUrl, AccIcon } from './monsters.js';
 import { TIER as DEFAULT_BRICK } from './scene.js';
-import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY_RATE, STARTER, POOL, COUPLE_POOL, ACCESSORIES } from '../catalog.js';
+import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY_RATE, STARTER, POOL, COUPLE_POOL, ACCESSORIES, FOODS } from '../catalog.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 import { glowAt } from '../logic.js';
@@ -106,7 +106,8 @@ const TABS = [['box', '상자'], ['dex', '도감'], ['wear', '꾸미기'], ['tit
 // have: owned() set. look: my habit/me.look. coupleSkin: {bg, brick, flag} or null when not coupled.
 // earned: titles() set.
 // accs: unlocked pet accessory ids. petLv: {monsterId: level} for pets I've played with.
-export function Bag({ unopened, shards, have, look, character, coupleSkin, earned, accs, petLv, onReveal, onEquip, onEquipCouple, onClose }) {
+// tastes: {<monster base>: {<food>: 'like'|'hate'}} shown so far in the playroom.
+export function Bag({ unopened, shards, have, look, character, coupleSkin, earned, accs, petLv, tastes, onReveal, onEquip, onEquipCouple, onClose }) {
   const [tab, setTab] = useState(unopened.length ? 'box' : 'dex');
   const [picked, setPicked] = useState(null);
   const pick = (id, shiny) => { setPicked({ id, shiny }); sfx('tap'); };
@@ -135,7 +136,8 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
 
   const dexTab = html`<div class="pad">
     <p class="dexsum">몬스터 ${monsters}/${MONSTERS.length} · ✨ ${shinies}/${MONSTERS.length} · 스킨 ${skins}/${POOL.length - MONSTERS.length}${coupleSkin && ` · 💞 ${duo}/${COUPLE_POOL.length}`}</p>
-    ${picked && html`<p class="picked">${picked.shiny ? '✨ 이로치 ' : ''}${ITEMS.get(picked.id).name} <span class="tier" style=${{ background: tierOf(ITEMS.get(picked.id).tier).color }}>${tierOf(ITEMS.get(picked.id).tier).name}</span></p>`}
+    ${picked && html`<p class="picked">${picked.shiny ? '✨ 이로치 ' : ''}${ITEMS.get(picked.id).name} <span class="tier" style=${{ background: tierOf(ITEMS.get(picked.id).tier).color }}>${tierOf(ITEMS.get(picked.id).tier).name}</span>${ITEMS.get(picked.id).base && html`<br /><small>${
+      [['like', '좋아함'], ['hate', '싫어함']].map(([t, word]) => `${word} ${FOODS.find((f) => f.id !== 'cake' && tastes[ITEMS.get(picked.id).base]?.[f.id] === t)?.icon ?? '?'}`).join(' · ')}</small>`}</p>`}
     ${TIERS.map((t) => html`<section key=${t.id}><h3 style=${{ color: t.color }}>${t.name}</h3><div class="grid">${
       MONSTERS.filter((m) => m.tier === t.id).map((m) => (have.has(m.id) ? cell(m.id, false, false, () => pick(m.id)) : unknown(m.id)))}</div></section>`)}
     <section><h3>✨ 이로치</h3>${shinies ? html`<div class="grid">${MONSTERS.filter((m) => have.has(m.id + '*')).map((m) => cell(m.id, true, false, () => pick(m.id, true)))}</div>`

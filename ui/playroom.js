@@ -3,8 +3,8 @@
 // the counts, the pet's face and the judgement pop-up.
 import { html, useState, useEffect, useRef } from './h.js';
 import { Monster } from './monsters.js';
-import { ITEMS, ACCESSORIES } from '../catalog.js';
-import { flick, spinOf, at, landing, judge, FOOD_HEARTS, DAILY, isNight, levelOf, levelStart, MAX_LEVEL, STAR_FULL } from '../pet.js';
+import { ITEMS, ACCESSORIES, FOODS } from '../catalog.js';
+import { flick, spinOf, at, landing, judge, foodHearts, tasteOf, isNight, levelOf, levelStart, MAX_LEVEL, STAR_FULL } from '../pet.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 
@@ -15,7 +15,9 @@ const GROUND = { x: [-0.9, 0.9], z: [0.15, 1.4] };                 // a missed i
 const HOME = { x: 0, z: 0.15 };                                    // where the pet drops the ball it fetched
 const EAT_MS = 700, NEAR_MISS = 0.35;
 const SAY = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice!', miss: '냠' };
-const ICON = { food: '🍎', ball: '⚾' };
+const ICON = { ...Object.fromEntries(FOODS.map((f) => [f.id, f.icon])), ball: '⚾' };
+// The first food kind still on the tray, else the ball.
+const firstFood = (food) => FOODS.find((f) => food?.includes(f.id))?.id ?? 'ball';
 
 // Emotion -> face (ui/monsters.js FACES), bubble icon, body motion (CSS .m-*).
 const EMO = {
@@ -48,14 +50,16 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
   el.style.transform = `translate(${left}px, ${top}px) scale(${sx}, ${sy}) translate(-50%, -100%)`;
 };
 
-// pet: {id, shiny, acc}. hearts: its hearts. accs: unlocked accessory ids (any pet). foodLeft: today's food.
-// onThrowFood(): one food leaves the tray. onFeed(n, kind): resolves to the hearts given after today's limits.
+// pet: {id, shiny, acc}. hearts: its hearts. accs: unlocked accessory ids (any pet).
+// food: today's food kinds left (undefined until onOpenPlay rolls them). tastes: {<food>: 'like'|'hate'} this kind of
+// monster has shown. onThrowFood(kind): one piece leaves the tray. onFeed(n, kind, food): resolves to the hearts given
+// after today's limits, and records a taste.
 // onWake(): woken at night, resolves to the hearts lost.
-export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onWake, onClose }) {
+export function Playroom({ pet, hearts, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onClose }) {
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
   const cb = useRef();
-  cb.current = { onThrowFood, onFeed, onWake, foodLeft };
-  const [kind, setKind] = useState(foodLeft > 0 ? 'food' : 'ball');
+  cb.current = { onThrowFood, onFeed, onWake, food };
+  const [kind, setKind] = useState(() => firstFood(food));
   const [pop, setPop] = useState(null);   // {text, key}
   const [emo, setEmo] = useState(null);   // key of EMO while an emotion shows
   const [blink, setBlink] = useState(false);
@@ -63,7 +67,6 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
   st.current ??= {
     pet: { x: 0, z: 0.6, tx: 0, tz: 0.6, speed: WANDER.walk, face: 1, waitUntil: 0, asleep: isNight() },
     item: { mode: 'ready' }, // ready | drag | fly | ground | held | gone
-    kind: foodLeft > 0 ? 'food' : 'ball',
     samples: [], rub: null, emoTimer: 0,
   };
   const s = st.current;
@@ -77,6 +80,13 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
   };
   const say = (text) => setPop({ text, key: performance.now() });
   const gave = (n, text) => n > 0 && say(`${text} +${n}💗`);
+
+  useEffect(() => { onOpenPlay(); }, []);
+  // Today's food arrives (or a kind runs out) while nothing is in hand: hold the first food on the tray.
+  useEffect(() => {
+    if (s.item.mode !== 'ready' || s.chose) return;
+    if (kind === 'ball' ? food?.length : !food?.includes(kind)) setKind(firstFood(food));
+  }, [food]);
 
   // Blink every few seconds while nothing else shows.
   useEffect(() => {
@@ -107,19 +117,26 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
   const ready = (delay = 0) => setTimeout(() => {
     if (s.item.mode !== 'gone') return;
     s.item = { mode: 'ready' };
-    if (s.kind === 'food' && cb.current.foodLeft <= 0) setKind('ball');
+    if (s.kind !== 'ball' && !cb.current.food?.includes(s.kind)) setKind(firstFood(cb.current.food));
   }, delay);
 
   // paid: the throw's onThrowFood promise; no hearts for food that never left the tray.
-  const eat = (now, j, paid) => {
-    const p = s.pet;
+  // Liked food doubles the hearts; hated food is spat out for none (its taste is still learned).
+  const eat = (now, j, paid, food) => {
+    const p = s.pet, taste = tasteOf(pet.id, food);
     s.item = { mode: 'gone' };
     p.waitUntil = now + EAT_MS; walkTo(p.x, p.z, WANDER.walk);
-    emote('yum', EAT_MS);
-    sfx(j === 'excellent' ? 'rare' : 'common');
-    buzz(j === 'excellent' ? 'rare' : 'tap');
-    paid.then(() => cb.current.onFeed(FOOD_HEARTS[j], 'food')).then((n) => gave(n, SAY[j]), () => {});
-    ready(EAT_MS);
+    if (taste === 'hate') {
+      emote('spit', 1100); sfx('shake'); buzz('glow');
+      say('퉤! 싫어해요');
+    } else {
+      emote('yum', EAT_MS);
+      sfx(j === 'excellent' || taste === 'like' ? 'rare' : 'common');
+      buzz(j === 'excellent' ? 'rare' : 'tap');
+    }
+    paid.then(() => cb.current.onFeed(foodHearts(j, taste), 'food', food))
+      .then((n) => gave(n, taste === 'like' ? `${SAY[j]} 좋아해요!` : SAY[j]), () => {});
+    ready(taste === 'hate' ? 1100 : EAT_MS);
   };
 
   const pickUp = (now) => {
@@ -153,7 +170,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
       s.item = { mode: 'gone' };
       emote(j === 'excellent' ? 'excited' : 'joy', 500);
       p.waitUntil = now + 500;
-      return setTimeout(() => eat(performance.now(), j, it.paid), 500);
+      return setTimeout(() => eat(performance.now(), j, it.paid, it.kind), 500);
     }
     it.mode = 'ground';
     it.pos = { x: clamp(it.land.x, GROUND.x), y: 0, z: clamp(it.land.z, GROUND.z) };
@@ -173,7 +190,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
     if (p.asleep || now < p.waitUntil) return;
     const dx = p.tx - p.x, dz = p.tz - p.z, d = Math.hypot(dx, dz);
     if (d < 0.01) {
-      if (s.item.mode === 'ground') return s.item.kind === 'ball' ? pickUp(now) : eat(now, 'miss', s.item.paid);
+      if (s.item.mode === 'ground') return s.item.kind === 'ball' ? pickUp(now) : eat(now, 'miss', s.item.paid, s.item.kind);
       if (s.item.mode === 'held') { s.item = { mode: 'gone' }; ready(); } // ball dropped at my feet
       walkTo(rand([-WANDER.x, WANDER.x]), rand(WANDER.z), WANDER.walk);
       return;
@@ -220,7 +237,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
 
   const local = (e) => { const r = field.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   const down = (e) => {
-    if (s.item.mode !== 'ready' || (s.kind === 'food' && cb.current.foodLeft <= 0)) return;
+    if (s.item.mode !== 'ready' || (s.kind !== 'ball' && !cb.current.food?.includes(s.kind))) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const [fx, fy] = local(e);
     s.item = { mode: 'drag', kind: s.kind, fx, fy };
@@ -240,7 +257,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
     const w = field.current.clientWidth, v = flick(s.samples, w);
     if (!v) { s.item = { mode: 'ready' }; return; }
     // A sleeping pet's throw costs no food (it only wakes the pet).
-    const paid = it.kind === 'food' && !s.pet.asleep ? cb.current.onThrowFood() : null;
+    const paid = it.kind !== 'ball' && !s.pet.asleep ? cb.current.onThrowFood(it.kind) : null;
     paid?.catch(() => {});
     const spin = spinOf(s.samples), x0 = (it.fx - w / 2) / (w / 2), land = landing(v, spin);
     s.item = { mode: 'fly', kind: it.kind, paid, v, spin, x0, t0: performance.now(), land: { ...land, x: land.x + x0 }, pos: { x: x0, y: 0.15, z: 0 } };
@@ -264,7 +281,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
   };
   const petUp = () => { s.rub = null; };
 
-  const pick = (k) => { if (s.item.mode === 'ready' && (k !== 'food' || foodLeft > 0)) { setKind(k); sfx('tap'); } };
+  const pick = (k) => { if (s.item.mode === 'ready' && (k === 'ball' || food?.includes(k))) { s.chose = true; setKind(k); sfx('tap'); } };
   const [face, icon, motion] = EMO[emo] ?? [blink ? 'blink' : null, null, null];
   const lv = levelOf(hearts), max = lv === MAX_LEVEL;
   const [from, to] = max ? [levelStart(MAX_LEVEL), STAR_FULL] : [levelStart(lv), levelStart(lv + 1)];
@@ -272,7 +289,7 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
     <i class="pr-gauge" aria-label=${`${Math.min(hearts, to) - from}/${to - from}`}><i style=${{ width: `${Math.min(1, (hearts - from) / (to - from)) * 100}%` }} /></i>
     <small>💗 ${hearts}</small></span>`;
   const hint = s.pet.asleep ? '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)'
-    : kind === 'food' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
+    : kind !== 'ball' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
 
   return html`<div class="playroom" role="dialog" aria-label="펫과 놀기">
     <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b>${gauge}
@@ -284,13 +301,17 @@ export function Playroom({ pet, hearts, accs, foodLeft, onThrowFood, onFeed, onW
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
         <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
       </span>
-      <span class="pr-item" ref=${itemEl} role="button" aria-label=${kind === 'food' ? '먹이 던지기' : '공 던지기'}
+      <span class="pr-item" ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? '먹이 던지기' : '공 던지기'}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
       ${pop && html`<p key=${pop.key} class="pr-pop">${pop.text}</p>`}
       <p class="pr-hint">${hint}</p>
     </div>
     <div class="pr-tray">
-      <button class=${'btn sm ' + (kind === 'food' ? 'green' : 'blue')} disabled=${foodLeft <= 0} onClick=${() => pick('food')}>🍎 ${foodLeft}/${DAILY.food}</button>
+      ${FOODS.map((f) => {
+        const n = food?.filter((k) => k === f.id).length ?? 0, t = tastes?.[f.id];
+        return html`<button key=${f.id} class=${'btn sm ' + (kind === f.id ? 'green' : 'blue')} disabled=${!n} onClick=${() => pick(f.id)}
+          aria-label=${`${f.name} ${n}개${t === 'like' ? ' · 좋아함' : t === 'hate' ? ' · 싫어함' : ''}`}>${f.icon}${n}${t === 'like' ? '💗' : t === 'hate' ? '✖' : ''}</button>`;
+      })}
       <button class=${'btn sm ' + (kind === 'ball' ? 'green' : 'blue')} onClick=${() => pick('ball')}>⚾ 공</button>
     </div>
   </div>`;

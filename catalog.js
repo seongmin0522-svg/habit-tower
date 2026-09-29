@@ -228,6 +228,17 @@ export const POOL = [...MONSTERS, ...SKINS.filter((s) => !s.couple && s.kind !==
 export const COUPLE_POOL = SKINS.filter((s) => s.couple && s.kind !== 'brick');
 export const KIND_NAME = { char: '캐릭터 색', bg: '배경', brick: '벽돌', flag: '깃발' };
 
+// Pet food. Each monster base likes one of apple/meat/fish and hates the next one, rotating by the base's order in M,
+// so tastes spread evenly. Everyone likes cake (pet.js tasteOf).
+export const FOODS = [
+  { id: 'apple', icon: '🍎', name: '사과' },
+  { id: 'meat', icon: '🍖', name: '고기' },
+  { id: 'fish', icon: '🐟', name: '물고기' },
+  { id: 'cake', icon: '🍰', name: '케이크' },
+];
+const PLAIN = ['apple', 'meat', 'fish'];
+export const TASTES = Object.fromEntries(M.map(([base], i) => [base, { like: PLAIN[i % 3], hate: PLAIN[(i + 1) % 3] }]));
+
 // Pet accessories: open the first time any pet reaches the level (pet.js accsUnlocked). Art in ui/monsters.js.
 export const ACCESSORIES = [
   { id: 'ribbon', name: '리본', level: 3 },

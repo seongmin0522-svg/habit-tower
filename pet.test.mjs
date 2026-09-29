@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets } from './pet.js';
+import { MONSTERS } from './catalog.js';
+import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets, rollFood, dayFood, tasteOf, foodHearts } from './pet.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -97,11 +98,42 @@ test('isNight: 23:00–05:59 KST', () => {
   assert.equal(isNight(new Date('2026-09-29T13:59:00Z')), false); // 22:59 KST
 });
 
-test('useFood: 5 pieces a day', () => {
-  let play = {};
-  for (let i = 0; i < 5; i++) { play = useFood(play); assert.ok(play); }
-  assert.equal(play.fed, 5);
-  assert.equal(useFood(play), null);
+test('rollFood: apple/meat/fish evenly, cake under 0.1', () => {
+  assert.deepEqual(rollFood([0.05, 0.1, 0.4, 0.7, 0.99]), ['cake', 'apple', 'meat', 'fish', 'fish']);
+});
+
+test('dayFood: rolls today once; a day started before kinds keeps its count', () => {
+  assert.equal(dayFood({}, [0.5, 0.5, 0.5, 0.5, 0.5]).food.length, 5);
+  assert.deepEqual(dayFood({ fed: 3 }, [0.2, 0.5, 0.9, 0.9, 0.9]).food, ['apple', 'meat']);
+  const had = { food: ['cake'] };
+  assert.equal(dayFood(had, [0.5]), had);
+});
+
+test('useFood: takes one piece of that kind, null when there is none', () => {
+  const play = { food: ['apple', 'meat', 'apple'] };
+  assert.deepEqual(useFood(play, 'apple'), { food: ['meat', 'apple'], fed: 1 });
+  assert.equal(useFood(play, 'fish'), null);
+  assert.equal(useFood({}, 'apple'), null);
+});
+
+test('tasteOf: every base likes one and hates another of apple/meat/fish; cake is loved', () => {
+  const bases = [...new Set(MONSTERS.map((m) => m.base))];
+  for (const b of bases) {
+    const id = MONSTERS.find((m) => m.base === b).id;
+    const t = ['apple', 'meat', 'fish'].map((f) => tasteOf(id, f));
+    assert.equal(t.filter((x) => x === 'like').length, 1, b);
+    assert.equal(t.filter((x) => x === 'hate').length, 1, b);
+    assert.equal(tasteOf(id, 'cake'), 'like');
+  }
+  const likes = bases.map((b) => ['apple', 'meat', 'fish'].find((f) => tasteOf(MONSTERS.find((m) => m.base === b).id, f) === 'like'));
+  for (const f of ['apple', 'meat', 'fish']) assert.ok(likes.filter((x) => x === f).length >= 10, f);
+});
+
+test('foodHearts: liked doubles, hated gives nothing', () => {
+  assert.equal(foodHearts('excellent', 'like'), 10);
+  assert.equal(foodHearts('great', null), 3);
+  assert.equal(foodHearts('miss', 'like'), 2);
+  assert.equal(foodHearts('excellent', 'hate'), 0);
 });
 
 test('grant: food as is, toy hearts capped at 10 a day, petting once', () => {
@@ -138,4 +170,10 @@ test('mergePets: the larger of each counter wins, both ways', () => {
     { id: 'slime-green', doc: { gained: 12, lost: 2 } },
   ]);
   assert.deepEqual(mergePets({ 'a-b': { gained: 3, lost: 0 } }, [{ monster: 'a-b', gained: 3, lost: 0 }]), { push: [], restore: [] });
+});
+
+test('mergePets: tastes merge as a union', () => {
+  const r = mergePets({ 'a-b': { gained: 3, lost: 0, tastes: { meat: 'like' } } }, [{ monster: 'a-b', gained: 3, lost: 0, tastes: { fish: 'hate' } }]);
+  assert.deepEqual(r.restore, [{ id: 'a-b', doc: { gained: 3, lost: 0, tastes: { fish: 'hate', meat: 'like' } } }]);
+  assert.deepEqual(r.push, [{ monster: 'a-b', gained: 3, lost: 0, tastes: { fish: 'hate', meat: 'like' } }]);
 });

@@ -2,7 +2,7 @@
 // World: x across the field (−1 left … 1 right), z depth (0 = my hand, 1 = far), y height.
 // 1 world unit = half the screen width at z = 0. Time in seconds.
 // Spec: docs/superpowers/specs/2026-09-29-pet-playroom-design.md
-import { ACCESSORIES } from './catalog.js';
+import { ACCESSORIES, ITEMS, TASTES } from './catalog.js';
 
 // Every feel number lives here, to tune after the phone test.
 export const THROW = {
@@ -87,8 +87,26 @@ export function isNight(now = new Date()) {
   return h >= 23 || h < 6;
 }
 
-// play/<day> = {fed, toyHearts, petted}. useFood: the day's record after one more piece, or null when none are left.
-export const useFood = (play) => ((play.fed ?? 0) >= DAILY.food ? null : { ...play, fed: (play.fed ?? 0) + 1 });
+// play/<day> = {food: [kinds left], fed, toyHearts, petted}.
+// rollFood: one piece per random number in [0, 1): cake under CAKE_RATE, else apple/meat/fish evenly.
+export const CAKE_RATE = 0.1;
+export const rollFood = (rs) => rs.map((r) => (r < CAKE_RATE ? 'cake' : ['apple', 'meat', 'fish'][Math.min(2, Math.floor(((r - CAKE_RATE) / (1 - CAKE_RATE)) * 3))]));
+// The day's food, rolled once. A day started before food kinds (only `fed`) rolls what's left of it.
+export const dayFood = (play, rs) => (play.food ? play : { ...play, food: rollFood(rs.slice(0, Math.max(0, DAILY.food - (play.fed ?? 0)))) });
+// The day's record after one piece of that kind leaves the tray, or null when there's none.
+export function useFood(play, kind) {
+  const i = play.food?.indexOf(kind) ?? -1;
+  if (i < 0) return null;
+  return { ...play, food: play.food.filter((_, j) => j !== i), fed: (play.fed ?? 0) + 1 };
+}
+
+// 'like' | 'hate' | null for a monster and a food.
+export function tasteOf(monsterId, food) {
+  if (food === 'cake') return 'like';
+  const t = TASTES[ITEMS.get(monsterId)?.base];
+  return t?.like === food ? 'like' : t?.hate === food ? 'hate' : null;
+}
+export const foodHearts = (judgement, taste) => (taste === 'hate' ? 0 : FOOD_HEARTS[judgement] * (taste === 'like' ? 2 : 1));
 
 // How many of n hearts a kind of play may still give today, and the day's record after it.
 // 'food' is limited by useFood at the throw, 'toy' by the daily toy hearts, 'pet' to once a day.
@@ -108,16 +126,17 @@ export function accsUnlocked(pets) {
   return new Set(ACCESSORIES.filter((a) => top >= a.level).map((a) => a.id));
 }
 
-// Cloud sync. rows: my cloud pets {monster, gained, lost}. Both counters only grow, so per pet the larger of
+// Cloud sync. rows: my cloud pets {monster, gained, lost, tastes}. Both counters only grow, so per pet the larger of
 // each wins: push rows the cloud is behind on, restore docs the phone is behind on.
 export function mergePets(local, rows) {
   const cloud = Object.fromEntries(rows.map((r) => [r.monster, r]));
   const push = [], restore = [];
   for (const id of new Set([...Object.keys(local), ...Object.keys(cloud)])) {
-    const l = local[id], c = cloud[id];
-    const m = { gained: Math.max(l?.gained ?? 0, c?.gained ?? 0), lost: Math.max(l?.lost ?? 0, c?.lost ?? 0) };
-    if (!l || l.gained !== m.gained || (l.lost ?? 0) !== m.lost) restore.push({ id, doc: { ...l, ...m } });
-    if (!c || c.gained !== m.gained || c.lost !== m.lost) push.push({ monster: id, ...m });
+    const l = local[id], c = cloud[id], tastes = { ...c?.tastes, ...l?.tastes }, n = Object.keys(tastes).length;
+    const m = { gained: Math.max(l?.gained ?? 0, c?.gained ?? 0), lost: Math.max(l?.lost ?? 0, c?.lost ?? 0), ...(n ? { tastes } : {}) };
+    const behind = (x) => !x || (x.gained ?? 0) !== m.gained || (x.lost ?? 0) !== m.lost || Object.keys(x.tastes ?? {}).length !== n;
+    if (behind(l)) restore.push({ id, doc: { ...l, ...m } });
+    if (behind(c)) push.push({ monster: id, ...m });
   }
   return { push, restore };
 }

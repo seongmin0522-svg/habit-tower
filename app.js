@@ -8,7 +8,7 @@ import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
-import { DAILY, heartsOf, levelOf, accsUnlocked } from './pet.js';
+import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
@@ -117,6 +117,12 @@ function App() {
   const myPet = buddy(myLook);
   const petHearts = heartsOf(state.pets[myPet.id]);
   const accs = useMemo(() => accsUnlocked(state.pets), [state.pets]);
+  // Tastes shown so far, per monster kind (every color of a kind shares them).
+  const tastes = useMemo(() => {
+    const out = {};
+    for (const [id, p] of Object.entries(state.pets)) { const b = ITEMS.get(id)?.base; if (b && p.tastes) out[b] = { ...out[b], ...p.tastes }; }
+    return out;
+  }, [state.pets]);
   const petLv = useMemo(() => Object.fromEntries(Object.entries(state.pets)
     .filter(([, p]) => heartsOf(p) > 0).map(([id, p]) => [id, levelOf(heartsOf(p))])), [state.pets]);
   const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
@@ -320,12 +326,13 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
-    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv}
+    ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} accs=${accs} foodLeft=${DAILY.food - (state.play[today]?.fed ?? 0)}
-      onThrowFood=${() => actions.throwFood().catch((e) => { fail(e); throw e; })}
-      onFeed=${(n, kind) => actions.feedPet(myPet.id, n, kind).catch((e) => { fail(e); throw e; })}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} accs=${accs} food=${state.play[today]?.food}
+      tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => actions.openPlay().catch(fail)}
+      onThrowFood=${(k) => actions.throwFood(k).catch((e) => { fail(e); throw e; })}
+      onFeed=${(n, kind, food) => actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; })}
       onWake=${() => actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
       shards=${shards(state.pulls)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}

@@ -300,3 +300,5 @@ alter table public.pets enable row level security;
 create policy "pets own" on public.pets for all to authenticated
   using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
 revoke all on public.pets from anon;
+-- Tastes a pet showed (2026-09-29): {<food>: 'like' | 'hate'}, merged as a union.
+alter table public.pets add column tastes jsonb not null default '{}'::jsonb check (pg_column_size(tastes) < 500);
