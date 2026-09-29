@@ -304,3 +304,25 @@ revoke all on public.pets from anon;
 alter table public.pets add column tastes jsonb not null default '{}'::jsonb check (pg_column_size(tastes) < 500);
 -- Battle wins per pet (2026-09-29): only grows, merged by max.
 alter table public.pets add column wins integer not null default 0 check (wins >= 0);
+
+-- Battles against my partner's pet (2026-09-29): their pet levels are readable by me, results are shared by the two of us.
+create policy "pets partner read" on public.pets for select to authenticated
+  using (user_id = (select public.partner_id()));
+create table public.battles (
+  id bigint generated always as identity primary key,
+  challenger uuid not null default auth.uid() references auth.users on delete cascade,
+  defender uuid not null references auth.users on delete cascade,
+  c_monster text not null check (c_monster ~ '^[a-z]+-[a-z]+$'),
+  d_monster text not null check (d_monster ~ '^[a-z]+-[a-z]+$'),
+  winner uuid not null,
+  at timestamptz not null default now(),
+  check (winner = challenger or winner = defender)
+);
+alter table public.battles enable row level security;
+create policy "battles read" on public.battles for select to authenticated
+  using ((select auth.uid()) = challenger or (select auth.uid()) = defender);
+create policy "battles insert" on public.battles for insert to authenticated
+  with check (challenger = (select auth.uid()) and defender = (select public.partner_id()));
+create policy "battles delete own" on public.battles for delete to authenticated
+  using (challenger = (select auth.uid()));
+revoke all on public.battles from anon;

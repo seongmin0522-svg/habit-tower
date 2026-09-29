@@ -9,6 +9,7 @@ import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.j
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
 import { Battle } from './ui/battle.js';
+import { battleRecord } from './battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -126,6 +127,13 @@ function App() {
   }, [state.pets]);
   const petLv = useMemo(() => Object.fromEntries(Object.entries(state.pets)
     .filter(([, p]) => heartsOf(p) > 0 || p.wins).map(([id, p]) => [id, `${levelOf(heartsOf(p))}${p.wins ? ` ⚔${p.wins}` : ''}`])), [state.pets]);
+  // My partner's pet as a battle opponent (their equipped monster at its playroom level), with our record.
+  const rival = useMemo(() => {
+    if (!coupled || !cloud?.synced || !partner) return null;
+    const pet = buddy(pLook);
+    return { name: partnerName, pet: { ...pet, level: levelOf(heartsOf(partner.pets?.[pet.id])) },
+      record: battleRecord(cloud.battles ?? [], cloud.userId, partner.id, state.habit?.seenBattle ?? '') };
+  }, [coupled, cloud, partner, state.habit?.seenBattle]);
   const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
@@ -327,8 +335,12 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
-    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: levelOf(petHearts) }} partner=${null}
-      onRecord=${(won) => actions.recordBattle(myPet.id, won).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; })}
+    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: levelOf(petHearts) }} partner=${rival}
+      onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
+      onRecord=${(won, vs) => actions.recordBattle(myPet.id, won).then((r) => {
+        if (vs === 'partner') cloudApi.recordBattle({ mine: myPet.id, theirs: rival.pet.id, won }).catch(fail); else cloudApi?.sync();
+        return r;
+      }, (e) => { fail(e); throw e; })}
       onClose=${() => setModal('play')} />`}
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}

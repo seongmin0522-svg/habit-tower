@@ -37,7 +37,8 @@ const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/
 
 // local: what openLocal() returns. onChange(state) on every change, where state =
 // { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, coupleSkin, got, gave,
-//   partner: {id, name, character, habit, coupleCut, look} | null, partnerDays, synced, syncFailed }.
+//   battles: [{challenger, defender, winner, at}],
+//   partner: {id, name, character, habit, coupleCut, look, pets: {<monsterId>: {gained, lost, wins}}} | null, partnerDays, synced, syncFailed }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -178,14 +179,18 @@ export async function openCloud(local, onChange) {
       }
     }
     await dropPartnerPhotos(keep); // replaced photos, or a previous partner's
+    // Battles: my partner's pet levels for their side, and our record (RLS: only the two of us).
+    const partnerPets = partner ? Object.fromEntries(must(await sb.from('pets').select('monster, gained, lost, wins').eq('user_id', partner.id))
+      .map((r) => [r.monster, r])) : {};
+    const battles = must(await sb.from('battles').select('challenger, defender, winner, at').order('at', { ascending: false }).limit(300));
     const info = (meRow?.couple_id && must(await sb.rpc('couple_info'))) || {};
     // Reactions: got = on my photos (from my partner), gave = mine on theirs. day -> emoji.
     const { got, gave } = splitReactions(must(await sb.from('reactions').select('owner, day, emoji')), uid);
     await save({
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
-        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', coupleSkin: info.skin ?? {}, got, gave },
+        coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', coupleSkin: info.skin ?? {}, got, gave, battles },
       partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut,
-        look: partner.look ?? {} },
+        look: partner.look ?? {}, pets: partnerPets },
       partnerDays,
       synced: true,
       syncFailed: false,
@@ -266,6 +271,13 @@ export async function openCloud(local, onChange) {
       await sync();
     }),
     setName: call(async (name) => { await save({ me: { ...st.me, name: name.trim().slice(0, 20) } }); await sync(); }),
+    // A battle against my partner's pet ended. Needs a connection (no offline queue).
+    recordBattle: call(async ({ mine, theirs, won }) => {
+      const sb = await client(), defender = st.partner?.id, me = st.me.userId;
+      if (!defender) return;
+      must(await sb.from('battles').insert({ defender, c_monster: mine, d_monster: theirs, winner: won ? me : defender }));
+      await sync();
+    }),
     // One reaction per photo; null takes it back. Needs a connection (no offline queue).
     react: call(async (day, emoji) => {
       const sb = await client(), owner = st.partner?.id;
@@ -296,6 +308,7 @@ export async function openCloud(local, onChange) {
       must(await sb.from('days').delete().eq('user_id', uid));
       must(await sb.from('pulls').delete().eq('user_id', uid));
       must(await sb.from('pets').delete().eq('user_id', uid));
+      must(await sb.from('battles').delete().eq('challenger', uid));
       await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });

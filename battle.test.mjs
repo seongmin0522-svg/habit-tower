@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MONSTERS, ELEMENT, ELEMENTS, SPECIES } from './catalog.js';
-import { mult, statsOf, skillsOf, fighter, start, turn, aiPick } from './battle.js';
+import { mult, statsOf, skillsOf, fighter, start, turn, aiPick, battleRecord } from './battle.js';
 
 // Deterministic randomness: cycles through the given values.
 const seq = (...xs) => { let i = 0; return () => xs[i++ % xs.length]; };
@@ -99,4 +99,16 @@ test('seeded battles always end', () => {
     while (!st.over && n < 30) { st = turn(st, aiPick(st, rng, 'me'), aiPick(st, rng), rng).state; n++; }
     assert.ok(st.over, `${a} vs ${b}`);
   }
+});
+
+test('battleRecord: my wins and losses against my partner, and their challenges to me since a time', () => {
+  const rows = [
+    { challenger: 'me', defender: 'you', winner: 'me', at: '2026-09-29T01:00:00Z' },
+    { challenger: 'you', defender: 'me', winner: 'you', at: '2026-09-29T02:00:00Z' },
+    { challenger: 'you', defender: 'me', winner: 'me', at: '2026-09-29T03:00:00Z' },
+  ];
+  const r = battleRecord(rows, 'me', 'you', '2026-09-29T01:30:00Z');
+  assert.deepEqual({ win: r.win, lose: r.lose }, { win: 2, lose: 1 });
+  assert.deepEqual(r.fresh, [{ at: '2026-09-29T03:00:00Z', won: true }, { at: '2026-09-29T02:00:00Z', won: false }]);
+  assert.equal(battleRecord(rows, 'me', 'you', '2026-09-29T03:00:00Z').fresh.length, 0);
 });

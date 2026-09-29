@@ -25,9 +25,10 @@ function effectText(k) {
   return parts.join(' · ');
 }
 
-// me: {id, shiny, acc, level}. partner: null | {name, pet: {id, shiny, acc, level}, record: {win, lose}}.
+// me: {id, shiny, acc, level}. partner: null | {name, pet: {id, shiny, acc, level}, record: {win, lose, fresh}},
+// fresh = their challenges to me since I last looked. onSeen(at): I've seen up to `at`.
 // onRecord(won, vs): saves the result; resolves to {counted, left}.
-export function Battle({ me, partner, onRecord, onClose }) {
+export function Battle({ me, partner, onRecord, onSeen, onClose }) {
   const [phase, setPhase] = useState('pick'); // pick | fight | end
   const [st, setSt] = useState(null);         // battle.js state after the last full turn
   const [shown, setShown] = useState(null);   // {me: hp, foe: hp} while events replay
@@ -39,6 +40,8 @@ export function Battle({ me, partner, onRecord, onClose }) {
   const foeInfo = useRef(null);               // {id, shiny, acc, label, vs}
   const timers = useRef([]);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const fresh = useRef(partner?.record.fresh ?? []); // kept for this visit after it's marked seen
+  useEffect(() => { if (fresh.current.length) onSeen(fresh.current[0].at); }, []);
 
   const begin = (foe) => {
     foeInfo.current = foe;
@@ -137,6 +140,7 @@ export function Battle({ me, partner, onRecord, onClose }) {
     ${phase === 'pick' ? html`<div class="bt-pick">
       <p>${nameOf(me.id)} Lv ${me.level}로 누구와 싸울까요?</p>
       <div class="bt-row">${LEVELS.map(([label, d]) => html`<button key=${label} class="btn blue" onClick=${() => cpu(d)}>🤖 ${label}<br /><small>Lv ${clampLv(me.level + d)}</small></button>`)}</div>
+      ${fresh.current.slice(0, 3).map((f) => html`<p key=${f.at} class="bt-news">💞 ${partner.name}이(가) 도전해 왔어요 — ${f.won ? '내 펫이 이겼어요! 🎉' : '내 펫이 졌어요… 복수하러 가요!'}</p>`)}
       ${partner && html`<button class="btn green bt-partner" onClick=${() => begin({ ...partner.pet, label: partner.name, vs: 'partner' })}>
         💞 ${partner.name}의 ${nameOf(partner.pet.id)} Lv ${partner.pet.level}<br /><small>전적 ${partner.record.win}승 ${partner.record.lose}패</small></button>`}
     </div>` : html`<div class="bt-field">

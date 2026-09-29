@@ -103,3 +103,15 @@ export function aiPick(state, rng, side = 'foe') {
     : k.power ? k.power * (k.hits ?? 1) * (k.acc / 100) * mult(k.element, d.el) : 30);
   return worth(a.skills[0]) >= worth(a.skills[1]) ? 0 : 1;
 }
+
+// rows: battles between me and my partner {challenger, defender, winner, at}. seen: when I last looked (ISO or '').
+// fresh: my partner's challenges to me since then, newest first, with whether I won.
+export function battleRecord(rows, me, partner, seen = '') {
+  const ours = rows.filter((r) => [r.challenger, r.defender].includes(partner));
+  return {
+    win: ours.filter((r) => r.winner === me).length,
+    lose: ours.filter((r) => r.winner === partner).length,
+    fresh: ours.filter((r) => r.defender === me && r.at > seen).sort((a, b) => b.at.localeCompare(a.at))
+      .map((r) => ({ at: r.at, won: r.winner === me })),
+  };
+}
