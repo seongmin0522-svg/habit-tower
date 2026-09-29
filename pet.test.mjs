@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MONSTERS } from './catalog.js';
-import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets, rollFood, dayFood, tasteOf, foodHearts } from './pet.js';
+import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets, rollFood, dayFood, tasteOf, foodHearts, countBattle } from './pet.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -176,4 +176,17 @@ test('mergePets: tastes merge as a union', () => {
   const r = mergePets({ 'a-b': { gained: 3, lost: 0, tastes: { meat: 'like' } } }, [{ monster: 'a-b', gained: 3, lost: 0, tastes: { fish: 'hate' } }]);
   assert.deepEqual(r.restore, [{ id: 'a-b', doc: { gained: 3, lost: 0, tastes: { fish: 'hate', meat: 'like' } } }]);
   assert.deepEqual(r.push, [{ monster: 'a-b', gained: 3, lost: 0, tastes: { fish: 'hate', meat: 'like' } }]);
+});
+
+test('countBattle: the first 3 battles of a day count', () => {
+  let play = {};
+  for (let i = 0; i < 3; i++) { const r = countBattle(play); assert.equal(r.counted, true); play = r.play; }
+  assert.equal(play.battles, 3);
+  assert.deepEqual(countBattle(play), { counted: false, play });
+});
+
+test('mergePets: wins merge by max', () => {
+  const r = mergePets({ 'a-b': { gained: 3, lost: 0, wins: 2 } }, [{ monster: 'a-b', gained: 3, lost: 0, wins: 5 }]);
+  assert.deepEqual(r.restore, [{ id: 'a-b', doc: { gained: 3, lost: 0, wins: 5 } }]);
+  assert.deepEqual(r.push, []);
 });

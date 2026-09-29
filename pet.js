@@ -64,7 +64,7 @@ export function judge(land, pet) {
 }
 
 // Daily limits (per phone, reset at KST midnight): food pieces, toy hearts, petting hearts.
-export const DAILY = { food: 5, toyHearts: 10, pet: 1 };
+export const DAILY = { food: 5, toyHearts: 10, pet: 1, battles: 3 };
 
 // Levels: Lv n -> n+1 takes 10 + 5(n − 1) hearts, Lv 1–10 (270 hearts). The star gauge ends at 770 (shiny).
 export const MAX_LEVEL = 10, STAR_FULL = 770, WAKE_LOSS = 3;
@@ -108,6 +108,10 @@ export function tasteOf(monsterId, food) {
 }
 export const foodHearts = (judgement, taste) => (taste === 'hate' ? 0 : FOOD_HEARTS[judgement] * (taste === 'like' ? 2 : 1));
 
+// Battles: only the first DAILY.battles of a day count toward a pet's ⚔️ wins.
+export const countBattle = (play) => ((play.battles ?? 0) >= DAILY.battles
+  ? { counted: false, play } : { counted: true, play: { ...play, battles: (play.battles ?? 0) + 1 } });
+
 // How many of n hearts a kind of play may still give today, and the day's record after it.
 // 'food' is limited by useFood at the throw, 'toy' by the daily toy hearts, 'pet' to once a day.
 export function grant(play, kind, n) {
@@ -126,15 +130,17 @@ export function accsUnlocked(pets) {
   return new Set(ACCESSORIES.filter((a) => top >= a.level).map((a) => a.id));
 }
 
-// Cloud sync. rows: my cloud pets {monster, gained, lost, tastes}. Both counters only grow, so per pet the larger of
+// Cloud sync. rows: my cloud pets {monster, gained, lost, tastes, wins}. Both counters only grow, so per pet the larger of
 // each wins: push rows the cloud is behind on, restore docs the phone is behind on.
 export function mergePets(local, rows) {
   const cloud = Object.fromEntries(rows.map((r) => [r.monster, r]));
   const push = [], restore = [];
   for (const id of new Set([...Object.keys(local), ...Object.keys(cloud)])) {
     const l = local[id], c = cloud[id], tastes = { ...c?.tastes, ...l?.tastes }, n = Object.keys(tastes).length;
-    const m = { gained: Math.max(l?.gained ?? 0, c?.gained ?? 0), lost: Math.max(l?.lost ?? 0, c?.lost ?? 0), ...(n ? { tastes } : {}) };
-    const behind = (x) => !x || (x.gained ?? 0) !== m.gained || (x.lost ?? 0) !== m.lost || Object.keys(x.tastes ?? {}).length !== n;
+    const wins = Math.max(l?.wins ?? 0, c?.wins ?? 0);
+    const m = { gained: Math.max(l?.gained ?? 0, c?.gained ?? 0), lost: Math.max(l?.lost ?? 0, c?.lost ?? 0), ...(n ? { tastes } : {}), ...(wins ? { wins } : {}) };
+    const behind = (x) => !x || (x.gained ?? 0) !== m.gained || (x.lost ?? 0) !== m.lost || (x.wins ?? 0) !== wins
+      || Object.keys(x.tastes ?? {}).length !== n;
     if (behind(l)) restore.push({ id, doc: { ...l, ...m } });
     if (behind(c)) push.push({ monster: id, ...m });
   }

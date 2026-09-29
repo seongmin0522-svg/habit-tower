@@ -3,7 +3,7 @@ import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
-import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, DAILY } from './pet.js';
+import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, countBattle, DAILY } from './pet.js';
 
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
@@ -203,6 +203,21 @@ export function makeActions(db, assets, getState) {
         if (g.n && kind !== 'food') await day.set(g.play);
         await ref.set({ ...p, gained: (p.gained ?? 0) + g.n, lost: p.lost ?? 0, ...(learn ? { tastes: { ...p.tastes, [food]: taste } } : {}) });
         return g.n;
+      });
+    },
+
+    // A battle ended. Only today's first few count; a counted win adds to the pet's ⚔️ wins (pets/<id>.wins).
+    // Resolves to {counted, left}: whether it counted and how many counted battles today has left.
+    async recordBattle(id, won) {
+      ready();
+      checkPet(id);
+      return petWrite(async () => {
+        const day = db.doc(`play/${todayKST()}`), c = countBattle(await data(day));
+        if (c.counted) {
+          await day.set(c.play);
+          if (won) { const ref = db.doc(`pets/${id}`), p = await data(ref); await ref.set({ ...p, gained: p.gained ?? 0, lost: p.lost ?? 0, wins: (p.wins ?? 0) + 1 }); }
+        }
+        return { counted: c.counted, left: DAILY.battles - (c.play.battles ?? 0) };
       });
     },
 

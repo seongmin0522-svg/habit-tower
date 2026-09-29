@@ -53,9 +53,9 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // pet: {id, shiny, acc}. hearts: its hearts. accs: unlocked accessory ids (any pet).
 // food: today's food kinds left (undefined until onOpenPlay rolls them). tastes: {<food>: 'like'|'hate'} this kind of
 // monster has shown. onThrowFood(kind): one piece leaves the tray. onFeed(n, kind, food): resolves to the hearts given
-// after today's limits, and records a taste.
+// after today's limits, and records a taste. wins: the pet's ⚔️ wins. onBattle(): open the battle screen.
 // onWake(): woken at night, resolves to the hearts lost.
-export function Playroom({ pet, hearts, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onClose }) {
+export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onClose }) {
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
   const cb = useRef();
   cb.current = { onThrowFood, onFeed, onWake, food };
@@ -287,12 +287,13 @@ export function Playroom({ pet, hearts, accs, food, tastes, onOpenPlay, onThrowF
   const [from, to] = max ? [levelStart(MAX_LEVEL), STAR_FULL] : [levelStart(lv), levelStart(lv + 1)];
   const gauge = html`<span class="pr-lv">${max ? '⭐' : `Lv ${lv}`}
     <i class="pr-gauge" aria-label=${`${Math.min(hearts, to) - from}/${to - from}`}><i style=${{ width: `${Math.min(1, (hearts - from) / (to - from)) * 100}%` }} /></i>
-    <small>💗 ${hearts}</small></span>`;
+    <small>💗 ${hearts}${wins ? ` ⚔️ ${wins}` : ''}</small></span>`;
   const hint = s.pet.asleep ? '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)'
     : kind !== 'ball' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
 
   return html`<div class="playroom" role="dialog" aria-label="펫과 놀기">
     <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b>${gauge}
+      <button class="btn sm orange" onClick=${onBattle} aria-label="대결">⚔️</button>
       <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
     <div class="pr-field" ref=${field}>
       <span class="pr-shadow" ref=${shadowEl} />

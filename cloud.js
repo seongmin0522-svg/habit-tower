@@ -150,7 +150,7 @@ export async function openCloud(local, onChange) {
 
     // Pet hearts, both ways: per pet the larger of each counter wins (pet.js mergePets).
     // ponytail: a feed landing between the read and a restore write is lost; restores only happen on a phone behind the cloud.
-    const petRows = must(await sb.from('pets').select('monster, gained, lost, tastes').eq('user_id', uid));
+    const petRows = must(await sb.from('pets').select('monster, gained, lost, tastes, wins').eq('user_id', uid));
     const pets = mergePets(await localDocs('pets'), petRows);
     for (const { id, doc } of pets.restore) await db.doc(`pets/${id}`).set(doc);
     if (pets.push.length) must(await sb.from('pets').upsert(pets.push.map((r) => ({ user_id: uid, ...r, updated_at: new Date().toISOString() }))));

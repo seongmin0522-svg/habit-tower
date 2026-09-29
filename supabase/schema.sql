@@ -302,3 +302,5 @@ create policy "pets own" on public.pets for all to authenticated
 revoke all on public.pets from anon;
 -- Tastes a pet showed (2026-09-29): {<food>: 'like' | 'hate'}, merged as a union.
 alter table public.pets add column tastes jsonb not null default '{}'::jsonb check (pg_column_size(tastes) < 500);
+-- Battle wins per pet (2026-09-29): only grows, merged by max.
+alter table public.pets add column wins integer not null default 0 check (wins >= 0);

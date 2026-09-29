@@ -8,6 +8,7 @@ import { Scene } from './ui/scene.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
+import { Battle } from './ui/battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -27,7 +28,7 @@ function App() {
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | {key, n (0 = not a floor)}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | 'battle' | {key, n (0 = not a floor)}
   const [revealNext, setRevealNext] = useState(false); // a new box waits for the stacking to finish
   const [revealBox, setRevealBox] = useState(null);    // the box on the reveal window (it stays after it's opened)
   const [busy, setBusy] = useState(false);
@@ -124,7 +125,7 @@ function App() {
     return out;
   }, [state.pets]);
   const petLv = useMemo(() => Object.fromEntries(Object.entries(state.pets)
-    .filter(([, p]) => heartsOf(p) > 0).map(([id, p]) => [id, levelOf(heartsOf(p))])), [state.pets]);
+    .filter(([, p]) => heartsOf(p) > 0 || p.wins).map(([id, p]) => [id, `${levelOf(heartsOf(p))}${p.wins ? ` ⚔${p.wins}` : ''}`])), [state.pets]);
   const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
@@ -326,10 +327,13 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
+    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: levelOf(petHearts) }} partner=${null}
+      onRecord=${(won) => actions.recordBattle(myPet.id, won).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; })}
+      onClose=${() => setModal('play')} />`}
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} accs=${accs} food=${state.play[today]?.food}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} food=${state.play[today]?.food}
       tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => actions.openPlay().catch(fail)}
       onThrowFood=${(k) => actions.throwFood(k).catch((e) => { fail(e); throw e; })}
       onFeed=${(n, kind, food) => actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; })}
