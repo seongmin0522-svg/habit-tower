@@ -239,6 +239,67 @@ export const FOODS = [
 const PLAIN = ['apple', 'meat', 'fish'];
 export const TASTES = Object.fromEntries(M.map(([base], i) => [base, { like: PLAIN[i % 3], hate: PLAIN[(i + 1) % 3] }]));
 
+// Battles (spec: docs/superpowers/specs/2026-09-29-pet-battle-maze-design.md). Element skills are power 50.
+export const ELEMENTS = {
+  fire: { icon: '🔥', name: '불', skill: '불꽃 발사' }, water: { icon: '💧', name: '물', skill: '물대포' },
+  grass: { icon: '🌿', name: '풀', skill: '잎날 가르기' }, earth: { icon: '🪨', name: '땅', skill: '돌 던지기' },
+  ice: { icon: '❄️', name: '얼음', skill: '얼음 화살' }, dark: { icon: '🌙', name: '어둠', skill: '그림자 할퀴기' },
+  light: { icon: '✨', name: '빛', skill: '빛의 화살' },
+};
+export const BEATS = {
+  fire: ['grass', 'ice'], water: ['fire', 'earth'], grass: ['water', 'earth'], earth: ['fire', 'ice'],
+  ice: ['grass', 'water'], dark: ['light'], light: ['dark'],
+};
+// Element per monster, in each species' variant order in M (mostly by color).
+const EL = {
+  snail: 'grass water fire earth', mushroom: 'fire grass water light', slime: 'grass water light dark',
+  chick: 'light ice earth grass', bunny: 'ice light earth dark', pig: 'light earth earth dark',
+  frog: 'grass water fire light', stump: 'earth light dark grass', bee: 'light fire grass water',
+  cat: 'fire dark ice earth', octopus: 'fire light dark water', crab: 'fire earth water grass', turtle: 'grass water',
+  bat: 'dark dark fire earth', ghost: 'dark ice fire light', penguin: 'water ice earth light', fox: 'fire ice dark light',
+  cactus: 'grass light water earth', pumpkin: 'fire grass dark dark', owl: 'earth ice dark', snowman: 'ice fire water',
+  skeleton: 'dark dark light', golem: 'earth ice fire', bear: 'earth grass ice', wolf: 'earth dark ice',
+  knight: 'earth fire dark', dragon: 'fire', phoenix: 'fire', unicorn: 'light', kingslime: 'light', kraken: 'water',
+};
+export const ELEMENT = Object.fromEntries(M.flatMap(([base, , vs]) => vs.map(([v], i) => [`${base}-${v}`, EL[base].split(' ')[i]])));
+// strong: the stat ×1.25 (null = balanced, all ×1.08). sig: the signature skill, neutral element.
+// Skill fields: power, acc (%), hits, drain (heal half the damage), heal (share of max HP), once, stun (chance),
+// first (moves first), self / foe: stat stage changes {atk | def: n}.
+const sig = (name, power, acc, x = {}) => ({ name, power, acc, ...x });
+export const SPECIES = {
+  snail: { strong: 'def', sig: sig('껍질 숨기', 0, 100, { self: { def: 1 } }) },
+  mushroom: { strong: 'hp', sig: sig('포자 뿌리기', 0, 90, { foe: { atk: -1 } }) },
+  slime: { strong: 'hp', sig: sig('말랑 흡수', 40, 95, { drain: true }) },
+  chick: { strong: 'spd', sig: sig('삐약 응원', 0, 100, { self: { atk: 1 } }) },
+  bunny: { strong: 'spd', sig: sig('깡충 발차기', 40, 95, { first: true }) },
+  pig: { strong: 'atk', sig: sig('몸통 박치기', 70, 85) },
+  frog: { strong: null, sig: sig('혀 채찍', 45, 100) },
+  stump: { strong: 'def', sig: sig('뿌리 내리기', 0, 100, { heal: 0.35 }) },
+  bee: { strong: 'spd', sig: sig('윙윙 돌진', 40, 95, { first: true }) },
+  cat: { strong: 'spd', sig: sig('냥냥 펀치', 25, 95, { hits: 2 }) },
+  octopus: { strong: 'hp', sig: sig('먹물 뿌리기', 0, 90, { foe: { atk: -1 } }) },
+  crab: { strong: 'def', sig: sig('집게 가위', 30, 90, { hits: 2 }) },
+  turtle: { strong: 'def', sig: sig('등껍질 방패', 0, 100, { self: { def: 1 } }) },
+  bat: { strong: 'spd', sig: sig('흡혈', 45, 95, { drain: true }) },
+  ghost: { strong: null, sig: sig('깜짝 놀래키기', 30, 95, { stun: 0.3 }) },
+  penguin: { strong: 'spd', sig: sig('배 미끄럼', 45, 95, { first: true }) },
+  fox: { strong: 'spd', sig: sig('여우 홀리기', 35, 95, { stun: 0.25 }) },
+  cactus: { strong: 'def', sig: sig('가시 갑옷', 0, 100, { self: { def: 1 } }) },
+  pumpkin: { strong: 'atk', sig: sig('호박 폭탄', 70, 85) },
+  owl: { strong: null, sig: sig('날카로운 눈', 0, 100, { self: { atk: 1 } }) },
+  snowman: { strong: 'hp', sig: sig('눈덩이 굴리기', 45, 90, { stun: 0.2 }) },
+  skeleton: { strong: 'atk', sig: sig('뼈다귀 던지기', 30, 90, { hits: 2 }) },
+  golem: { strong: 'def', sig: sig('바위 굳히기', 0, 100, { self: { def: 2 } }) },
+  bear: { strong: 'atk', sig: sig('곰 펀치', 75, 85) },
+  wolf: { strong: 'atk', sig: sig('울부짖기', 0, 100, { self: { atk: 1 } }) },
+  knight: { strong: 'def', sig: sig('방패 돌진', 45, 95, { self: { def: 1 } }) },
+  dragon: { strong: 'atk', sig: sig('드래곤 브레스', 90, 85) },
+  phoenix: { strong: null, sig: sig('불사의 날개', 0, 100, { heal: 0.5, once: true }) },
+  unicorn: { strong: null, sig: sig('무지개 뿔', 50, 95, { drain: true }) },
+  kingslime: { strong: 'hp', sig: sig('왕의 명령', 20, 100, { stun: 0.5 }) },
+  kraken: { strong: 'hp', sig: sig('촉수 조이기', 50, 90, { stun: 0.3 }) },
+};
+
 // Pet accessories: open the first time any pet reaches the level (pet.js accsUnlocked). Art in ui/monsters.js.
 export const ACCESSORIES = [
   { id: 'ribbon', name: '리본', level: 3 },
