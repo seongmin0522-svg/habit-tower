@@ -321,10 +321,39 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .bt-me { left: 6%; bottom: 6%; align-items: flex-start; flex-direction: column-reverse; }
 .bt-card { position: relative; z-index: 1; background: rgba(255,255,255,.92); color: #2b1d14; border: 2px solid #2b1d14; border-radius: 6px; padding: 4px 8px; min-width: 150px; font-size: 12px; }
 .bt-card small { display: block; text-align: right; }
-.bt-hp { display: block; height: 7px; margin-top: 3px; background: #ccc; border-radius: 4px; overflow: hidden; }
-.bt-hp > i { display: block; height: 100%; background: #4ccf5a; transition: width .35s; }
+.bt-hp { position: relative; display: block; height: 7px; margin-top: 3px; background: #ccc; border-radius: 4px; overflow: hidden; }
+.bt-hp > i { position: absolute; left: 0; top: 0; height: 100%; background: #4ccf5a; transition: width .35s; }
+.bt-hp > i.lag { background: #ffd84a; transition: width .7s ease-in .35s; } /* the afterimage catches up */
 .bt-hp > i.low { background: #ff5a4a; }
-.bt-pet { display: block; }
+.bt-stage { position: absolute; inset: 0; }
+.bt-pet { position: relative; display: block; }
+.bt-me { animation: btinL .5s ease-out both; }
+.bt-foe { animation: btinR .5s ease-out both; }
+.bt-pet.faint { animation: btfaint .9s ease-in forwards; }
+.bt-stars { position: absolute; left: 50%; top: -6px; font-style: normal; font-size: 20px; animation: btstars 1s linear infinite; }
+.bt-mark { position: absolute; left: 50%; top: 0; font-style: normal; font-weight: bold; font-size: 22px; pointer-events: none; animation: btmark .9s ease-out both; }
+.bt-mark.heal { color: #5f5; text-shadow: 0 0 6px #5f5; }
+.bt-mark.up { color: #5cf; text-shadow: 0 1px 0 #000; }
+.bt-mark.down { color: #f66; text-shadow: 0 1px 0 #000; }
+.bt-mark.miss { color: #fff; font-size: 14px; text-shadow: 0 1px 0 #000; }
+.bt-mark.wind { left: -10px; top: 40%; animation: btwind .6s ease-out both; }
+.bt-burst { position: absolute; left: 50%; top: 55%; z-index: 2; font-size: 30px; pointer-events: none; animation: btburst .6s ease-out both; }
+.bt-shot { position: absolute; left: 0; top: 0; z-index: 3; font-style: normal; font-size: 30px; pointer-events: none; animation: btshot .45s ease-in both; }
+.bt-shot.el-fire { filter: drop-shadow(0 0 6px #ff8a2a); }
+.bt-shot.el-water, .bt-shot.el-light { filter: drop-shadow(0 0 6px #9ef); }
+.bt-shot.el-grass, .bt-shot.el-ice { animation: btshot .45s ease-in both, btspin .45s linear; }
+.bt-shot.el-dark { filter: blur(1px) drop-shadow(0 0 6px #639); }
+.bt-shot.orb { font-size: 16px; animation-duration: .6s; }
+.bt-flee { grid-column: span 2; }
+@keyframes btinL { from { transform: translateX(-120%); opacity: 0; } }
+@keyframes btinR { from { transform: translateX(120%); opacity: 0; } }
+@keyframes btfaint { to { transform: translateY(12px) rotate(80deg); opacity: 0; } }
+@keyframes btstars { from { transform: translateX(-50%) rotate(0); } to { transform: translateX(-50%) rotate(360deg); } }
+@keyframes btmark { from { transform: translate(-50%, 10px); opacity: 0; } 30% { opacity: 1; } to { transform: translate(-50%, -24px); opacity: 0; } }
+@keyframes btwind { from { transform: translateX(10px); opacity: 1; } to { transform: translateX(-30px); opacity: 0; } }
+@keyframes btburst { from { transform: translate(-50%, -50%) scale(.4); opacity: 1; } to { transform: translate(-50%, -50%) scale(2.2); opacity: 0; } }
+@keyframes btshot { from { transform: translate(calc(var(--x0) - 50%), calc(var(--y0) - 50%)); } to { transform: translate(calc(var(--x1) - 50%), calc(var(--y1) - 50%)); } }
+@keyframes btspin { to { rotate: 720deg; } }
 .bt-pet svg { display: block; }
 .bt-me .bt-pet svg { transform: scaleX(-1); } /* the art faces left; mine faces the foe */
 .bt-pet.lunge { animation: btlunge .35s ease-out; }
