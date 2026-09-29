@@ -1,6 +1,7 @@
 // All persistence goes through here. The page never writes to db or assets directly.
 import { todayKST, addDays, shieldsLeft, boxes, roll, owned, allOwned } from './logic.js';
-import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
+import { canBuy, placeOk, SLOTS } from './shop.js';
+import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS, SHOP } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
 import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, countBattle, DAILY } from './pet.js';
@@ -49,13 +50,13 @@ export async function connectAssets() {
   };
 }
 
-// `loaded` flips true only after server-definitive snapshots of all six sources.
+// `loaded` flips true only after server-definitive snapshots of all eight sources.
 export function subscribe(db, onState, onError) {
-  const st = { habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, loaded: false };
+  const st = { habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, shop: {}, room: null, loaded: false };
   const seen = new Set();
   const emit = (part, s) => {
     if (!s.metadata.fromCache) seen.add(part);
-    st.loaded = seen.size === 6;
+    st.loaded = seen.size === 8;
     onState({ ...st });
   };
   const offs = [
@@ -81,6 +82,11 @@ export function subscribe(db, onState, onError) {
       st.maze = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
       emit('maze', s);
     }, onError),
+    db.collection('shop').onSnapshot((s) => {
+      st.shop = Object.fromEntries(s.docs.map((d) => [d.id, d.data()]));
+      emit('shop', s);
+    }, onError),
+    db.doc('room/me').onSnapshot((s) => { st.room = s.exists ? s.data() : null; emit('room', s); }, onError),
   ];
   return () => offs.forEach((off) => off());
 }
@@ -236,6 +242,22 @@ export function makeActions(db, assets, getState, isAdmin = () => false) {
       const dup = owned(s.pulls, s.pets).has(id + (shiny ? '*' : ''));
       await db.doc(`pulls/${box}`).set({ item: id, shiny: !!shiny, dup, at: new Date().toISOString() });
       return { caught: true, dup };
+    },
+
+    // Room shop: buy with coins (shop.js: derived from records minus purchases), then place in the room.
+    async buy(id) {
+      const s = ready();
+      if (!canBuy({ days: s.days, maze: s.maze, pets: s.pets, pulls: s.pulls }, s.shop, id)) throw new Error('코인이 모자라거나 이미 있어요');
+      await db.doc(`shop/${id}`).set({ at: new Date().toISOString() });
+    },
+    // room/me = {slots: [8 furniture ids or null], building, theme}. where: 'slot' | 'building' | 'theme'.
+    async place(where, i, id) {
+      const s = ready(), bought = isAdmin() ? Object.fromEntries([...SHOP.keys()].map((k) => [k, {}])) : s.shop;
+      if (!placeOk(bought, where, i, id)) throw new Error('놓을 수 없어요');
+      const room = { slots: Array(SLOTS.length).fill(null), building: null, theme: null, ...s.room };
+      if (where === 'slot') room.slots = room.slots.map((x, j) => (j === i ? id : x === id && id ? null : x)); // one of each
+      else room[where] = id;
+      await db.doc('room/me').set(room);
     },
 
     // Today's maze escaped in ms. The first clear of a day is a shard (the day's maze/<day> doc); a faster

@@ -101,7 +101,7 @@ export async function openCloud(local, onChange) {
       const sub = await (await pushReg())?.pushManager.getSubscription();
       if (sub) await saveSub(sb, sub).catch((e) => report('push resave: ' + e.message)); // never blocks the sync
     }
-    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut, look'));
+    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut, look, room'));
     const meRow = profs.find((p) => p.id === uid);
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
@@ -116,6 +116,14 @@ export async function openCloud(local, onChange) {
     // Box results too: a new phone gets its collection back, and its opened boxes stay opened.
     const pullRows = must(await sb.from('pulls').select('box, item, shiny, dup, at').eq('user_id', uid));
     for (const { box, doc } of pullsToRestore(pullRows, await localDocs('pulls'))) await db.doc(`pulls/${box}`).set(doc);
+    // Shop purchases (union both ways) and my room layout (a new phone takes the cloud's).
+    const buyRows = must(await sb.from('purchases').select('item, at').eq('user_id', uid));
+    const bought = await localDocs('shop');
+    for (const r of buyRows) if (!bought[r.item]) await db.doc(`shop/${r.item}`).set({ at: r.at ?? '' });
+    const newBuys = Object.keys(bought).filter((id) => !buyRows.some((r) => r.item === id));
+    if (newBuys.length) must(await sb.from('purchases').upsert(newBuys.map((item) => ({ user_id: uid, item, at: bought[item].at || null }))));
+    let room = (await db.doc('room/me').get()).data();
+    if (!room && Object.keys(meRow?.room ?? {}).length) { room = meRow.room; await db.doc('room/me').set(room); }
     let habit = (await db.doc('habit/me').get()).data();
     if (!habit && meRow?.habit) {
       habit = { title: meRow.habit, character: meRow.character, seenFall: null, cutCouple: meRow.couple_cut ?? null, look: meRow.look ?? {} };
@@ -166,7 +174,7 @@ export async function openCloud(local, onChange) {
     const name = st.me.name || meRow?.name || '';
     if (habit) {
       must(await sb.from('profiles').upsert({
-        id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null, look: habit.look ?? {},
+        id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null, look: habit.look ?? {}, room: room ?? {},
         updated_at: new Date().toISOString(),
       }));
     }
@@ -197,7 +205,7 @@ export async function openCloud(local, onChange) {
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
         coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', coupleSkin: info.skin ?? {}, got, gave, battles },
       partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut,
-        look: partner.look ?? {}, pets: partnerPets },
+        look: partner.look ?? {}, room: partner.room ?? {}, pets: partnerPets },
       partnerDays,
       synced: true,
       syncFailed: false,
@@ -317,6 +325,7 @@ export async function openCloud(local, onChange) {
       must(await sb.from('pets').delete().eq('user_id', uid));
       must(await sb.from('battles').delete().eq('challenger', uid));
       must(await sb.from('maze_clears').delete().eq('user_id', uid));
+      must(await sb.from('purchases').delete().eq('user_id', uid));
       await dropSub(sb);
       must(await sb.rpc('leave_couple'));
       await sb.auth.signOut({ scope: 'local' });

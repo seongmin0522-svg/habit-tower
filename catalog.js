@@ -300,6 +300,37 @@ export const SPECIES = {
   kraken: { strong: 'hp', sig: sig('촉수 조이기', 50, 90, { stun: 0.3 }) },
 };
 
+// Room shop (spec: docs/superpowers/specs/2026-09-29-encounters-shop-design.md). Coins are derived (shop.js).
+// Furniture sits in the playroom's fixed slots; act = what the pet does there: [face, motion, bubble, word].
+export const FURNITURE = [
+  { id: 'cushion', icon: '🛋️', name: '쿠션', price: 30, act: ['sleepy', 'sway', 'zzz', '쿨쿨'] },
+  { id: 'bowl', icon: '🥣', name: '밥그릇', price: 20, act: ['yum', 'chew', null, '냠냠'] },
+  { id: 'rug', icon: '🧶', name: '러그', price: 25, act: ['joy', 'wiggle', 'heart', '뒹굴뒹굴'] },
+  { id: 'pond', icon: '⛲', name: '연못', price: 60, act: ['excited', 'jump', null, '첨벙!'] },
+  { id: 'flower', icon: '🌷', name: '화분', price: 15, act: ['shy', 'wiggle', 'heart', '킁킁'] },
+  { id: 'lamp', icon: '🏮', name: '등불', price: 25, act: ['surprised', 'hop', 'bang', '반짝!'] },
+  { id: 'toybox', icon: '🧸', name: '장난감 상자', price: 40, act: ['excited', 'bounce', 'heart', '신난다'] },
+  { id: 'tree', icon: '🌳', name: '나무', price: 35, act: ['sleepy', 'sway', 'zzz', '그늘 좋아'] },
+  { id: 'swing', icon: '🎠', name: '회전목마', price: 80, act: ['joy', 'spin', 'heart', '빙글빙글'] },
+  { id: 'campfire', icon: '🔥', name: '모닥불', price: 50, act: ['joy', 'sway', null, '따뜻해'] },
+];
+export const BUILDINGS = [
+  { id: 'house', icon: '🏠', name: '펫 집', price: 100 },
+  { id: 'tent', icon: '⛺', name: '텐트', price: 60 },
+  { id: 'windmill', icon: '🌬️', name: '풍차', price: 150 },
+  { id: 'lighthouse', icon: '🗼', name: '등대', price: 200 },
+  { id: 'castle', icon: '🏰', name: '작은 성', price: 300 },
+];
+// ground: the field's grass; deco: small things scattered on it.
+export const THEMES = [
+  { id: 'spring', icon: '🌸', name: '봄', price: 80, ground: 'linear-gradient(#b8e0a0,#88c070)', deco: '🌸' },
+  { id: 'summer', icon: '🏖️', name: '여름', price: 80, ground: 'linear-gradient(#f2dca0,#e0c078)', deco: '🐚' },
+  { id: 'autumn', icon: '🍁', name: '가을', price: 80, ground: 'linear-gradient(#d09040,#a06a28)', deco: '🍁' },
+  { id: 'winter', icon: '☃️', name: '겨울', price: 80, ground: 'linear-gradient(#f4f8fc,#d8e4f0)', deco: '❄️' },
+];
+export const SHOP = new Map([...FURNITURE.map((x) => [x.id, { ...x, kind: 'furniture' }]),
+  ...BUILDINGS.map((x) => [x.id, { ...x, kind: 'building' }]), ...THEMES.map((x) => [x.id, { ...x, kind: 'theme' }])]);
+
 // Pet accessories: open the first time any pet reaches the level (pet.js accsUnlocked). Art in ui/monsters.js.
 export const ACCESSORIES = [
   { id: 'ribbon', name: '리본', level: 3 },

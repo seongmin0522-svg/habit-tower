@@ -8,7 +8,9 @@ import { flick, spinOf, at, landing, judge, foodHearts, tasteOf, isNight, levelO
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 
-const HORIZON = 0.38, HAND = 0.86; // field heights: where the far ground meets the sky, where z = 0 is
+import { RoomLayer, Shop, PlaceSheet, HORIZON, HAND } from './room.js';
+import { SLOTS, skyAt } from '../shop.js';
+import { FURNITURE } from '../catalog.js';
 const PET_PX = 9;                  // monster pixel size at z = 0
 const WANDER = { x: 0.6, z: [0.45, 0.85], walk: 0.15, run: 0.6 }; // where the pet strolls, speeds in units/s
 const GROUND = { x: [-0.9, 0.9], z: [0.15, 1.4] };                 // a missed item rolls back inside this
@@ -55,7 +57,13 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // monster has shown. onThrowFood(kind): one piece leaves the tray. onFeed(n, kind, food): resolves to the hearts given
 // after today's limits, and records a taste. wins: the pet's ⚔️ wins. onBattle(): open the battle screen.
 // onWake(): woken at night, resolves to the hearts lost.
-export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze, onClose }) {
+// Room: room ({slots, building, theme}), bought, coins (null = admin: free), onBuy(id), onPlace(where, i, id).
+// visit: null, or {name} when this is my partner's playroom, looked at read-only (onVisit opens theirs).
+export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze,
+  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose }) {
+  const [panel, setPanel] = useState(null); // null | 'shop' | 'decor' | {where, i}
+  const roomRef = useRef(room);
+  roomRef.current = room;
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
   const cb = useRef();
   cb.current = { onThrowFood, onFeed, onWake, food };
@@ -73,6 +81,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   s.kind = kind;
 
   const rest = () => (s.pet.asleep ? 'sleepy' : null);
+  // name: an EMO key, or {face, icon, motion} for a furniture act.
   const emote = (name, ms) => {
     setEmo(name);
     clearTimeout(s.emoTimer);
@@ -192,6 +201,19 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (d < 0.01) {
       if (s.item.mode === 'ground') return s.item.kind === 'ball' ? pickUp(now) : eat(now, 'miss', s.item.paid, s.item.kind);
       if (s.item.mode === 'held') { s.item = { mode: 'gone' }; ready(); } // ball dropped at my feet
+      if (p.visit != null) { // arrived at a piece of furniture: its act for a while
+        const [face, motion, bubble, word] = FURNITURE.find((f) => f.id === p.visit)?.act ?? [];
+        p.visit = null;
+        if (face) { emote({ face, motion, icon: bubble }, 2600); say(word); p.waitUntil = now + 2600; return; }
+      }
+      // Now and then the pet heads for a piece of furniture instead of a random spot.
+      const placed = (roomRef.current?.slots ?? []).map((id, i) => id && { id, ...SLOTS[i] }).filter(Boolean);
+      if (placed.length && Math.random() < 0.35) {
+        const f = placed[Math.floor(Math.random() * placed.length)];
+        p.visit = f.id;
+        walkTo(f.x + (f.x > 0 ? -0.08 : 0.08), f.z - 0.04, WANDER.walk * 1.6);
+        return;
+      }
       walkTo(rand([-WANDER.x, WANDER.x]), rand(WANDER.z), WANDER.walk);
       return;
     }
@@ -282,7 +304,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   const petUp = () => { s.rub = null; };
 
   const pick = (k) => { if (s.item.mode === 'ready' && (k === 'ball' || food?.includes(k))) { s.chose = true; setKind(k); sfx('tap'); } };
-  const [face, icon, motion] = EMO[emo] ?? [blink ? 'blink' : null, null, null];
+  const [face, icon, motion] = (emo && typeof emo === 'object' ? [emo.face, emo.icon, emo.motion] : EMO[emo]) ?? [blink ? 'blink' : null, null, null];
   const lv = levelOf(hearts), max = lv === MAX_LEVEL;
   const [from, to] = max ? [levelStart(MAX_LEVEL), STAR_FULL] : [levelStart(lv), levelStart(lv + 1)];
   const gauge = html`<span class="pr-lv">${max ? '⭐' : `Lv ${lv}`}
@@ -291,30 +313,44 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   const hint = s.pet.asleep ? '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)'
     : kind !== 'ball' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
 
-  return html`<div class="playroom" role="dialog" aria-label="펫과 놀기">
-    <div class="pr-top"><b>${ITEMS.get(pet.id)?.name ?? '펫'}</b>${gauge}
-      <button class="btn sm orange" onClick=${onBattle} aria-label="대결">⚔️</button>
-      <button class="btn sm orange" onClick=${onMaze} aria-label="미로">🧩</button>
+  const editing = panel === 'decor' || typeof panel === 'object' && panel;
+  return html`<div class=${'playroom sky-' + skyAt()} role="dialog" aria-label=${visit ? `${visit.name}의 놀이방` : '펫과 놀기'}>
+    <div class="pr-top"><b>${visit ? `💞 ${visit.name}의 ` : ''}${ITEMS.get(pet.id)?.name ?? '펫'}</b>${!visit && gauge}
+      ${!visit && html`<span class="pr-coins">🪙 ${coins ?? '∞'}</span>`}
       <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
+    ${!visit && html`<div class="pr-tools">
+      <button class="btn sm orange" onClick=${onBattle} aria-label="대결">⚔️ 대결</button>
+      <button class="btn sm orange" onClick=${onMaze} aria-label="미로">🧩 미로</button>
+      <button class="btn sm blue" onClick=${() => setPanel('shop')}>🏪 상점</button>
+      <button class=${'btn sm ' + (editing ? 'green' : 'blue')} onClick=${() => setPanel(editing ? null : 'decor')}>🏠 ${editing ? '완료' : '꾸미기'}</button>
+      ${onVisit && html`<button class="btn sm blue" onClick=${onVisit}>💞 놀러가기</button>`}
+    </div>`}
     <div class="pr-field" ref=${field}>
+      <${RoomLayer} room=${room} editing=${!!editing} onSlot=${(i) => setPanel({ where: 'slot', i })}
+        onBuilding=${() => setPanel({ where: 'building', i: 0 })} />
+      ${editing && html`<button class="btn sm blue pr-theme" onClick=${() => setPanel({ where: 'theme', i: 0 })}>🌸 테마 바꾸기</button>`}
       <span class="pr-shadow" ref=${shadowEl} />
       <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label="펫 쓰다듬기"
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
         <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
       </span>
-      <span class="pr-item" ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? '먹이 던지기' : '공 던지기'}
+      <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? '먹이 던지기' : '공 던지기'}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
       ${pop && html`<p key=${pop.key} class="pr-pop">${pop.text}</p>`}
-      <p class="pr-hint">${hint}</p>
+      <p class="pr-hint">${visit ? `${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : editing ? '번호 칸을 눌러 가구를 놓아요' : hint}</p>
     </div>
-    <div class="pr-tray">
+    ${!visit && html`<div class="pr-tray">
       ${FOODS.map((f) => {
         const n = food?.filter((k) => k === f.id).length ?? 0, t = tastes?.[f.id];
         return html`<button key=${f.id} class=${'btn sm ' + (kind === f.id ? 'green' : 'blue')} disabled=${!n} onClick=${() => pick(f.id)}
           aria-label=${`${f.name} ${n}개${t === 'like' ? ' · 좋아함' : t === 'hate' ? ' · 싫어함' : ''}`}>${f.icon}${n}${t === 'like' ? '💗' : t === 'hate' ? '✖' : ''}</button>`;
       })}
       <button class=${'btn sm ' + (kind === 'ball' ? 'green' : 'blue')} onClick=${() => pick('ball')}>⚾ 공</button>
-    </div>
+    </div>`}
+    ${panel === 'shop' && html`<${Shop} coins=${coins} bought=${bought} onBuy=${onBuy} onClose=${() => setPanel(null)} />`}
+    ${panel?.where && html`<${PlaceSheet} where=${panel.where} index=${panel.i} bought=${bought}
+      current=${panel.where === 'slot' ? room?.slots?.[panel.i] : room?.[panel.where]}
+      onPick=${(id) => onPlace(panel.where, panel.i, id).then(() => setPanel('decor'), () => {})} onClose=${() => setPanel('decor')} />`}
   </div>`;
 }

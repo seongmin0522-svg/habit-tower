@@ -1,7 +1,8 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
-import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS } from './catalog.js';
+import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS, SHOP } from './catalog.js';
+import { balance } from './shop.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
@@ -21,6 +22,7 @@ const FALL_MS = REDUCED ? 0 : 2600;  // matches the CSS collapse sequence
 const EMPTY = {};
 const ADMIN_FOOD = FOODS.flatMap((f) => Array(5).fill(f.id)); // admin test mode: a full tray that never empties
 const sandbox = (v) => Promise.resolve(v); // admin test mode: play results aren't saved
+const ALL_SHOP = Object.fromEntries([...SHOP.keys()].map((id) => [id, {}])); // admin test mode: every shop item
 // Monster buddy from a look: a catalog monster or the starter snail.
 const buddy = (l) => ({ id: ITEMS.get(l.monster)?.base ? l.monster : STARTER, shiny: !!(l.monster && l.shiny),
   acc: ACCESSORIES.some((a) => a.id === l.acc) ? l.acc : null });
@@ -29,12 +31,12 @@ initSound();
 function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
-  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, loaded: false });
+  const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, shop: {}, room: null, loaded: false });
   const [today, setToday] = useState(todayKST());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
-  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | 'battle' | 'maze' | {key, n (0 = not a floor)}
+  const [modal, setModal] = useState(null); // null | 'setup' | 'album' | 'shelf' | 'calendar' | 'bag' | 'reveal' | 'play' | 'battle' | 'maze' | 'visit' | {key, n (0 = not a floor)}
   const [revealNext, setRevealNext] = useState(false); // a new box waits for the stacking to finish
   const [revealBox, setRevealBox] = useState(null);    // the box on the reveal window (it stays after it's opened)
   const [busy, setBusy] = useState(false);
@@ -147,6 +149,9 @@ function App() {
     return { name: partnerName, pet: { ...pet, level: levelOf(heartsOf(partner.pets?.[pet.id])) },
       record: battleRecord(cloud.battles ?? [], cloud.userId, partner.id, state.habit?.seenBattle ?? '') };
   }, [coupled, cloud, partner, state.habit?.seenBattle]);
+  // Room shop: coins are derived from records (shop.js), admin mode owns everything for free.
+  const bought = admin ? ALL_SHOP : state.shop;
+  const coins = admin ? null : balance({ days: state.days, maze: state.maze, pets: state.pets, pulls: state.pulls }, state.shop);
   const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
@@ -348,6 +353,9 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
+    ${modal === 'visit' && rival && html`<${Playroom} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
+      bought=${EMPTY} coins=${0} onOpenPlay=${() => {}} onThrowFood=${() => sandbox()} onFeed=${() => sandbox(0)} onWake=${() => sandbox(0)}
+      onBuy=${() => sandbox()} onPlace=${() => sandbox()} onClose=${() => setModal('play')} />`}
     ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
       onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {
@@ -363,7 +371,11 @@ function App() {
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')} food=${admin ? ADMIN_FOOD : state.play[today]?.food}
+    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')}
+      room=${state.room} bought=${bought} coins=${coins}
+      onBuy=${(id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
+      onPlace=${(where, i, id) => actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
+      onVisit=${rival ? () => setModal('visit') : null} food=${admin ? ADMIN_FOOD : state.play[today]?.food}
       tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => admin || actions.openPlay().catch(fail)}
       onThrowFood=${(k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; }))}
       onFeed=${(n, kind, food) => (admin ? sandbox(n) : actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; }))}

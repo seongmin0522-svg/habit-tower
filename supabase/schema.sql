@@ -343,3 +343,17 @@ revoke all on public.maze_clears from anon;
 alter table public.pulls drop constraint pulls_box_check;
 alter table public.pulls add constraint pulls_box_check
   check (box ~ '^([dcw]:\d{4}-\d{2}-\d{2}|b:\d{1,5}|p:[a-z]+-[a-z]+:\d{1,2})$');
+
+-- Room shop (2026-09-29): what I bought (coins are derived on the phone), and my room layout for my partner to visit.
+create table public.purchases (
+  user_id uuid not null default auth.uid() references auth.users on delete cascade,
+  item text not null check (item ~ '^[a-z]{1,20}$'),
+  at timestamptz,
+  primary key (user_id, item)
+);
+alter table public.purchases enable row level security;
+create policy "purchases own" on public.purchases for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+revoke all on public.purchases from anon;
+alter table public.profiles add column room jsonb not null default '{}'::jsonb check (pg_column_size(room) < 1000);
+grant insert (room), update (room) on public.profiles to authenticated;
