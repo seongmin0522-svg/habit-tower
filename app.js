@@ -15,6 +15,9 @@ import { battleRecord } from './battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 import { getAdmin, setAdmin, onAdmin } from './admin.js';
 import { ADMIN_IDS } from './config.js';
+import { LANG } from './i18n.js';
+
+document.documentElement.lang = LANG; // screen readers and fonts pick the language
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const STACK_MS = REDUCED ? 0 : 9000; // safety net; Scene's onDone normally ends the sequence first
