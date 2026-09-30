@@ -5,6 +5,7 @@ import { TOWER_HEIGHT, monthGrid, addMonths } from '../logic.js';
 import { photoUrl } from '../db.js';
 import { TRACKS, getPrefs, setPrefs, onPrefs } from '../sound.js';
 import { buzz, testBuzz } from '../haptic.js';
+import { tl, langPref, setLang } from '../i18n.js';
 
 export function Win({ title, onClose, children, cls = '' }) {
   return html`<div class="overlay" onClick=${onClose}>
@@ -43,6 +44,7 @@ export function Setup({ habit, onSave, onClose, backup, onExport, onSaveFile, on
       <p class="muted small">매일 인증 사진을 찍으면 벽돌이 한 층 올라가요. ${TOWER_HEIGHT}층이면 탑 완성, 하루 빼먹으면 쌓던 탑이 무너져요.</p>
       <div class="foot"><span /><button class="btn green" disabled=${saving || !title.trim()}>${habit ? '저장' : '시작하기'}</button></div>
       <${SoundBox} />
+      <${LangBox} />
       ${admin && html`<${AdminBox} admin=${admin} />`}
       ${backup && html`<div class="backup">
         <div class="lbl">백업 <span class="muted small">— 기록과 사진은 이 폰에만 있어요. 가끔 내보내 두세요.</span></div>
@@ -108,6 +110,16 @@ function SoundBox() {
     <select class="track" value=${String(p.track)} aria-label="배경음악 곡" disabled=${!p.bgm}
       onChange=${(e) => setPrefs({ track: e.target.value === 'random' ? 'random' : Number(e.target.value) })}>
       ${TRACKS.map((t) => html`<option key=${t.id} value=${String(t.id)}>${t.id}. ${t.name}</option>`)}<option value="random">🔀 랜덤</option>
+    </select>
+  </div>`;
+}
+
+// Language, per phone. Changing it reloads the app (i18n.js). Language names stay in their own language.
+function LangBox() {
+  return html`<div class="backup">
+    <div class="lbl">${tl('언어')}</div>
+    <select class="track" value=${langPref()} aria-label=${tl('언어')} onChange=${(e) => setLang(e.target.value)}>
+      <option value="auto">${tl('폰 설정 따라가기')}</option><option value="ko">한국어</option><option value="en">English</option>
     </select>
   </div>`;
 }

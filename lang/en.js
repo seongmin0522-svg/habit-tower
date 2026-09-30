@@ -2,4 +2,7 @@
 // as {0}, {1}… in order. A function value gets those values (plurals). i18n.test.mjs fails on a missing or unused entry.
 // Grouped by the file that first uses the key.
 export const EN = {
+  // ui/windows.js
+  '언어': 'Language',
+  '폰 설정 따라가기': 'Same as phone',
 };
