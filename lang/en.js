@@ -57,6 +57,26 @@ export const EN = {
   '이번 달 {0}개 남음 · 층은 안 올라가요': (n) => `${n} left this month · no new floor`,
   '이번 달 방어권은 이미 썼어요': 'You’ve used this month’s shield', '{0}님이 어제 방어권을 쓰면 우리 탑이 다시 서요': 'If {0} uses a shield for yesterday, our tower stands again',
   '사진은 앨범에 남아 있어요. 오늘부터 다시 쌓아요!': 'Your photos stay in the album. Start again today!', '🛡 방어권 쓰기': '🛡 Use shield', '다시 쌓기': 'Build again',
+  // ui/bag.js
+  '💞 커플 상자': '💞 Couple box', '🎁 보너스 상자': '🎁 Bonus box', '🐾 펫 Lv {0} 상자': '🐾 Pet Lv {0} box', '🎁 인증 상자': '🎁 Check-in box',
+  '빛이 새어 나와요… 레어 이상!': 'Light is leaking out… Rare or better!', '보랏빛이…! 희귀 이상!': 'A purple glow…! Epic or better!',
+  '금빛이다!! 전설 확정!': 'It’s gold!! Legendary for sure!', '상자를 두드려 보세요': 'Tap the box', '한 번 더!': 'Once more!',
+  '상자 두드리기': 'Tap the box', '두근두근…': 'Here it comes…', '{0} 인증 보상': 'Reward for checking in on {0}',
+  '조각 10개 보상': 'Reward for 10 shards', '✨ 이로치': '✨ Shiny', '몬스터': 'Monster', '💞 커플 ': '💞 Couple ',
+  ' · 이미 있어요 → 조각 +1 ({0}/{1})': ' · Already yours → shard +1 ({0}/{1})', '바로 장착': 'Equip now',
+  '다음 상자 ({0})': 'Next box ({0})', '확인': 'OK', '상자': 'Boxes', '도감': 'Collection', '꾸미기': 'Style', '칭호': 'Titles',
+  '안 연 상자 {0}개': (n) => (n === 1 ? '1 unopened box' : `${n} unopened boxes`), '안 연 상자가 없어요': 'No unopened boxes',
+  '열기': 'Open', '사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개 · 펫 레벨업 = 상자 1개':
+    '1 photo check-in = 1 box · a couple box too on days you both check in · pet level-up = 1 box',
+  '조각 {0}/{1}': 'Shards {0}/{1}',
+  '조각 {0}/{1} — 이미 있는 게 나오거나 🧩 미로를 탈출하면(하루 1번) 조각 1개, {2}개면 보너스 상자':
+    'Shards {0}/{1} — a repeat or a 🧩 maze escape (once a day) gives 1 shard; {2} make a bonus box',
+  '이로치 {0}%': 'Shiny {0}%', '몬스터 {0}/{1}': 'Monsters {0}/{1}', '스킨 {0}/{1}': 'Skins {0}/{1}', '✨ 이로치 ': '✨ Shiny ',
+  '좋아함': 'Loves', '싫어함': 'Hates', '아직 없어요 · 몬스터가 나올 때 {0}% 확률': 'None yet · {0}% chance with each monster',
+  '스킨': 'Skins', '기본': 'Default', '몬스터 친구': 'Monster buddy', '펫 악세서리': 'Pet accessories',
+  '(아무 펫이나 Lv 3·6·9에 열려요)': '(unlocks when any pet hits Lv 3·6·9)', '악세서리 안 쓰기': 'No accessory', '없음': 'None',
+  '{0} · 펫 Lv {1}에 열려요': '{0} · unlocks at pet Lv {1}', '💞 우리 탑 꾸미기': '💞 Style our tower',
+  '(둘 중 마지막에 바꾼 사람 것)': '(whoever changed it last)', '우리 탑 {0}': 'Our tower: {0}', '칭호 안 달기': 'No title', '🎒 가방': '🎒 Bag',
   // catalog.js
   '일반': 'Common', '레어': 'Rare', '희귀': 'Epic', '전설': 'Legendary',
   '노을': 'Sunset', '흐린 날': 'Cloudy Day', '밤하늘': 'Night Sky', '벚꽃': 'Cherry Blossoms', '가을': 'Autumn',

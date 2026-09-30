@@ -8,6 +8,7 @@ import { MONSTERS, SKINS, TIERS, TITLES, ITEMS, KIND_NAME, DUPS_PER_BONUS, SHINY
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 import { glowAt } from '../logic.js';
+import { tl } from '../i18n.js';
 
 const tierOf = (id) => TIERS.find((t) => t.id === id) ?? TIERS[0];
 
@@ -23,12 +24,12 @@ export function ItemIcon({ id, kind, shiny, character }) {
   return html`<i class="flagicon">${it?.icon ?? '🚩'}</i>`;
 }
 
-const boxName = (b) => (b.startsWith('c:') ? '💞 커플 상자' : b.startsWith('b:') ? '🎁 보너스 상자' : b.startsWith('p:') ? `🐾 펫 Lv ${b.split(':')[2]} 상자` : '🎁 인증 상자');
+const boxName = (b) => (b.startsWith('c:') ? tl('💞 커플 상자') : b.startsWith('b:') ? tl('🎁 보너스 상자') : b.startsWith('p:') ? tl`🐾 펫 Lv ${b.split(':')[2]} 상자` : tl('🎁 인증 상자'));
 
 // One box, tapped open. The pull is rolled and saved on the first tap; its tier sets the taps it takes
 // (TIERS[].taps). A box still shut past a lower tier's count glows the next tier's color (glowAt),
 // then bursts. onEquip(pull) wears it; left = boxes still unopened after this one.
-const HINT = { rare: '빛이 새어 나와요… 레어 이상!', epic: '보랏빛이…! 희귀 이상!', legend: '금빛이다!! 전설 확정!' };
+const HINT = { rare: tl('빛이 새어 나와요… 레어 이상!'), epic: tl('보랏빛이…! 희귀 이상!'), legend: tl('금빛이다!! 전설 확정!') };
 const BURST_MS = { common: 700, rare: 900, epic: 1200, legend: 1600 };
 const BITS = { common: 8, rare: 12, epic: 16, legend: 24 };
 
@@ -68,7 +69,7 @@ export function BoxReveal({ box, left, shards, onOpen, onEquip, onNext, onClose 
     } else { sfx('shake'); buzz('tap'); }
   };
 
-  const hint = taps === 0 ? '상자를 두드려 보세요' : HINT[glow] ?? '한 번 더!';
+  const hint = taps === 0 ? tl('상자를 두드려 보세요') : HINT[glow] ?? tl('한 번 더!');
   // The flash sits outside the window: the shaking window would trap a fixed child inside its own box.
   return html`${flash > 0 && html`<i key=${flash} class="flash" />`}<${Win} title=${boxName(box)} onClose=${taps > 0 && stage !== 'open' ? null : onClose}
     cls=${'reveal-win' + (stage === 'burst' ? ' quake t-' + tier.id : '')}>
@@ -79,29 +80,29 @@ export function BoxReveal({ box, left, shards, onOpen, onEquip, onNext, onClose 
           <span class="rays" />
           ${stage === 'burst' && html`<span class="bits">${Array.from({ length: BITS[tier.id] }, (_, k) => html`<i key=${k}
             style=${{ '--a': `${(360 / BITS[tier.id]) * k}deg` }} />`)}</span>`}
-          <button key=${taps} class=${'chest' + (taps ? ' hit' : '')} onClick=${tap} aria-label="상자 두드리기">
+          <button key=${taps} class=${'chest' + (taps ? ' hit' : '')} onClick=${tap} aria-label=${tl('상자 두드리기')}>
             <${Chest} glow=${glowColor} cracks=${taps} /></button>
         </div>
-        <p class="big" aria-live="polite">${stage === 'burst' ? '두근두근…' : hint}</p>
-        <p class="muted small">${box.startsWith('d:') || box.startsWith('c:') ? `${box.slice(2)} 인증 보상` : '조각 10개 보상'}</p>`
+        <p class="big" aria-live="polite">${stage === 'burst' ? tl('두근두근…') : hint}</p>
+        <p class="muted small">${box.startsWith('d:') || box.startsWith('c:') ? tl`${box.slice(2)} 인증 보상` : tl('조각 10개 보상')}</p>`
       : html`
         <div class=${'prize t-' + it.tier + (pull.shiny ? ' sparkle' : '')} style=${{ '--tc': tier.color }}>
           <${ItemIcon} id=${pull.item} shiny=${pull.shiny} />
         </div>
-        <p><span class="tier" style=${{ background: tier.color }}>${tier.name}</span>${pull.shiny && html` <span class="tier shiny-chip">✨ 이로치</span>`}</p>
+        <p><span class="tier" style=${{ background: tier.color }}>${tier.name}</span>${pull.shiny && html` <span class="tier shiny-chip">${tl('✨ 이로치')}</span>`}</p>
         <p class="big">${it.name}</p>
-        <p class="muted small">${it.base ? '몬스터' : (it.couple ? '💞 커플 ' : '') + KIND_NAME[it.kind]}${
-          pull.dup ? ` · 이미 있어요 → 조각 +1 (${shards}/${DUPS_PER_BONUS})` : ' · NEW!'}</p>`}
+        <p class="muted small">${it.base ? tl('몬스터') : (it.couple ? tl('💞 커플 ') : '') + KIND_NAME[it.kind]}${
+          pull.dup ? tl` · 이미 있어요 → 조각 +1 (${shards}/${DUPS_PER_BONUS})` : ' · NEW!'}</p>`}
     </div>
     ${stage === 'open' && html`<div class="foot">
-      <button class="btn blue" onClick=${() => onEquip(pull)}>바로 장착</button>
-      ${left > 0 ? html`<button class="btn green" onClick=${onNext}>다음 상자 (${left})</button>`
-        : html`<button class="btn orange" onClick=${onClose}>확인</button>`}
+      <button class="btn blue" onClick=${() => onEquip(pull)}>${tl('바로 장착')}</button>
+      ${left > 0 ? html`<button class="btn green" onClick=${onNext}>${tl`다음 상자 (${left})`}</button>`
+        : html`<button class="btn orange" onClick=${onClose}>${tl('확인')}</button>`}
     </div>`}
   </${Win}>`;
 }
 
-const TABS = [['box', '상자'], ['dex', '도감'], ['wear', '꾸미기'], ['title', '칭호']];
+const TABS = [['box', tl('상자')], ['dex', tl('도감')], ['wear', tl('꾸미기')], ['title', tl('칭호')]];
 
 // have: owned() set. look: my habit/me.look. coupleSkin: {bg, brick, flag} or null when not coupled.
 // earned: titles() set.
@@ -126,56 +127,56 @@ export function Bag({ unopened, shards, have, look, character, coupleSkin, earne
 
   const boxTab = html`<div class="pad center">
     <div class="chest bagchest" aria-hidden="true"><${Chest} px=${5} /></div>
-    <p class="big">${unopened.length ? `안 연 상자 ${unopened.length}개` : '안 연 상자가 없어요'}</p>
-    ${unopened.length > 0 && html`<button class="btn green big" onClick=${onReveal}>열기</button>`}
-    <p class="muted small">사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개 · 펫 레벨업 = 상자 1개</p>
-    <div class="shardbar" aria-label=${`조각 ${shards}/${DUPS_PER_BONUS}`}><i style=${{ width: `${(shards / DUPS_PER_BONUS) * 100}%` }} /></div>
-    <p class="small">조각 ${shards}/${DUPS_PER_BONUS} — 이미 있는 게 나오거나 🧩 미로를 탈출하면(하루 1번) 조각 1개, ${DUPS_PER_BONUS}개면 보너스 상자</p>
-    <p class="muted small">${TIERS.map((t) => `${t.name} ${t.weight}%`).join(' · ')} · 이로치 ${SHINY_RATE * 100}%</p>
+    <p class="big">${unopened.length ? tl`안 연 상자 ${unopened.length}개` : tl('안 연 상자가 없어요')}</p>
+    ${unopened.length > 0 && html`<button class="btn green big" onClick=${onReveal}>${tl('열기')}</button>`}
+    <p class="muted small">${tl('사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개 · 펫 레벨업 = 상자 1개')}</p>
+    <div class="shardbar" aria-label=${tl`조각 ${shards}/${DUPS_PER_BONUS}`}><i style=${{ width: `${(shards / DUPS_PER_BONUS) * 100}%` }} /></div>
+    <p class="small">${tl`조각 ${shards}/${DUPS_PER_BONUS} — 이미 있는 게 나오거나 🧩 미로를 탈출하면(하루 1번) 조각 1개, ${DUPS_PER_BONUS}개면 보너스 상자`}</p>
+    <p class="muted small">${TIERS.map((t) => `${t.name} ${t.weight}%`).join(' · ')} · ${tl`이로치 ${SHINY_RATE * 100}%`}</p>
   </div>`;
 
   const dexTab = html`<div class="pad">
-    <p class="dexsum">몬스터 ${monsters}/${MONSTERS.length} · ✨ ${shinies}/${MONSTERS.length} · 스킨 ${skins}/${POOL.length - MONSTERS.length}${coupleSkin && ` · 💞 ${duo}/${COUPLE_POOL.length}`}</p>
-    ${picked && html`<p class="picked">${picked.shiny ? '✨ 이로치 ' : ''}${ITEMS.get(picked.id).name} <span class="tier" style=${{ background: tierOf(ITEMS.get(picked.id).tier).color }}>${tierOf(ITEMS.get(picked.id).tier).name}</span>${ITEMS.get(picked.id).base && html`<br /><small>${
-      [['like', '좋아함'], ['hate', '싫어함']].map(([t, word]) => `${word} ${FOODS.find((f) => f.id !== 'cake' && tastes[ITEMS.get(picked.id).base]?.[f.id] === t)?.icon ?? '?'}`).join(' · ')}</small>`}</p>`}
+    <p class="dexsum">${tl`몬스터 ${monsters}/${MONSTERS.length}`} · ✨ ${shinies}/${MONSTERS.length} · ${tl`스킨 ${skins}/${POOL.length - MONSTERS.length}`}${coupleSkin && ` · 💞 ${duo}/${COUPLE_POOL.length}`}</p>
+    ${picked && html`<p class="picked">${picked.shiny ? tl('✨ 이로치 ') : ''}${ITEMS.get(picked.id).name} <span class="tier" style=${{ background: tierOf(ITEMS.get(picked.id).tier).color }}>${tierOf(ITEMS.get(picked.id).tier).name}</span>${ITEMS.get(picked.id).base && html`<br /><small>${
+      [['like', tl('좋아함')], ['hate', tl('싫어함')]].map(([t, word]) => `${word} ${FOODS.find((f) => f.id !== 'cake' && tastes[ITEMS.get(picked.id).base]?.[f.id] === t)?.icon ?? '?'}`).join(' · ')}</small>`}</p>`}
     ${TIERS.map((t) => html`<section key=${t.id}><h3 style=${{ color: t.color }}>${t.name}</h3><div class="grid">${
       MONSTERS.filter((m) => m.tier === t.id).map((m) => (have.has(m.id) ? cell(m.id, false, false, () => pick(m.id)) : unknown(m.id)))}</div></section>`)}
-    <section><h3>✨ 이로치</h3>${shinies ? html`<div class="grid">${MONSTERS.filter((m) => have.has(m.id + '*')).map((m) => cell(m.id, true, false, () => pick(m.id, true)))}</div>`
-      : html`<p class="muted small">아직 없어요 · 몬스터가 나올 때 ${SHINY_RATE * 100}% 확률</p>`}</section>
-    <section><h3>스킨</h3><div class="grid">${dexSkins.map((s) => (have.has(s.id) ? cell(s.id, false, false, () => pick(s.id)) : unknown(s.id)))}</div></section>
+    <section><h3>${tl('✨ 이로치')}</h3>${shinies ? html`<div class="grid">${MONSTERS.filter((m) => have.has(m.id + '*')).map((m) => cell(m.id, true, false, () => pick(m.id, true)))}</div>`
+      : html`<p class="muted small">${tl`아직 없어요 · 몬스터가 나올 때 ${SHINY_RATE * 100}% 확률`}</p>`}</section>
+    <section><h3>${tl('스킨')}</h3><div class="grid">${dexSkins.map((s) => (have.has(s.id) ? cell(s.id, false, false, () => pick(s.id)) : unknown(s.id)))}</div></section>
   </div>`;
 
   // Wear: default first, then what I own of that kind.
   const row = (label, kind, cur, list, onSet) => html`<section key=${label}><h3>${label}</h3><div class="grid">
-    <button class=${'cell' + (!cur ? ' sel' : '')} onClick=${() => onSet(null)} aria-label="기본"><${ItemIcon} kind=${kind} character=${character} /><i class="lbl">기본</i></button>
+    <button class=${'cell' + (!cur ? ' sel' : '')} onClick=${() => onSet(null)} aria-label=${tl('기본')}><${ItemIcon} kind=${kind} character=${character} /><i class="lbl">${tl('기본')}</i></button>
     ${list.map((s) => cell(s.id, false, cur === s.id, () => onSet(s.id)))}</div></section>`;
   const mine = (kind, couple = false) => SKINS.filter((s) => s.kind === kind && !!s.couple === couple && have.has(s.id)
     && (kind !== 'char' || s.cls === character));
   const wearTab = html`<div class="pad">
-    <section><h3>몬스터 친구</h3><div class="grid">${MONSTERS.flatMap((m) => [
+    <section><h3>${tl('몬스터 친구')}</h3><div class="grid">${MONSTERS.flatMap((m) => [
       have.has(m.id) && cell(m.id, false, look.monster === m.id && !look.shiny || (!look.monster && m.id === STARTER), () => onEquip({ monster: m.id, shiny: false }), petLv[m.id]),
       have.has(m.id + '*') && cell(m.id, true, look.monster === m.id && !!look.shiny, () => onEquip({ monster: m.id, shiny: true }), petLv[m.id]),
     ]).filter(Boolean)}</div></section>
-    <section><h3>펫 악세서리 <small class="muted">(아무 펫이나 Lv 3·6·9에 열려요)</small></h3><div class="grid">
-      <button class=${'cell' + (!look.acc ? ' sel' : '')} onClick=${() => onEquip({ acc: null })} aria-label="악세서리 안 쓰기"><i class="lbl">없음</i></button>
+    <section><h3>${tl('펫 악세서리')} <small class="muted">${tl('(아무 펫이나 Lv 3·6·9에 열려요)')}</small></h3><div class="grid">
+      <button class=${'cell' + (!look.acc ? ' sel' : '')} onClick=${() => onEquip({ acc: null })} aria-label=${tl('악세서리 안 쓰기')}><i class="lbl">${tl('없음')}</i></button>
       ${ACCESSORIES.map((a) => (accs.has(a.id)
         ? html`<button key=${a.id} class=${'cell' + (look.acc === a.id ? ' sel' : '')} onClick=${() => onEquip({ acc: a.id })} aria-label=${a.name}>
             <${AccIcon} acc=${a.id} /><i class="lbl">${a.name}</i></button>`
-        : html`<span key=${a.id} class="cell unknown" aria-label=${`${a.name} · 펫 Lv ${a.level}에 열려요`}><i class="q">🔒</i><i class="lbl">Lv ${a.level}</i></span>`))}
+        : html`<span key=${a.id} class="cell unknown" aria-label=${tl`${a.name} · 펫 Lv ${a.level}에 열려요`}><i class="q">🔒</i><i class="lbl">Lv ${a.level}</i></span>`))}
     </div></section>
-    ${row('캐릭터 색', 'char', look.char, mine('char'), (v) => onEquip({ char: v }))}
+    ${row(tl('캐릭터 색'), 'char', look.char, mine('char'), (v) => onEquip({ char: v }))}
     ${['bg', 'brick', 'flag'].map((k) => row(KIND_NAME[k], k, look[k], mine(k), (v) => onEquip({ [k]: v })))}
-    ${coupleSkin && html`<h3 class="duo-h">💞 우리 탑 꾸미기 <small class="muted">(둘 중 마지막에 바꾼 사람 것)</small></h3>
-      ${['bg', 'brick', 'flag'].map((k) => row('우리 탑 ' + KIND_NAME[k], k, coupleSkin[k], mine(k, true), (v) => onEquipCouple({ [k]: v })))}`}
+    ${coupleSkin && html`<h3 class="duo-h">${tl('💞 우리 탑 꾸미기')} <small class="muted">${tl('(둘 중 마지막에 바꾼 사람 것)')}</small></h3>
+      ${['bg', 'brick', 'flag'].map((k) => row(tl`우리 탑 ${KIND_NAME[k]}`, k, coupleSkin[k], mine(k, true), (v) => onEquipCouple({ [k]: v })))}`}
   </div>`;
 
   const titleTab = html`<div class="pad titles">
-    <button class=${'trow' + (!look.badge ? ' sel' : '')} onClick=${() => onEquip({ badge: null })}><b>칭호 안 달기</b></button>
+    <button class=${'trow' + (!look.badge ? ' sel' : '')} onClick=${() => onEquip({ badge: null })}><b>${tl('칭호 안 달기')}</b></button>
     ${TITLES.map((t) => html`<button key=${t.id} class=${'trow' + (look.badge === t.id ? ' sel' : '')} disabled=${!earned.has(t.id)}
       onClick=${() => onEquip({ badge: t.id })}><b>${earned.has(t.id) ? '🏅' : '🔒'} ${t.name}</b><small class="muted">${t.desc}</small></button>`)}
   </div>`;
 
-  return html`<${Win} title="🎒 가방" onClose=${onClose} cls="bag-win">
+  return html`<${Win} title=${tl('🎒 가방')} onClose=${onClose} cls="bag-win">
     <nav class="tabs" role="tablist">${TABS.map(([id, label]) => html`<button key=${id} role="tab" aria-selected=${tab === id}
       onClick=${() => { setTab(id); sfx('tap'); }}>${label}${id === 'box' && unopened.length ? ` ${unopened.length}` : ''}</button>`)}</nav>
     <div class="body bag">${{ box: boxTab, dex: dexTab, wear: wearTab, title: titleTab }[tab]}</div>
