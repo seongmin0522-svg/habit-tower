@@ -10,12 +10,13 @@ import { buzz } from '../haptic.js';
 
 import { RoomLayer, Shop, PlaceSheet, HORIZON, HAND } from './room.js';
 import { SLOTS, skyAt } from '../shop.js';
+import { tl } from '../i18n.js';
 const PET_PX = 9;                  // monster pixel size at z = 0
 const WANDER = { x: 0.6, z: [0.45, 0.85], walk: 0.15, run: 0.6 }; // where the pet strolls, speeds in units/s
 const GROUND = { x: [-0.9, 0.9], z: [0.15, 1.4] };                 // a missed item rolls back inside this
 const HOME = { x: 0, z: 0.15 };                                    // where the pet drops the ball it fetched
 const EAT_MS = 700, NEAR_MISS = 0.35;
-const SAY = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice!', miss: '냠' };
+const SAY = { excellent: 'Excellent!', great: 'Great!', nice: 'Nice!', miss: tl('냠') };
 const ICON = { ...Object.fromEntries(FOODS.map((f) => [f.id, f.icon])), ball: '⚾' };
 // The first food kind still on the tray, else the ball.
 const firstFood = (food) => FOODS.find((f) => food?.includes(f.id))?.id ?? 'ball';
@@ -117,8 +118,8 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (performance.now() - (st.current.fedAt ?? -1e9) > 5000) return; // hearts from a sync, not from playing here
     const t = setTimeout(() => {
       emote('moved', 1800); sfx('rare'); buzz('epic');
-      say(star && !was.star ? '✨ 이로치 변신 해금!'
-        : `Lv ${lv}! 🎁 상자 +${lv - was.lv}${fresh.length ? ` · ${fresh.map((a) => a.name).join('·')} 열림` : ''}`);
+      say(star && !was.star ? tl('✨ 이로치 변신 해금!')
+        : tl`Lv ${lv}! 🎁 상자 +${lv - was.lv}` + (fresh.length ? tl` · ${fresh.map((a) => a.name).join('·')} 열림` : ''));
     }, 900); // after the heart pop-up
     return () => clearTimeout(t);
   }, [hearts]);
@@ -139,14 +140,14 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     p.waitUntil = now + EAT_MS; walkTo(p.x, p.z, WANDER.walk);
     if (taste === 'hate') {
       emote('spit', 1100); sfx('shake'); buzz('glow');
-      say('퉤! 싫어해요');
+      say(tl('퉤! 싫어해요'));
     } else {
       emote('yum', EAT_MS);
       sfx(j === 'excellent' || taste === 'like' ? 'rare' : 'common');
       buzz(j === 'excellent' ? 'rare' : 'tap');
     }
     paid.then(() => feed(foodHearts(j, taste), 'food', food))
-      .then((n) => gave(n, taste === 'like' ? `${SAY[j]} 좋아해요!` : SAY[j]), () => {});
+      .then((n) => gave(n, taste === 'like' ? tl`${SAY[j]} 좋아해요!` : SAY[j]), () => {});
     ready(taste === 'hate' ? 1100 : EAT_MS);
   };
 
@@ -164,7 +165,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       s.item = { mode: 'gone' };
       emote('angry', 1400);
       sfx('shake'); buzz('glow');
-      cb.current.onWake().then((n) => n > 0 && say(`깼어요! -${n}💗`), () => {});
+      cb.current.onWake().then((n) => n > 0 && say(tl`깼어요! -${n}💗`), () => {});
       p.waitUntil = now + 1400;
       ready(900);
       return;
@@ -173,7 +174,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (it.kind === 'ball') {
       if (j !== 'miss') {
         emote('joy', 800); sfx('common'); buzz('tap');
-        feed(1, 'toy').then((n) => (n > 0 ? gave(n, '잡았다!') : say('잡았다!')), () => {});
+        feed(1, 'toy').then((n) => (n > 0 ? gave(n, tl('잡았다!')) : say(tl('잡았다!'))), () => {});
         it.pos = { x: p.x, y: 0, z: p.z };
         return pickUp(now);
       }
@@ -301,7 +302,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (r.turns < 3) return;
     s.rub = null; s.rubbed = true;
     emote('shy', 1500); sfx('tap'); buzz('tap');
-    feed(1, 'pet').then((n) => gave(n, s.pet.asleep ? '쿨쿨…' : '헤헤'), () => {});
+    feed(1, 'pet').then((n) => gave(n, s.pet.asleep ? tl('쿨쿨…') : tl('헤헤')), () => {});
   };
   const petUp = () => { s.rub = null; };
 
@@ -312,43 +313,43 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   const gauge = html`<span class="pr-lv">${max ? '⭐' : `Lv ${lv}`}
     <i class="pr-gauge" aria-label=${`${Math.min(hearts, to) - from}/${to - from}`}><i style=${{ width: `${Math.min(1, (hearts - from) / (to - from)) * 100}%` }} /></i>
     <small>💗 ${hearts}${wins ? ` ⚔️ ${wins}` : ''}</small></span>`;
-  const hint = s.pet.asleep ? '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)'
-    : kind !== 'ball' ? '먹이를 잡고 위로 튕겨 던져 보세요' : '공을 던지면 물어와요';
+  const hint = s.pet.asleep ? tl('쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)')
+    : kind !== 'ball' ? tl('먹이를 잡고 위로 튕겨 던져 보세요') : tl('공을 던지면 물어와요');
 
   const editing = panel === 'decor' || typeof panel === 'object' && panel;
-  return html`<div class=${'playroom sky-' + skyAt()} role="dialog" aria-label=${visit ? `${visit.name}의 놀이방` : '펫과 놀기'}>
-    <div class="pr-top"><b>${visit ? `💞 ${visit.name}의 ` : ''}${ITEMS.get(pet.id)?.name ?? '펫'}</b>${!visit && gauge}
+  return html`<div class=${'playroom sky-' + skyAt()} role="dialog" aria-label=${visit ? tl`${visit.name}의 놀이방` : tl('펫과 놀기')}>
+    <div class="pr-top"><b>${visit ? tl`💞 ${visit.name}의 ` : ''}${ITEMS.get(pet.id)?.name ?? tl('펫')}</b>${!visit && gauge}
       ${!visit && html`<span class="pr-coins">🪙 ${coins ?? '∞'}</span>`}
-      <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
+      <button class="x" onClick=${onClose} aria-label=${tl('닫기')}>✕</button></div>
     ${!visit && html`<div class="pr-tools">
-      <button class="btn sm orange" onClick=${onBattle} aria-label="대결">⚔️ 대결</button>
-      <button class="btn sm orange" onClick=${onMaze} aria-label="미로">🧩 미로</button>
-      <button class="btn sm blue" onClick=${() => setPanel('shop')}>🏪 상점</button>
-      <button class=${'btn sm ' + (editing ? 'green' : 'blue')} onClick=${() => setPanel(editing ? null : 'decor')}>🏠 ${editing ? '완료' : '꾸미기'}</button>
-      ${onVisit && html`<button class="btn sm blue" onClick=${onVisit}>💞 놀러가기</button>`}
+      <button class="btn sm orange" onClick=${onBattle} aria-label=${tl('대결')}>${tl('⚔️ 대결')}</button>
+      <button class="btn sm orange" onClick=${onMaze} aria-label=${tl('미로')}>${tl('🧩 미로')}</button>
+      <button class="btn sm blue" onClick=${() => setPanel('shop')}>${tl('🏪 상점')}</button>
+      <button class=${'btn sm ' + (editing ? 'green' : 'blue')} onClick=${() => setPanel(editing ? null : 'decor')}>🏠 ${editing ? tl('완료') : tl('꾸미기')}</button>
+      ${onVisit && html`<button class="btn sm blue" onClick=${onVisit}>${tl('💞 놀러가기')}</button>`}
     </div>`}
     <div class="pr-field" ref=${field}>
       <${RoomLayer} room=${room} editing=${!!editing} onSlot=${(i) => setPanel({ where: 'slot', i })}
         onBuilding=${() => setPanel({ where: 'building', i: 0 })} />
-      ${editing && html`<button class="btn sm blue pr-theme" onClick=${() => setPanel({ where: 'theme', i: 0 })}>🌸 테마 바꾸기</button>`}
+      ${editing && html`<button class="btn sm blue pr-theme" onClick=${() => setPanel({ where: 'theme', i: 0 })}>${tl('🌸 테마 바꾸기')}</button>`}
       <span class="pr-shadow" ref=${shadowEl} />
-      <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label="펫 쓰다듬기"
+      <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label=${tl('펫 쓰다듬기')}
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
         <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
       </span>
-      <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? '먹이 던지기' : '공 던지기'}
+      <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? tl('먹이 던지기') : tl('공 던지기')}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
       ${pop && html`<p key=${pop.key} class="pr-pop">${pop.text}</p>`}
-      <p class="pr-hint">${visit ? `${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : editing ? '번호 칸을 눌러 가구를 놓아요' : hint}</p>
+      <p class="pr-hint">${visit ? tl`${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : editing ? tl('번호 칸을 눌러 가구를 놓아요') : hint}</p>
     </div>
     ${!visit && html`<div class="pr-tray">
       ${FOODS.map((f) => {
         const n = food?.filter((k) => k === f.id).length ?? 0, t = tastes?.[f.id];
         return html`<button key=${f.id} class=${'btn sm ' + (kind === f.id ? 'green' : 'blue')} disabled=${!n} onClick=${() => pick(f.id)}
-          aria-label=${`${f.name} ${n}개${t === 'like' ? ' · 좋아함' : t === 'hate' ? ' · 싫어함' : ''}`}>${f.icon}${n}${t === 'like' ? '💗' : t === 'hate' ? '✖' : ''}</button>`;
+          aria-label=${tl`${f.name} ${n}개` + (t === 'like' ? tl(' · 좋아함') : t === 'hate' ? tl(' · 싫어함') : '')}>${f.icon}${n}${t === 'like' ? '💗' : t === 'hate' ? '✖' : ''}</button>`;
       })}
-      <button class=${'btn sm ' + (kind === 'ball' ? 'green' : 'blue')} onClick=${() => pick('ball')}>⚾ 공</button>
+      <button class=${'btn sm ' + (kind === 'ball' ? 'green' : 'blue')} onClick=${() => pick('ball')}>${tl('⚾ 공')}</button>
     </div>`}
     ${panel === 'shop' && html`<${Shop} coins=${coins} bought=${bought} onBuy=${onBuy} onClose=${() => setPanel(null)} />`}
     ${panel?.where && html`<${PlaceSheet} where=${panel.where} index=${panel.i} bought=${bought}

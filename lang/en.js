@@ -64,7 +64,7 @@ export const EN = {
   '상자 두드리기': 'Tap the box', '두근두근…': 'Here it comes…', '{0} 인증 보상': 'Reward for checking in on {0}',
   '조각 10개 보상': 'Reward for 10 shards', '✨ 이로치': '✨ Shiny', '몬스터': 'Monster', '💞 커플 ': '💞 Couple ',
   ' · 이미 있어요 → 조각 +1 ({0}/{1})': ' · Already yours → shard +1 ({0}/{1})', '바로 장착': 'Equip now',
-  '다음 상자 ({0})': 'Next box ({0})', '확인': 'OK', '상자': 'Boxes', '도감': 'Collection', '꾸미기': 'Style', '칭호': 'Titles',
+  '다음 상자 ({0})': 'Next box ({0})', '확인': 'OK', '상자': 'Boxes', '도감': 'Collection', '꾸미기': 'Decorate', '칭호': 'Titles',
   '안 연 상자 {0}개': (n) => (n === 1 ? '1 unopened box' : `${n} unopened boxes`), '안 연 상자가 없어요': 'No unopened boxes',
   '열기': 'Open', '사진 인증 1번 = 상자 1개 · 둘 다 인증한 날은 커플 상자도 1개 · 펫 레벨업 = 상자 1개':
     '1 photo check-in = 1 box · a couple box too on days you both check in · pet level-up = 1 box',
@@ -77,6 +77,21 @@ export const EN = {
   '(아무 펫이나 Lv 3·6·9에 열려요)': '(unlocks when any pet hits Lv 3·6·9)', '악세서리 안 쓰기': 'No accessory', '없음': 'None',
   '{0} · 펫 Lv {1}에 열려요': '{0} · unlocks at pet Lv {1}', '💞 우리 탑 꾸미기': '💞 Style our tower',
   '(둘 중 마지막에 바꾼 사람 것)': '(whoever changed it last)', '우리 탑 {0}': 'Our tower: {0}', '칭호 안 달기': 'No title', '🎒 가방': '🎒 Bag',
+  // ui/playroom.js
+  '냠': 'Nom', '✨ 이로치 변신 해금!': '✨ Shiny form unlocked!', 'Lv {0}! 🎁 상자 +{1}': 'Lv {0}! 🎁 Box +{1}', ' · {0} 열림': ' · {0} unlocked',
+  '퉤! 싫어해요': 'Bleh! Hates it', '{0} 좋아해요!': 'Loves {0}!', '깼어요! -{0}💗': 'Woke up! -{0}💗', '잡았다!': 'Caught it!',
+  '쿨쿨…': 'Zzz…', '헤헤': 'Hehe', '쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)': 'Sleeping… a throw wakes it (petting is fine)',
+  '먹이를 잡고 위로 튕겨 던져 보세요': 'Grab a snack and flick it up to throw', '공을 던지면 물어와요': 'Throw the ball and it fetches',
+  '{0}의 놀이방': '{0}’s playroom', '펫과 놀기': 'Play with your pet', '💞 {0}의 ': '💞 {0}’s ', '펫': 'Pet', '대결': 'Battle',
+  '⚔️ 대결': '⚔️ Battle', '미로': 'Maze', '🧩 미로': '🧩 Maze', '🏪 상점': '🏪 Shop', '완료': 'Done', '💞 놀러가기': '💞 Visit',
+  '🌸 테마 바꾸기': '🌸 Change theme', '펫 쓰다듬기': 'Pet your pet', '먹이 던지기': 'Throw a snack', '공 던지기': 'Throw the ball',
+  '{0}의 펫이 놀고 있어요 (구경만 할 수 있어요)': '{0}’s pet is playing (look only)', '번호 칸을 눌러 가구를 놓아요': 'Tap a numbered spot to place furniture',
+  '{0} {1}개': '{0} ×{1}', ' · 좋아함': ' · loves it', ' · 싫어함': ' · hates it', '⚾ 공': '⚾ Ball',
+  // ui/room.js
+  '건물 자리': 'Building spot', '{0}번 자리': 'Spot {0}', '🛋️ 가구': '🛋️ Furniture', '🏠 건물': '🏠 Buildings', '🌸 테마': '🌸 Themes',
+  ' · 인증 {0} · 미로 {1} · 대결 승리 {2} · 중복 {3} · 펫 레벨업 {4}': ' · check-in {0} · maze {1} · battle win {2} · repeat {3} · pet level-up {4}',
+  '보유': 'Owned', '산 건 🏠 꾸미기에서 놓을 수 있어요. 가구 근처에 가면 펫이 쉬거나 놀아요.': 'Place what you buy in 🏠 Decorate. Your pet rests or plays near furniture.',
+  '테마': 'Theme', '비우기': 'Clear', '아직 산 게 없어요. 🏪 상점에서 사 오세요.': 'Nothing bought yet. Get some in the 🏪 shop.',
   // catalog.js
   '일반': 'Common', '레어': 'Rare', '희귀': 'Epic', '전설': 'Legendary',
   '노을': 'Sunset', '흐린 날': 'Cloudy Day', '밤하늘': 'Night Sky', '벚꽃': 'Cherry Blossoms', '가을': 'Autumn',
