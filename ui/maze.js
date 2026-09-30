@@ -11,6 +11,7 @@ import { SIZE, mazeOf, step, isOpen, inSight, checkpoints } from '../maze.js';
 import { wildRoll } from '../battle.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
+import { tl } from '../i18n.js';
 
 const VIEW = 7;               // rooms across the screen
 const REPEAT_MS = 150;        // holding a button keeps walking
@@ -80,17 +81,17 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
       const back = reachedRef.current ? cps[reachedRef.current - 1] : maze.start;
       p.current = back;
       setPos(back);
-      setToast(reachedRef.current ? `${MARKS[reachedRef.current - 1]}로 돌아왔어요` : '출발점으로 돌아왔어요');
+      setToast(reachedRef.current ? tl`${MARKS[reachedRef.current - 1]}로 돌아왔어요` : tl('출발점으로 돌아왔어요'));
     }
   };
   // A wild battle ended: a win may catch it (once a day), a loss sends me back to the start.
   const onWild = (won) => {
-    if (!won) { lost.current = true; return Promise.resolve({ note: reachedRef.current ? `졌어요… ${MARKS[reachedRef.current - 1]}로 돌아가요` : '졌어요… 출발점으로 돌아가요' }); }
-    if (caught.current || Math.random() >= CAPTURE) return Promise.resolve({ note: caught.current ? '이겼다! (오늘은 이미 한 마리 잡았어요)' : '이겼다! 도망가 버렸어요' });
+    if (!won) { lost.current = true; return Promise.resolve({ note: reachedRef.current ? tl`졌어요… ${MARKS[reachedRef.current - 1]}로 돌아가요` : tl('졌어요… 출발점으로 돌아가요') }); }
+    if (caught.current || Math.random() >= CAPTURE) return Promise.resolve({ note: caught.current ? tl('이겼다! (오늘은 이미 한 마리 잡았어요)') : tl('이겼다! 도망가 버렸어요') });
     return onCapture(wild.id, wild.shiny).then((r) => {
       caught.current = true;
       const name = ITEMS.get(wild.id).name;
-      return { note: r.admin ? `🎉 ${name}을(를) 잡았다! (🛠 저장 안 함)` : r.caught ? `🎉 ${name}을(를) 잡았다!${r.dup ? ' (이미 있어서 조각 +1)' : ' 도감에 등록!'}` : '이겼다!' };
+      return { note: r.admin ? tl`🎉 ${name}을(를) 잡았다! (🛠 저장 안 함)` : r.caught ? (r.dup ? tl`🎉 ${name}을(를) 잡았다! (이미 있어서 조각 +1)` : tl`🎉 ${name}을(를) 잡았다! 도감에 등록!`) : tl('이겼다!') };
     });
   };
 
@@ -103,7 +104,7 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
     setPos(q);
     setSeen((s) => { const n = new Set(s); for (const k of around(q)) n.add(k); return n; });
     const i = cps.findIndex((c) => same(c, q));
-    if (i >= 0) setReached((r) => { if (i + 1 > r) { setToast(`${MARKS[i]} 통과!`); sfx('open'); buzz('tap'); } return Math.max(r, i + 1); });
+    if (i >= 0) setReached((r) => { if (i + 1 > r) { setToast(tl`${MARKS[i]} 통과!`); sfx('open'); buzz('tap'); } return Math.max(r, i + 1); });
     if (same(q, maze.exit)) {
       clearInterval(hold.current);
       over.current = true;
@@ -111,7 +112,7 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
       setDone({ ms });
       sfx('legend'); buzz('epic');
       onClear(ms).then(({ first, best: b, admin }) => setDone({ ms,
-        note: admin ? '🛠 관리자 모드 · 기록 안 함' : first ? '🧩 상자 조각 +1' : `오늘 조각은 이미 받았어요 · 최고 ${clock(b)}` }), () => {});
+        note: admin ? tl('🛠 관리자 모드 · 기록 안 함') : first ? tl('🧩 상자 조각 +1') : tl`오늘 조각은 이미 받았어요 · 최고 ${clock(b)}` }), () => {});
       return;
     }
     if (mazeMs() >= nextFoe.current) encounter();
@@ -144,16 +145,16 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
   const target = cps[reached] ?? maze.exit;
   const angle = (Math.atan2(target[1] - pos[1], target[0] - pos[0]) * 180) / Math.PI;
 
-  return html`<div class="maze" role="dialog" aria-label="안개 미로">
-    <div class="pr-top"><b>🧩 오늘의 미로</b><span>⏱ ${clock(elapsed)}${best ? ` · 최고 ${clock(best)}` : ''}</span>
-      <button class="x" onClick=${onClose} aria-label="닫기">✕</button></div>
-    <div class="mz-road" aria-label=${`체크포인트 ${reached}/3`}>
+  return html`<div class="maze" role="dialog" aria-label=${tl('안개 미로')}>
+    <div class="pr-top"><b>${tl('🧩 오늘의 미로')}</b><span>⏱ ${clock(elapsed)}${best ? tl` · 최고 ${clock(best)}` : ''}</span>
+      <button class="x" onClick=${onClose} aria-label=${tl('닫기')}>✕</button></div>
+    <div class="mz-road" aria-label=${tl`체크포인트 ${reached}/3`}>
       ${MARKS.map((m, i) => html`<b key=${m} class=${i < reached ? 'on' : i === reached ? 'next' : ''}>${m}</b><i key=${'l' + m} class=${i < reached ? 'on' : ''} />`)}
       <b class=${done ? 'on' : reached === 3 ? 'next' : ''}>🚩</b>
-      ${!done && html`<span class="mz-arrow" title="다음 목표 방향" style=${{ transform: `rotate(${angle}deg)` }}>➤</span>`}
+      ${!done && html`<span class="mz-arrow" title=${tl('다음 목표 방향')} style=${{ transform: `rotate(${angle}deg)` }}>➤</span>`}
     </div>
     <div class="mz-field">
-      <svg class="mz-map" viewBox=${`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet" aria-label="미로">
+      <svg class="mz-map" viewBox=${`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet" aria-label=${tl('미로')}>
         <g class="mz-rooms" style=${{ transform: shift }}>${rooms}</g>
       </svg>
       <span class=${'mz-pet' + (done ? ' win' : '')} key=${'b' + bump}><${Monster} id=${pet.id} shiny=${pet.shiny} acc=${pet.acc} px=${3} face=${done ? 'excited' : null} /></span>
@@ -164,15 +165,15 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
         <rect x=${pos[0]} y=${pos[1]} width="1" height="1" class="me" />
       </svg>
       ${toast && html`<p class="pr-pop" key=${toast}>${toast}</p>`}
-      ${done ? html`<div class="mz-done"><b>탈출! ${clock(done.ms)}</b>${done.note && html`<small>${done.note}</small>`}
-        <div class="bt-row"><button class="btn green" onClick=${restart}>다시</button><button class="btn blue" onClick=${onClose}>닫기</button></div></div>`
-        : html`<p class="mz-hint">①→②→③→🚩 순서로! 화살표가 다음 목표 방향 · 풀숲에서 야생 몬스터가 튀어나와요</p>`}
+      ${done ? html`<div class="mz-done"><b>${tl`탈출! ${clock(done.ms)}`}</b>${done.note && html`<small>${done.note}</small>`}
+        <div class="bt-row"><button class="btn green" onClick=${restart}>${tl('다시')}</button><button class="btn blue" onClick=${onClose}>${tl('닫기')}</button></div></div>`
+        : html`<p class="mz-hint">${tl('①→②→③→🚩 순서로! 화살표가 다음 목표 방향 · 풀숲에서 야생 몬스터가 튀어나와요')}</p>`}
     </div>
     <div class="mz-pad">${PADS.map(([dir, label]) => html`<button key=${dir} class=${'btn blue mz-' + dir} aria-label=${dir}
       onPointerDown=${(e) => { e.preventDefault(); press(dir); }} onPointerUp=${release} onPointerLeave=${release} onPointerCancel=${release}
       onContextMenu=${(e) => e.preventDefault()}>${label}</button>`)}</div>
     ${flash && html`<i class="mz-flash" />`}
     ${wild && html`<${Battle} me=${{ ...pet, level }} wild=${wild} onRecord=${(won) => onWild(won)}
-      onFlee=${() => { setToast('도망쳤다! +5초'); endFight(FLEE_MS); }} onClose=${() => endFight()} />`}
+      onFlee=${() => { setToast(tl('도망쳤다! +5초')); endFight(FLEE_MS); }} onClose=${() => endFight()} />`}
   </div>`;
 }

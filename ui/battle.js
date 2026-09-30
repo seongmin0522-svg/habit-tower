@@ -8,23 +8,25 @@ import { ITEMS, MONSTERS, ELEMENTS } from '../catalog.js';
 import { fighter, start, turn, aiPick } from '../battle.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
+import { tl } from '../i18n.js';
 
 const STEP_MS = 700;
-const LEVELS = [['쉬움', -2], ['보통', 0], ['어려움', 2]];
-const STAT = { atk: '공격', def: '방어' };
+const LEVELS = [[tl('쉬움'), -2], [tl('보통'), 0], [tl('어려움'), 2]];
+const STAT = { atk: tl('공격'), def: tl('방어') };
 const SHOT = { fire: '🔥', water: '💧', grass: '🍃', earth: '🪨', ice: '❄️', dark: '🌑', light: '✨' }; // element projectiles
 const clampLv = (n) => Math.max(1, Math.min(10, n));
-const nameOf = (id) => ITEMS.get(id)?.name ?? '펫';
+const nameOf = (id) => ITEMS.get(id)?.name ?? tl('펫');
 // A skill's one-line effect for its button.
 function effectText(k) {
   const parts = [];
-  if (k.power) parts.push(`위력 ${k.power}${k.hits ? `×${k.hits}` : ''}`);
-  if (k.first) parts.push('선공');
-  if (k.drain) parts.push('흡수');
-  if (k.heal) parts.push(`회복 ${k.heal * 100}%${k.once ? ' 1회' : ''}`);
-  if (k.stun) parts.push(`기절 ${k.stun * 100}%`);
-  for (const [s, n] of Object.entries(k.self ?? {})) parts.push(`내 ${STAT[s]}↑${n > 1 ? n : ''}`);
-  for (const [s] of Object.entries(k.foe ?? {})) parts.push(`상대 ${STAT[s]}↓`);
+  const hits = k.hits ? `×${k.hits}` : '';
+  if (k.power) parts.push(tl`위력 ${k.power}${hits}`);
+  if (k.first) parts.push(tl('선공'));
+  if (k.drain) parts.push(tl('흡수'));
+  if (k.heal) parts.push(k.once ? tl`회복 ${k.heal * 100}% 1회` : tl`회복 ${k.heal * 100}%`);
+  if (k.stun) parts.push(tl`기절 ${k.stun * 100}%`);
+  for (const [s, n] of Object.entries(k.self ?? {})) parts.push(tl`내 ${STAT[s]}↑${n > 1 ? n : ''}`);
+  for (const [s] of Object.entries(k.foe ?? {})) parts.push(tl`상대 ${STAT[s]}↓`);
   return parts.join(' · ');
 }
 
@@ -49,7 +51,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
   const fresh = useRef(partner?.record.fresh ?? []); // kept for this visit after it's marked seen
   useEffect(() => {
     if (fresh.current.length) onSeen(fresh.current[0].at);
-    if (wild) begin({ ...wild, acc: null, label: '야생', vs: 'wild' });
+    if (wild) begin({ ...wild, acc: null, label: tl('야생'), vs: 'wild' });
   }, []);
   const later = (f, ms) => timers.current.push(setTimeout(f, ms));
 
@@ -59,7 +61,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
     setSt(s); setShown({ me: s.me.hp, foe: s.foe.hp });
     setFaces({ me: null, foe: null }); setStars({ me: false, foe: false }); setEnd(null); setFxs([]);
     setRound((r) => r + 1);
-    setLine(foe.vs === 'wild' ? `앗! 야생 ${nameOf(foe.id)} Lv ${foe.level}이(가) 튀어나왔다!` : `${foe.label}의 ${nameOf(foe.id)} Lv ${foe.level}이(가) 나타났다!`);
+    setLine(foe.vs === 'wild' ? tl`앗! 야생 ${nameOf(foe.id)} Lv ${foe.level}이(가) 튀어나왔다!` : tl`${foe.label}의 ${nameOf(foe.id)} Lv ${foe.level}이(가) 나타났다!`);
     setPhase('fight');
     sfx('tap');
   };
@@ -96,7 +98,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
         const tgt = other(e.who), max = st[tgt].max;
         if (e.type === 'use') {
           el = e.element;
-          setLine(`${nm(e.who)}의 ${e.skill}!`);
+          setLine(tl`${nm(e.who)}의 ${e.skill}!`);
           addFx({ kind: 'lunge', who: e.who }, 400);
           const k = st[e.who].skills.find((s) => s.name === e.skill);
           if (k?.first) addFx({ kind: 'mark', who: e.who, icon: '💨', cls: 'wind' }, 700);
@@ -108,7 +110,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
           addFx({ kind: 'hurt', who: tgt, n: e.n, crit: e.crit, icon: el ? SHOT[el] : '💥' }, 900);
           if (e.crit || e.n >= max * 0.3) field.current?.animate([{ transform: 'none' }, { transform: 'translate(-8px, 4px)' },
             { transform: 'translate(7px, -5px)' }, { transform: 'translate(-4px, 2px)' }, { transform: 'none' }], { duration: 350 });
-          setLine(e.crit ? '급소에 맞았다!' : e.mult > 1 ? '효과가 굉장했다!' : e.mult < 1 ? '효과가 별로다…' : `${e.n} 피해!`);
+          setLine(e.crit ? tl('급소에 맞았다!') : e.mult > 1 ? tl('효과가 굉장했다!') : e.mult < 1 ? tl('효과가 별로다…') : tl`${e.n} 피해!`);
           face(tgt, e.crit ? 'surprised' : Math.random() < 0.5 ? 'sad' : 'angry');
           buzz(e.crit ? 'rare' : 'tap');
         } else if (e.type === 'heal') {
@@ -116,23 +118,24 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
           hp = { ...hp, [e.who]: hp[e.who] + e.n };
           setShown({ ...hp });
           addFx({ kind: 'mark', who: e.who, icon: '✚', cls: 'heal' }, 900);
-          setLine(`${nm(e.who)}의 체력이 ${e.n} 회복됐다!`);
+          setLine(tl`${nm(e.who)}의 체력이 ${e.n} 회복됐다!`);
           face(e.who, 'joy');
         } else if (e.type === 'stat') {
           const whose = e.side === e.who ? e.who : tgt;
           addFx({ kind: 'mark', who: whose, icon: e.by > 0 ? '⬆' : e.by < 0 ? '⬇' : '➖', cls: e.by > 0 ? 'up' : 'down' }, 900);
-          setLine(e.by ? `${nm(whose)}의 ${STAT[e.stat]}이(가) ${e.by > 0 ? '올라갔다' : '떨어졌다'}!` : `${nm(whose)}의 ${STAT[e.stat]}은(는) 더 변하지 않는다`);
+          setLine(e.by > 0 ? tl`${nm(whose)}의 ${STAT[e.stat]}이(가) 올라갔다!` : e.by < 0 ? tl`${nm(whose)}의 ${STAT[e.stat]}이(가) 떨어졌다!`
+            : tl`${nm(whose)}의 ${STAT[e.stat]}은(는) 더 변하지 않는다`);
           if (e.by > 0) face(whose, 'excited');
         } else if (e.type === 'miss') {
-          setLine('빗나갔다!');
+          setLine(tl('빗나갔다!'));
           addFx({ kind: 'mark', who: tgt, icon: 'MISS', cls: 'miss' }, 700);
         } else if (e.type === 'stun') {
-          setLine(`${nm(tgt)}이(가) 기절했다 💫`); face(tgt, 'sleepy');
+          setLine(tl`${nm(tgt)}이(가) 기절했다 💫`); face(tgt, 'sleepy');
           setStars((s) => ({ ...s, [tgt]: true }));
         } else if (e.type === 'stunned') {
-          setLine(`${nm(e.who)}은(는) 기절해서 움직일 수 없다! 💫`);
+          setLine(tl`${nm(e.who)}은(는) 기절해서 움직일 수 없다! 💫`);
           setStars((s) => ({ ...s, [e.who]: false }));
-        } else if (e.type === 'fail') setLine('힘이 남지 않았다…');
+        } else if (e.type === 'fail') setLine(tl('힘이 남지 않았다…'));
         last = e;
       });
     }
@@ -142,7 +145,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
       setFaces({ me: r.state.me.stun ? 'sleepy' : null, foe: r.state.foe.stun ? 'sleepy' : null });
       setStars({ me: r.state.me.stun, foe: r.state.foe.stun });
       if (!r.state.over) { setBusy(false); return; }
-      const won = r.state.over === 'win', text = won ? '승리!' : '패배…';
+      const won = r.state.over === 'win', text = won ? tl('승리!') : tl('패배…');
       setFaces(won ? { me: 'excited', foe: 'sad' } : { me: 'sad', foe: 'excited' });
       addFx({ kind: 'faint', who: won ? 'foe' : 'me' }, 60000);
       sfx(won ? 'legend' : 'common'); buzz(won ? 'epic' : 'glow');
@@ -151,7 +154,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
       setBusy(false);
       onRecord(won, foeInfo.current.vs).then(
         ({ counted, left, admin, note }) => setEnd({ won, text,
-          note: note ?? (admin ? '🛠 관리자 모드 · 기록 안 함' : counted ? `${won ? '⚔️ +1 · ' : ''}오늘 남은 기록 ${left}판` : '오늘 기록은 끝났어요 (연습 경기)') }),
+          note: note ?? (admin ? tl('🛠 관리자 모드 · 기록 안 함') : counted ? tl`${won ? '⚔️ +1 · ' : ''}오늘 남은 기록 ${left}판` : tl('오늘 기록은 끝났어요 (연습 경기)')) }),
         () => {},
       );
     });
@@ -183,15 +186,15 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
   };
 
   const foe = foeInfo.current;
-  const title = wild ? '🌿 야생 몬스터' : '⚔️ 대결';
+  const title = wild ? tl('🌿 야생 몬스터') : tl('⚔️ 대결');
   return html`<div class="battle" role="dialog" aria-label=${title}>
-    <div class="pr-top"><b>${title}</b>${!wild && html`<button class="x" onClick=${onClose} aria-label="닫기">✕</button>`}</div>
+    <div class="pr-top"><b>${title}</b>${!wild && html`<button class="x" onClick=${onClose} aria-label=${tl('닫기')}>✕</button>`}</div>
     ${phase === 'pick' ? !wild && html`<div class="bt-pick">
-      <p>${nameOf(me.id)} Lv ${me.level}로 누구와 싸울까요?</p>
+      <p>${tl`${nameOf(me.id)} Lv ${me.level}로 누구와 싸울까요?`}</p>
       <div class="bt-row">${LEVELS.map(([label, d]) => html`<button key=${label} class="btn blue" onClick=${() => cpu(d)}>🤖 ${label}<br /><small>Lv ${clampLv(me.level + d)}</small></button>`)}</div>
-      ${fresh.current.slice(0, 3).map((f) => html`<p key=${f.at} class="bt-news">💞 ${partner.name}이(가) 도전해 왔어요 — ${f.won ? '내 펫이 이겼어요! 🎉' : '내 펫이 졌어요… 복수하러 가요!'}</p>`)}
+      ${fresh.current.slice(0, 3).map((f) => html`<p key=${f.at} class="bt-news">💞 ${tl`${partner.name}이(가) 도전해 왔어요`} — ${f.won ? tl('내 펫이 이겼어요! 🎉') : tl('내 펫이 졌어요… 복수하러 가요!')}</p>`)}
       ${partner && html`<button class="btn green bt-partner" onClick=${() => begin({ ...partner.pet, label: partner.name, vs: 'partner' })}>
-        💞 ${partner.name}의 ${nameOf(partner.pet.id)} Lv ${partner.pet.level}<br /><small>전적 ${partner.record.win}승 ${partner.record.lose}패</small></button>`}
+        💞 ${tl`${partner.name}의 ${nameOf(partner.pet.id)} Lv ${partner.pet.level}`}<br /><small>${tl`전적 ${partner.record.win}승 ${partner.record.lose}패`}</small></button>`}
     </div>` : html`<div class="bt-field" ref=${field}><div class="bt-stage">
       ${pet('foe', foe, foe.level)}
       ${pet('me', me, me.level)}
@@ -200,11 +203,11 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
     </div></div>
     <p class="bt-line" aria-live="polite">${line}</p>
     ${phase === 'fight' ? html`<div class="bt-skills">${st.me.skills.map((k, i) => html`<button key=${i} class="btn blue" disabled=${busy} onClick=${() => pick(i)}>
-      <b>${k.element ? ELEMENTS[k.element].icon : '무'} ${k.name}</b><small>${effectText(k)}</small></button>`)}
-      ${wild && html`<button class="btn orange bt-flee" disabled=${busy} onClick=${onFlee}>🏃 도망 (+5초)</button>`}</div>`
+      <b>${k.element ? ELEMENTS[k.element].icon : tl('무')} ${k.name}</b><small>${effectText(k)}</small></button>`)}
+      ${wild && html`<button class="btn orange bt-flee" disabled=${busy} onClick=${onFlee}>${tl('🏃 도망 (+5초)')}</button>`}</div>`
     : html`<div class="bt-end"><b class=${end?.won ? 'win' : 'lose'}>${end?.text}</b>${end?.note && html`<small>${end.note}</small>`}
-      <div class="bt-row">${wild ? html`<button class="btn green" onClick=${onClose}>계속</button>`
-        : html`<button class="btn green" onClick=${() => (foe.vs === 'cpu' ? setPhase('pick') : begin(foe))}>다시</button>
-        <button class="btn blue" onClick=${onClose}>닫기</button>`}</div></div>`}`}
+      <div class="bt-row">${wild ? html`<button class="btn green" onClick=${onClose}>${tl('계속')}</button>`
+        : html`<button class="btn green" onClick=${() => (foe.vs === 'cpu' ? setPhase('pick') : begin(foe))}>${tl('다시')}</button>
+        <button class="btn blue" onClick=${onClose}>${tl('닫기')}</button>`}</div></div>`}`}
   </div>`;
 }
