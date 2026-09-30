@@ -6,6 +6,7 @@ import { ITEMS } from '../catalog.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 import { photoUrl } from '../db.js';
+import { tl } from '../i18n.js';
 
 export const TIER = ['#a7a7a7', '#c8643c', '#f2c230']; // floors 1-10 stone, 11-20 brick, 21-30 gold
 // Floor color (0-based floor i) for a brick skin id, or the default stone/brick/gold.
@@ -122,7 +123,7 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
       <i class="carried" aria-hidden="true" style=${{ '--c': brickColor(look.brick, half ? n : Math.max(n - 1, 0)) }}>${half
         ? html`<${HalfPhoto} half=${half} />` : html`<${Photo} day=${days[shown.at(-1)]} eager />`}</i>
       ${look.monsters.map((m, i) => i === 0 && onPet
-        ? html`<button key=${i} type="button" class=${'mob pet' + (m.shiny ? ' sparkle' : '')} onClick=${onPet} aria-label="펫과 놀기"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} acc=${m.acc} /></button>`
+        ? html`<button key=${i} type="button" class=${'mob pet' + (m.shiny ? ' sparkle' : '')} onClick=${onPet} aria-label=${tl('펫과 놀기')}><${Monster} id=${m.id} shiny=${m.shiny} px=${px} acc=${m.acc} /></button>`
         : html`<span key=${i} class=${'mob' + (m.shiny ? ' sparkle' : '')} aria-hidden="true"><${Monster} id=${m.id} shiny=${m.shiny} px=${px} acc=${m.acc} /></span>`)}
       <span class="hero" aria-hidden="true"><${Sprite} id=${character} skin=${look.hero} px=${px} />${tag && html`<span class="nametag">${tag}</span>`}</span>
       ${partnerCharacter && html`<span class="hero" aria-hidden="true"><${Sprite} id=${partnerCharacter} skin=${look.partnerHero} px=${px} /></span>`}
@@ -130,14 +131,14 @@ export function Scene({ character, partnerCharacter, look, tag, keys, days, anim
     </div>
     <div class="tower">
       ${n === TOWER_HEIGHT && !falling && html`<div class="flag">${flag}${stacking && html`<span class="sparks">${[0, 1, 2, 3, 4, 5, 6, 7].map((k) => html`<i key=${k} style=${{ '--a': `${k * 45}deg` }} />`)}</span>`}</div>`}
-      ${stacking && html`<span class="plus">${half ? '½' : '+1층'}</span><span class="dust" />`}
+      ${stacking && html`<span class="plus">${half ? '½' : tl('+1층')}</span><span class="dust" />`}
       <div class="stack">${shown.map((key, i) => html`
         <button key=${key} class=${'blk' + (stacking && !half && i === n - 1 ? ' new' : '') + (falling ? ' fall' : '')}
           style=${{ '--c': brickColor(look.brick, i), '--i': i, ...(falling ? scatter(i, n) : {}) }}
-          aria-label=${`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} />${
+          aria-label=${tl`${i + 1}층 · ${key} 인증 사진 보기`} onClick=${() => !falling && onBlock(key)}><${Photo} day=${days[key]} eager=${falling || i === n - 1} />${
           ['l', 'r'].map((side) => badge?.(key)?.[side] && html`<span key=${side} class=${'badge ' + side}>${badge(key)[side]}</span>`)}</button>`)}
         ${half && !falling && html`<div class=${'blk halfblk' + (stacking ? ' new' : '')} style=${{ '--c': brickColor(look.brick, n) }}
-          role="img" aria-label="오늘 반쪽 벽돌 · 상대 인증 기다리는 중"><${HalfPhoto} half=${half} /></div>`}
+          role="img" aria-label=${tl('오늘 반쪽 벽돌 · 상대 인증 기다리는 중')}><${HalfPhoto} half=${half} /></div>`}
       </div>
       ${rubble && !n && !half && html`<div class="rubble">${[0, 1, 2, 3, 4].map((k) => html`<i key=${k} />`)}</div>`}
       <div class="base" />

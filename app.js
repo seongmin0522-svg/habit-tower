@@ -15,7 +15,7 @@ import { battleRecord } from './battle.js';
 import { heartsOf, levelOf, accsUnlocked } from './pet.js';
 import { getAdmin, setAdmin, onAdmin } from './admin.js';
 import { ADMIN_IDS } from './config.js';
-import { LANG } from './i18n.js';
+import { LANG, tl } from './i18n.js';
 
 document.documentElement.lang = LANG; // screen readers and fonts pick the language
 
@@ -60,7 +60,7 @@ function App() {
     localBackup().then(setBackup, () => {});
     localStore().then((l) => l && import('./cloud.js').then((m) => m.openCloud(l, setCloud))).then(setCloudApi, () => {});
   }, []);
-  useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
+  useEffect(() => db ? subscribe(db, setState, (e) => setToast(tl`동기화 오류: ${e.code}`)) : undefined, [db]);
   // Timers sleep while the phone app is in the background: re-check the date on return too.
   // My partner's date follows their own time zone (couples can live apart).
   const partnerTz = cloud?.partner?.tz ?? null;
@@ -110,7 +110,7 @@ function App() {
   const view = coupled ? tab : 'me';
   const { current, past } = views[view];
   const days = { me: state.days, couple: cdays, partner: pdays }[view];
-  const partnerName = partner?.name || '상대';
+  const partnerName = partner?.name || tl('상대');
   const got = cloud?.got ?? EMPTY, gave = cloud?.gave ?? EMPTY;
   const badge = (k) => ({ me: { r: got[k] }, couple: { l: got[k], r: gave[k] }, partner: { r: gave[k] } })[view];
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
@@ -119,7 +119,7 @@ function App() {
   // Finished towers, newest first; a tower topped today counts already.
   const builtTowers = [...(keys.length === TOWER_HEIGHT ? [current] : []), ...past.filter((t) => t.kind === 'built')];
   const built = builtTowers.length;
-  const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || '우리 탑'}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? '해빗 타워';
+  const title = { me: state.habit?.title, couple: `❤ ${cloud?.coupleTitle || tl('우리 탑')}`, partner: `${partnerName} · ${partner?.habit ?? ''}` }[view] ?? tl('해빗 타워');
   const doneToday = !!state.days[today]?.assetId;
   const ready = !!actions && state.loaded;
 
@@ -177,17 +177,17 @@ function App() {
     if (unopened.length) openReveal();
   }, [revealNext, anim, fall, modal, unopened.length]);
   const openReveal = () => { setRevealBox(unopened[0]); setModal('reveal'); };
-  const onEquip = (patch) => (admin ? sandbox(setAdmin({ look: { ...adminPrefs.look, ...patch } })).then(() => setToast('🛠 장착 (저장 안 함)'))
-    : actions.equip(patch).then(() => { setToast('장착했어요'); cloudApi?.sync(); }, fail));
-  const onEquipCouple = (patch) => (admin ? sandbox(setAdmin({ coupleSkin: { ...adminPrefs.coupleSkin, ...patch } })).then(() => setToast('🛠 적용 (저장 안 함)'))
-    : cloudApi.setCoupleSkin(patch).then(() => setToast('우리 탑에 적용했어요'), fail));
+  const onEquip = (patch) => (admin ? sandbox(setAdmin({ look: { ...adminPrefs.look, ...patch } })).then(() => setToast(tl('🛠 장착 (저장 안 함)')))
+    : actions.equip(patch).then(() => { setToast(tl('장착했어요')); cloudApi?.sync(); }, fail));
+  const onEquipCouple = (patch) => (admin ? sandbox(setAdmin({ coupleSkin: { ...adminPrefs.coupleSkin, ...patch } })).then(() => setToast(tl('🛠 적용 (저장 안 함)')))
+    : cloudApi.setCoupleSkin(patch).then(() => setToast(tl('우리 탑에 적용했어요')), fail));
   // A couple skin from the reveal goes on the couple tower; anything else on me.
   const wear = (p) => {
     const it = ITEMS.get(p.item);
-    if (it.couple) return coupled ? onEquipCouple({ [it.kind]: it.id }) : setToast('커플 연결 후 우리 탑에 쓸 수 있어요');
+    if (it.couple) return coupled ? onEquipCouple({ [it.kind]: it.id }) : setToast(tl('커플 연결 후 우리 탑에 쓸 수 있어요'));
     return onEquip(it.base ? { monster: it.id, shiny: p.shiny } : { [it.kind]: it.id });
   };
-  const fail = (e) => setToast('실패: ' + (e?.message ?? e?.code ?? e));
+  const fail = (e) => setToast(tl`실패: ${e?.message ?? e?.code ?? e}`);
 
   // A collapse plays once, the first time the page sees it — also when midnight passes with the page open.
   // My tower first, then the couple tower; the couple one only after this launch has synced,
@@ -232,7 +232,7 @@ function App() {
     .then(() => backup.reset()).then(() => location.reload(), fail);
   const onImport = (file) => backup.restore(file).then((r) => {
     setModal(null);
-    setToast(`복원 완료: 기록 ${r.days}일 · 사진 ${r.photos}장`);
+    setToast(tl`복원 완료: 기록 ${r.days}일 · 사진 ${r.photos}장`);
     cloudApi?.sync();
   }, fail);
 
@@ -248,7 +248,7 @@ function App() {
       onUse: () => actions.useShield(gap).then(() => {
         setFall(null);
         setAnim(null);
-        setToast('🛡 방어권으로 탑을 지켰어요');
+        setToast(tl('🛡 방어권으로 탑을 지켰어요'));
         cloudApi?.sync();
       }, fail),
     } : { none: true };
@@ -271,7 +271,7 @@ function App() {
         setAnim({ kind: 'stack' });
         t = setTimeout(() => setAnim(null), STACK_MS);
       });
-      if (r.retake) setToast('오늘 사진을 바꿨어요');
+      if (r.retake) setToast(tl('오늘 사진을 바꿨어요'));
       else setRevealNext(true);
       cloudApi?.sync();
     } catch (err) { clearTimeout(t); setAnim(null); fail(err); } finally { setBusy(false); }
@@ -282,14 +282,14 @@ function App() {
   // The key keeps Preact from turning one button's input into the other's when the bar re-renders.
   const camera = (label, cls, capture = 'environment') => html`<label key=${capture ? 'camera' : 'gallery'} class=${'btn ' + cls + (busy || !assets || anim || fall ? ' off' : '')}>
     <input type="file" accept="image/*" ...${capture ? { capture } : {}} hidden disabled=${busy || !assets || !ready || !!anim || !!fall} onClick=${() => buzz('tap')} onChange=${onPhoto} />
-    ${busy ? '올리는 중…' : label}</label>`;
+    ${busy ? tl('올리는 중…') : label}</label>`;
 
   const needSetup = state.loaded && !state.habit;
 
   // "새로 쌓기": end the tower on this tab at its last floor. The couple bookmark also goes to the cloud
   // so my partner's couple tower restarts too.
   const restart = keys.length && view !== 'partner' ? {
-    label: view === 'couple' ? '커플 탑 새로 쌓기' : '내 탑 새로 쌓기',
+    label: view === 'couple' ? tl('커플 탑 새로 쌓기') : tl('내 탑 새로 쌓기'),
     floors: keys.length,
     onRestart: () => actions.mark(view === 'couple' ? 'cutCouple' : 'cutMe', keys.at(-1))
       .then(() => { setModal(null); cloudApi?.sync(); }, fail),
@@ -310,35 +310,35 @@ function App() {
   // Nudge through the phone's share sheet (KakaoTalk etc.); no push server needed. Else copy the text.
   const poke = () => {
     buzz('tap');
-    const text = `${partnerName}! 오늘 ${partner.habit || '인증'} 아직이야 👉 우리 탑 무너진다 😱\n${location.origin}${location.pathname}`;
+    const text = tl`${partnerName}! 오늘 ${partner.habit || tl('인증')} 아직이야 👉 우리 탑 무너진다 😱` + `\n${location.origin}${location.pathname}`;
     if (navigator.share) navigator.share({ text }).catch((e) => e.name !== 'AbortError' && fail(e));
-    else navigator.clipboard?.writeText(text).then(() => setToast('문구를 복사했어요 — 카톡에 붙여넣어 주세요'), fail);
+    else navigator.clipboard?.writeText(text).then(() => setToast(tl('문구를 복사했어요 — 카톡에 붙여넣어 주세요')), fail);
   };
-  const pokeBtn = coupled && !partnerDone && html`<button class="btn orange sm" onClick=${poke}>👉 콕 찌르기</button>`;
+  const pokeBtn = coupled && !partnerDone && html`<button class="btn orange sm" onClick=${poke}>${tl('👉 콕 찌르기')}</button>`;
   return html`
-    ${db === null && html`<div class="banner">저장소를 쓸 수 없어요 — 크롬에서 열어주세요</div>`}
+    ${db === null && html`<div class="banner">${tl('저장소를 쓸 수 없어요 — 크롬에서 열어주세요')}</div>`}
     <header class="hud">
       <div class="ttlbox">
         <b>${admin ? '🛠 ' : ''}${title}</b>
-        <span class="gold">${keys.length}/${TOWER_HEIGHT}층</span>
-        ${built > 0 && html`<button class="trophies" onClick=${() => setModal('shelf')} aria-label=${`완성한 탑 ${built}개 보기`}>🏰×${built}</button>`}
+        <span class="gold">${tl`${keys.length}/${TOWER_HEIGHT}층`}</span>
+        ${built > 0 && html`<button class="trophies" onClick=${() => setModal('shelf')} aria-label=${tl`완성한 탑 ${built}개 보기`}>🏰×${built}</button>`}
       </div>
       <span>
         <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => { sfx('tap'); setModal('bag'); }}
-          aria-label=${unopened.length ? `가방 · 안 연 상자 ${unopened.length}개` : '가방'}>${unopened.length ? `🎁${unopened.length}` : '가방'}</button>
-        <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('calendar')}>달력</button>
-        <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('album')}>앨범</button>
-        <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => setModal('setup')}>설정</button>
-        <button class="btn blue sm mute" aria-pressed=${!muted} aria-label=${muted ? '소리 켜기' : '소리 끄기'}
+          aria-label=${unopened.length ? tl`가방 · 안 연 상자 ${unopened.length}개` : tl('가방')}>${unopened.length ? `🎁${unopened.length}` : tl('가방')}</button>
+        <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('calendar')}>${tl('달력')}</button>
+        <button class="btn blue sm" disabled=${!state.loaded} onClick=${() => setModal('album')}>${tl('앨범')}</button>
+        <button class="btn blue sm" disabled=${!ready || !state.habit} onClick=${() => setModal('setup')}>${tl('설정')}</button>
+        <button class="btn blue sm mute" aria-pressed=${!muted} aria-label=${muted ? tl('소리 켜기') : tl('소리 끄기')}
           onClick=${() => setPrefs({ bgm: muted, sfx: muted })}>${muted ? '🔇' : '🔊'}</button>
       </span>
     </header>
-    ${coupled && html`<nav class="tabs" role="tablist">${[['me', '나'], ['couple', '❤ 커플'], ['partner', partnerName]].map(([id, label]) => html`
+    ${coupled && html`<nav class="tabs" role="tablist">${[['me', tl('나')], ['couple', tl('❤ 커플')], ['partner', partnerName]].map(([id, label]) => html`
       <button key=${id} role="tab" aria-selected=${view === id} disabled=${!!anim || !!fall}
         onClick=${() => { setTab(id); cloudApi?.sync({ lazy: true }); }}>${label}</button>`)}</nav>`}
     ${view === 'couple' && cloud?.coupleReward && html`<div class="reward">${keys.length === TOWER_HEIGHT
-      ? `🎉 보상 받을 시간! ${cloud.coupleReward}`
-      : `🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
+      ? tl`🎉 보상 받을 시간! ${cloud.coupleReward}`
+      : tl`🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
     <main class="stage">
       <div class="world">
         ${state.habit && html`<${Scene} key=${view}
@@ -353,14 +353,14 @@ function App() {
     <footer class="bar">
       ${!state.habit ? null
         : view === 'partner'
-          ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? '오늘 완료 ✓' : '오늘 아직'}</span>${pokeBtn}`
+          ? html`<span class=${partnerDone ? 'done' : 'muted'}>${partnerName} ${partnerDone ? tl('오늘 완료 ✓') : tl('오늘 아직')}</span>${pokeBtn}`
           : doneToday
-            ? html`<span class="done">오늘 완료 ✓</span>${camera('다시 찍기', 'blue sm')}${!busy && camera('🖼️ 갤러리', 'blue sm', null)}${view === 'couple' && pokeBtn}`
-            : html`${camera('📷 인증하고 쌓기', 'green big')}${!busy && camera('🖼️ 갤러리', 'blue sm', null)}${view === 'couple' && pokeBtn}`}
+            ? html`<span class="done">${tl('오늘 완료 ✓')}</span>${camera(tl('다시 찍기'), 'blue sm')}${!busy && camera(tl('🖼️ 갤러리'), 'blue sm', null)}${view === 'couple' && pokeBtn}`
+            : html`${camera(tl('📷 인증하고 쌓기'), 'green big')}${!busy && camera(tl('🖼️ 갤러리'), 'blue sm', null)}${view === 'couple' && pokeBtn}`}
       ${cloud?.userId && cloud.syncFailed
-        ? html`<button class="btn danger sm" onClick=${() => cloudApi.sync()}>⚠ 동기화 안 됨 · 다시</button>`
-        : pending > 0 && html`<span class="muted small">☁ 올릴 기록 ${pending}개</span>`}
-      ${state.habit && !assets && db !== undefined && html`<span class="muted small">사진 저장을 쓸 수 없어요</span>`}
+        ? html`<button class="btn danger sm" onClick=${() => cloudApi.sync()}>${tl('⚠ 동기화 안 됨 · 다시')}</button>`
+        : pending > 0 && html`<span class="muted small">${tl`☁ 올릴 기록 ${pending}개`}</span>`}
+      ${state.habit && !assets && db !== undefined && html`<span class="muted small">${tl('사진 저장을 쓸 수 없어요')}</span>`}
     </footer>
     ${(needSetup || modal === 'setup') && html`<${Setup} habit=${state.habit} onClose=${() => setModal(null)} admin=${isAdminUser ? { ...adminPrefs, set: setAdmin } : null}
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
@@ -401,16 +401,16 @@ function App() {
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal === 'calendar' && html`<${Calendar} view=${view} mine=${state.days} theirs=${pdays} couple=${cdays} today=${{ me: today, couple: ctoday, partner: ptoday }[view]}
-      names=${[cloud?.name || '나', partnerName]} onPick=${(k) => setModal({ key: k, n: 0 })} onClose=${() => setModal(null)} />`}
+      names=${[cloud?.name || tl('나'), partnerName]} onPick=${(k) => setModal({ key: k, n: 0 })} onClose=${() => setModal(null)} />`}
     ${modal === 'shelf' && html`<${Shelf} built=${builtTowers} days=${days} onSaveFile=${onSaveFile}
       onCollage=${(t) => import('./collage.js')
         .then((m) => m.makeCollage({ keys: t.keys, days, title: view === 'couple' ? title : `🏰 ${title}`, brick: look.brick,
-          sub: `${view === 'couple' ? `${cloud?.name || '나'} ❤ ${partnerName} · ` : ''}${t.keys[0]} ~ ${t.keys.at(-1)}` }))
+          sub: `${view === 'couple' ? `${cloud?.name || tl('나')} ❤ ${partnerName} · ` : ''}${t.keys[0]} ~ ${t.keys.at(-1)}` }))
         .then((blob) => new File([blob], `habit-tower-${t.keys[0]}.jpg`, { type: 'image/jpeg' }))
         .catch((e) => { fail(e); throw e; })}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
     ${modal?.key && html`<${Photo} day=${{ key: modal.key, ...days[modal.key] }} n=${modal.n}
-      names=${[cloud?.name || '나', partnerName]} onClose=${() => setModal(null)}
+      names=${[cloud?.name || tl('나'), partnerName]} onClose=${() => setModal(null)}
       mine=${view !== 'partner' && {
         note: state.days[modal.key]?.note ?? '', got: got[modal.key],
         onSave: (t) => actions.setNote(modal.key, t).then(() => cloudApi?.sync(), fail),
@@ -420,7 +420,7 @@ function App() {
         onReact: (e) => cloudApi.react(modal.key, e).catch(fail),
       }} />`}
     ${fall && html`<${FallNotice} floors=${fall.keys.length} onOk=${ackFall}
-      title=${fall.scope === 'couple' ? '우리 탑이 무너졌어요' : undefined} shield=${shield} />`}
+      title=${fall.scope === 'couple' ? tl('우리 탑이 무너졌어요') : undefined} shield=${shield} />`}
     ${toast && html`<div class="toast" role="alert">${toast}</div>`}
   `;
 }

@@ -1,5 +1,6 @@
 import { html } from './h.js';
 import { MONSTERS } from '../catalog.js';
+import { tl } from '../i18n.js';
 
 // Original 16x16 pixel monsters, facing left toward the character. '.' = transparent.
 const ART = {
@@ -314,7 +315,7 @@ export function Monster({ id, px = 2, shiny = false, face = null, acc = null }) 
   const art = ACC_ART[acc], [cx, top] = art ? headTop(m.base) : [0, 0];
   const ox = cx - Math.floor((art?.[0].length ?? 0) / 2), oy = top - (art?.length ?? 0) + 1;
   return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16" overflow="visible"
-    shape-rendering="crispEdges" role="img" aria-label=${(shiny ? '이로치 ' : '') + m.name}>${
+    shape-rendering="crispEdges" role="img" aria-label=${(shiny ? tl('이로치 ') : '') + m.name}>${
     cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}${
     art && accCells(acc).map(([x, y, fill]) => html`<rect x=${ox + x} y=${oy + y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
 }
