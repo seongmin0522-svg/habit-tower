@@ -6,6 +6,7 @@ import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions, pullsToPush, pullsToRestore } from './logic.js';
 import { mergePets } from './pet.js';
 import { mergeClears } from './maze.js';
+import { LANG } from './i18n.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
@@ -39,7 +40,7 @@ const b64url = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/
 // local: what openLocal() returns. onChange(state) on every change, where state =
 // { email, userId, coupleId, code, name, mine, coupleTitle, coupleReward, coupleSkin, got, gave,
 //   battles: [{challenger, defender, winner, at}],
-//   partner: {id, name, character, habit, coupleCut, look, pets: {<monsterId>: {gained, lost, wins}}} | null, partnerDays, synced, syncFailed }.
+//   partner: {id, name, character, habit, coupleCut, look, tz, pets: {<monsterId>: {gained, lost, wins}}} | null, partnerDays, synced, syncFailed }.
 export async function openCloud(local, onChange) {
   if (!SUPABASE_URL || !SUPABASE_KEY) return null;
   const { db, assets, cloud: kv } = local;
@@ -101,7 +102,7 @@ export async function openCloud(local, onChange) {
       const sub = await (await pushReg())?.pushManager.getSubscription();
       if (sub) await saveSub(sb, sub).catch((e) => report('push resave: ' + e.message)); // never blocks the sync
     }
-    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut, look, room'));
+    const profs = must(await sb.from('profiles').select('id, name, character, habit, couple_id, couple_cut, look, room, tz'));
     const meRow = profs.find((p) => p.id === uid);
     const partner = profs.find((p) => p.id !== uid) ?? null;
 
@@ -177,6 +178,7 @@ export async function openCloud(local, onChange) {
     if (habit) {
       must(await sb.from('profiles').upsert({
         id: uid, name, character: habit.character, habit: habit.title, couple_cut: habit.cutCouple ?? null, look: habit.look ?? {}, room: room ?? {},
+        tz: Intl.DateTimeFormat().resolvedOptions().timeZone, lang: LANG,
         updated_at: new Date().toISOString(),
       }));
     }
@@ -207,7 +209,7 @@ export async function openCloud(local, onChange) {
       me: { email: s.user.email, userId: uid, coupleId: meRow?.couple_id ?? null, code: meRow?.couple_id && !partner ? st.me.code ?? null : null, name, mine,
         coupleTitle: info.title ?? '', coupleReward: info.reward ?? '', coupleSkin: info.skin ?? {}, got, gave, battles },
       partner: partner && { id: partner.id, name: partner.name, character: partner.character, habit: partner.habit, coupleCut: partner.couple_cut,
-        look: partner.look ?? {}, room: partner.room ?? {}, pets: partnerPets },
+        look: partner.look ?? {}, room: partner.room ?? {}, tz: partner.tz ?? null, pets: partnerPets },
       partnerDays,
       synced: true,
       syncFailed: false,
