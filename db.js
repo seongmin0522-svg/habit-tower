@@ -5,6 +5,7 @@ import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from 
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
 import { dayFood, useFood, grant, wakeLoss, accsUnlocked, tasteOf, countBattle, DAILY } from './pet.js';
+import { tl } from './i18n.js';
 
 const params = new URLSearchParams(location.search);
 const DEV = params.has('dev');
@@ -94,7 +95,7 @@ export function subscribe(db, onState, onError) {
 export function makeActions(db, assets, getState) {
   const ready = () => {
     const s = getState();
-    if (!s?.loaded) throw new Error('데이터를 아직 불러오는 중이에요');
+    if (!s?.loaded) throw new Error(tl('데이터를 아직 불러오는 중이에요'));
     return s;
   };
   // Pet writes run one after another and read the docs themselves (not React state), so quick taps can't
@@ -102,14 +103,14 @@ export function makeActions(db, assets, getState) {
   let petWrites = Promise.resolve();
   const petWrite = (f) => { const run = petWrites.then(f); petWrites = run.catch(() => {}); return run; };
   const data = async (ref) => { const s = await ref.get(); return s.exists ? s.data() : {}; };
-  const checkPet = (id) => { if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요'); };
+  const checkPet = (id) => { if (!ITEMS.get(id)?.base) throw new Error(tl('없는 몬스터예요')); };
   const rnd = (k) => [...crypto.getRandomValues(new Uint32Array(k))].map((n) => n / 2 ** 32);
   const today = async () => { const ref = db.doc(`play/${localDay()}`); return [ref, dayFood(await data(ref), rnd(DAILY.food))]; };
   return {
     async setHabit({ title, character }) {
       const s = ready();
       const t = String(title ?? '').trim().slice(0, MAX_TITLE);
-      if (!t) throw new Error('습관 이름을 적어주세요');
+      if (!t) throw new Error(tl('습관 이름을 적어주세요'));
       const c = CHARACTERS.some((x) => x.id === character) ? character : CHARACTERS[0].id;
       await db.doc('habit/me').set({ seenFall: null, ...s.habit, title: t, character: c });
     },
@@ -119,7 +120,7 @@ export function makeActions(db, assets, getState) {
     // onUploaded fires just before the db write, whose snapshot adds the block.
     async certify(file, onUploaded) {
       const s = ready();
-      if (!assets) throw new Error('사진 저장을 쓸 수 없어요');
+      if (!assets) throw new Error(tl('사진 저장을 쓸 수 없어요'));
       const key = localDay();
       const old = s.days[key]?.assetId;
       const { id } = await assets.upload(await shrink(file), { type: 'image/jpeg' });
@@ -137,7 +138,7 @@ export function makeActions(db, assets, getState) {
 
     async setNote(key, note) {
       const s = ready();
-      if (!s.days[key]?.assetId) throw new Error('인증한 날에만 남길 수 있어요');
+      if (!s.days[key]?.assetId) throw new Error(tl('인증한 날에만 남길 수 있어요'));
       await db.doc(`days/${key}`).set({ ...s.days[key], note: String(note ?? '').trim().slice(0, 40) });
     },
 
@@ -145,7 +146,7 @@ export function makeActions(db, assets, getState) {
     async useShield(key) {
       const s = ready();
       if (s.days[key]?.assetId || s.days[key]?.shield) return;
-      if (!shieldsLeft(s.days, key)) throw new Error('이번 달 방어권을 이미 썼어요');
+      if (!shieldsLeft(s.days, key)) throw new Error(tl('이번 달 방어권을 이미 썼어요'));
       await db.doc(`days/${key}`).set({ shield: true, at: new Date().toISOString() });
     },
 
@@ -154,7 +155,7 @@ export function makeActions(db, assets, getState) {
     async openBox(box, cdays = {}) {
       const s = ready();
       if (s.pulls[box]) return s.pulls[box];
-      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets, clears: Object.keys(s.maze).length }).includes(box)) throw new Error('열 수 있는 상자가 아니에요');
+      if (!boxes({ days: s.days, cdays, pulls: s.pulls, from: rewardsFrom, pets: s.pets, clears: Object.keys(s.maze).length }).includes(box)) throw new Error(tl('열 수 있는 상자가 아니에요'));
       const r = rnd(3);
       const { item, shiny } = roll(box.startsWith('c:') ? COUPLE_POOL : POOL, r);
       const doc = { item: item.id, shiny, dup: owned(s.pulls, s.pets).has(item.id + (shiny ? '*' : '')), at: new Date().toISOString() };
@@ -172,7 +173,7 @@ export function makeActions(db, assets, getState) {
           : k === 'acc' ? accsUnlocked(s.pets).has(v)
           : k === 'monster' ? have.has(v + (patch.shiny ? '*' : ''))
           : have.has(v) && ITEMS.get(v)?.kind === k && !ITEMS.get(v).couple;
-        if (!ok) throw new Error('아직 없는 아이템이에요');
+        if (!ok) throw new Error(tl('아직 없는 아이템이에요'));
       }
       await db.doc('habit/me').set({ ...s.habit, look: { ...s.habit?.look, ...patch } });
     },
@@ -195,7 +196,7 @@ export function makeActions(db, assets, getState) {
       ready();
       return petWrite(async () => {
         const [ref, play] = await today(), next = useFood(play, kind);
-        if (!next) throw new Error('그 먹이는 오늘 다 줬어요');
+        if (!next) throw new Error(tl('그 먹이는 오늘 다 줬어요'));
         await ref.set(next);
       });
     },
@@ -235,7 +236,7 @@ export function makeActions(db, assets, getState) {
     // Resolves to {caught, dup}.
     async capture(id, shiny) {
       const s = ready();
-      if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요');
+      if (!ITEMS.get(id)?.base) throw new Error(tl('없는 몬스터예요'));
       const box = `w:${localDay()}`;
       if (s.pulls[box]) return { caught: false };
       const dup = owned(s.pulls, s.pets).has(id + (shiny ? '*' : ''));
@@ -246,13 +247,13 @@ export function makeActions(db, assets, getState) {
     // Room shop: buy with coins (shop.js: derived from records minus purchases), then place in the room.
     async buy(id) {
       const s = ready();
-      if (!canBuy({ days: s.days, maze: s.maze, pets: s.pets, pulls: s.pulls }, s.shop, id)) throw new Error('코인이 모자라거나 이미 있어요');
+      if (!canBuy({ days: s.days, maze: s.maze, pets: s.pets, pulls: s.pulls }, s.shop, id)) throw new Error(tl('코인이 모자라거나 이미 있어요'));
       await db.doc(`shop/${id}`).set({ at: new Date().toISOString() });
     },
     // room/me = {slots: [8 furniture ids or null], building, theme}. where: 'slot' | 'building' | 'theme'.
     async place(where, i, id) {
       const s = ready();
-      if (!placeOk(s.shop, where, i, id)) throw new Error('놓을 수 없어요');
+      if (!placeOk(s.shop, where, i, id)) throw new Error(tl('놓을 수 없어요'));
       await db.doc('room/me').set(placeIn(s.room, where, i, id));
     },
 
@@ -260,7 +261,7 @@ export function makeActions(db, assets, getState) {
     // run later only improves the time. Resolves to {first, best}.
     async clearMaze(ms) {
       ready();
-      if (!(ms > 0)) throw new Error('기록이 이상해요');
+      if (!(ms > 0)) throw new Error(tl('기록이 이상해요'));
       const ref = db.doc(`maze/${localDay()}`), old = await data(ref), first = !old.ms;
       if (first || ms < old.ms) await ref.set({ ms: Math.round(ms), at: new Date().toISOString() });
       return { first, best: Math.min(ms, old.ms ?? ms) };
@@ -311,5 +312,5 @@ async function seedDev(db, kind) {
     for (const [i, it] of got.entries()) await db.doc(`pulls/b:${1000 + i}`).set({ item: it.id, shiny: i % 7 === 0 && !!it.base, dup: false, at: '' });
     for (let i = 0; i < 7; i++) await db.doc(`pulls/b:${2000 + i}`).set({ item: 'snail-green', shiny: false, dup: true, at: '' });
   }
-  await db.doc('habit/me').set({ title: '운동 30분', character: 'warrior', seenFall: null });
+  await db.doc('habit/me').set({ title: tl('운동 30분'), character: 'warrior', seenFall: null });
 }

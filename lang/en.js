@@ -136,6 +136,17 @@ export const EN = {
   // ui/monsters.js, ui/scene.js
   '이로치 ': 'Shiny ', '+1층': '+1 floor', '{0}층 · {1} 인증 사진 보기': 'Floor {0} · see the {1} check-in photo',
   '오늘 반쪽 벽돌 · 상대 인증 기다리는 중': 'Today’s half brick · waiting for your partner',
+  // db.js, cloud.js, localdb.js, image.js, collage.js
+  '데이터를 아직 불러오는 중이에요': 'Still loading your data', '없는 몬스터예요': 'That monster doesn’t exist', '습관 이름을 적어주세요': 'Please name your habit',
+  '인증한 날에만 남길 수 있어요': 'You can only leave a note on a check-in day', '이번 달 방어권을 이미 썼어요': 'You’ve already used this month’s shield',
+  '열 수 있는 상자가 아니에요': 'That box can’t be opened', '아직 없는 아이템이에요': 'You don’t have that item yet', '그 먹이는 오늘 다 줬어요': 'That snack is all gone for today',
+  '코인이 모자라거나 이미 있어요': 'Not enough coins, or you already have it', '놓을 수 없어요': 'Can’t place that', '기록이 이상해요': 'That record looks wrong',
+  '운동 30분': 'Work out 30 min', '초대코드를 찾을 수 없어요': 'Invite code not found', '이미 두 명이 연결된 코드예요': 'That code already has two people',
+  '이미 커플로 연결돼 있어요': 'You’re already in a couple', '코드가 틀렸거나 만료됐어요': 'The code is wrong or expired', '잠시 후 다시 시도해주세요': 'Please try again in a moment',
+  '인터넷 연결을 확인해주세요': 'Check your internet connection', '알림이 허용되지 않았어요': 'Notifications weren’t allowed',
+  '클라우드 사진을 지우지 못했어요': 'Couldn’t delete the cloud photos', '백업 파일을 읽을 수 없어요': 'Can’t read the backup file',
+  '해빗 타워 백업 파일이 아니에요': 'That’s not a Habit Tower backup', '사진을 읽을 수 없어요 (JPG/PNG로 찍어주세요)': 'Can’t read the photo (use JPG/PNG)',
+  '사진 변환 실패': 'Couldn’t convert the photo', '콜라주를 만들지 못했어요': 'Couldn’t make the collage',
   // catalog.js
   '일반': 'Common', '레어': 'Rare', '희귀': 'Epic', '전설': 'Legendary',
   '노을': 'Sunset', '흐린 날': 'Cloudy Day', '밤하늘': 'Night Sky', '벚꽃': 'Cherry Blossoms', '가을': 'Autumn',

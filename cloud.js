@@ -6,18 +6,18 @@ import { report } from './report.js';
 import { photoPath, toUpload, toRestore, shieldsToPush, notesToPush, splitReactions, pullsToPush, pullsToRestore } from './logic.js';
 import { mergePets } from './pet.js';
 import { mergeClears } from './maze.js';
-import { LANG } from './i18n.js';
+import { LANG, tl } from './i18n.js';
 
 const SDK = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/+esm';
 const BUCKET = 'photos';
 
 const MSG = [
-  ['invite code not found', '초대코드를 찾을 수 없어요'],
-  ['couple is full', '이미 두 명이 연결된 코드예요'],
-  ['already in a couple', '이미 커플로 연결돼 있어요'],
-  ['expired or is invalid', '코드가 틀렸거나 만료됐어요'],
-  ['rate limit', '잠시 후 다시 시도해주세요'],
-  ['Failed to fetch', '인터넷 연결을 확인해주세요'],
+  ['invite code not found', tl('초대코드를 찾을 수 없어요')],
+  ['couple is full', tl('이미 두 명이 연결된 코드예요')],
+  ['already in a couple', tl('이미 커플로 연결돼 있어요')],
+  ['expired or is invalid', tl('코드가 틀렸거나 만료됐어요')],
+  ['rate limit', tl('잠시 후 다시 시도해주세요')],
+  ['Failed to fetch', tl('인터넷 연결을 확인해주세요')],
 ];
 const friendly = (e) => new Error(MSG.find(([k]) => e?.message?.includes(k))?.[1] ?? e?.message ?? String(e));
 const must = ({ data, error }) => { if (error) throw error; return data; };
@@ -248,7 +248,7 @@ export async function openCloud(local, onChange) {
     },
     // Permission first: an iPhone only asks while the tap is still "fresh".
     pushOn: call(async () => {
-      if ((await Notification.requestPermission()) !== 'granted') throw new Error('알림이 허용되지 않았어요');
+      if ((await Notification.requestPermission()) !== 'granted') throw new Error(tl('알림이 허용되지 않았어요'));
       const reg = await pushReg();
       const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64url(VAPID_PUBLIC) });
       await saveSub(await client(), sub);
@@ -322,7 +322,7 @@ export async function openCloud(local, onChange) {
         const files = must(await bucket.list(uid, { limit: 1000 }));
         if (!files.length) break;
         const gone = must(await bucket.remove(files.map((f) => `${uid}/${f.name}`)));
-        if (!gone.length) throw new Error('클라우드 사진을 지우지 못했어요'); // a silent refusal would loop forever
+        if (!gone.length) throw new Error(tl('클라우드 사진을 지우지 못했어요')); // a silent refusal would loop forever
       }
       must(await sb.from('days').delete().eq('user_id', uid));
       must(await sb.from('pulls').delete().eq('user_id', uid));

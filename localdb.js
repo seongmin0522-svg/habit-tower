@@ -3,6 +3,7 @@
 import { createDevDb } from './devdb.js';
 import { validBackup } from './logic.js';
 import { shrink } from './image.js';
+import { tl } from './i18n.js';
 
 // Brick-size copy of every photo ('t:<id>'; partner ones 'pt:<path>' in the cloud store): a 30-floor tower
 // would otherwise decode 30-60 full photos at once. 360px = 3x the 120px brick. A photo that won't decode goes without.
@@ -109,8 +110,8 @@ export async function openLocal(urls) {
     // Merges into what's on the phone: same day/photo ids are overwritten, nothing is deleted.
     async restore(file) {
       let data;
-      try { data = JSON.parse(await file.text()); } catch { throw new Error('백업 파일을 읽을 수 없어요'); }
-      if (!validBackup(data)) throw new Error('해빗 타워 백업 파일이 아니에요');
+      try { data = JSON.parse(await file.text()); } catch { throw new Error(tl('백업 파일을 읽을 수 없어요')); }
+      if (!validBackup(data)) throw new Error(tl('해빗 타워 백업 파일이 아니에요'));
       for (const [id, url] of data.photos) await assets.put(id, await (await fetch(url)).blob());
       for (const [path, body] of data.docs) await doc(path).set(body);
       return { days: data.docs.filter(([p]) => p.startsWith('days/')).length, photos: data.photos.length };

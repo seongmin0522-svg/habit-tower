@@ -2,6 +2,7 @@
 // 5 columns, floor 1 top-left, each photo framed in its floor's brick color; a couple floor is two photos side by side.
 import { photoUrl } from './db.js';
 import { brickColor } from './ui/scene.js';
+import { tl } from './i18n.js';
 
 const COLS = 5, CELL = 192, GAP = 12, PAD = 36, HEAD = 150, FOOT = 64;
 const W = PAD * 2 + COLS * CELL + (COLS - 1) * GAP; // 1080
@@ -54,6 +55,6 @@ export async function makeCollage({ keys, days, title, sub, brick }) {
   });
   ctx.fillStyle = '#8fa3c7';
   ctx.font = '22px Galmuri11';
-  ctx.fillText('해빗 타워', W / 2, c.height - 24);
-  return new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('콜라주를 만들지 못했어요'))), 'image/jpeg', 0.9));
+  ctx.fillText(tl('해빗 타워'), W / 2, c.height - 24);
+  return new Promise((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error(tl('콜라주를 만들지 못했어요')))), 'image/jpeg', 0.9));
 }
