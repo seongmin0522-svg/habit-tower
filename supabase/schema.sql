@@ -357,3 +357,67 @@ create policy "purchases own" on public.purchases for all to authenticated
 revoke all on public.purchases from anon;
 alter table public.profiles add column room jsonb not null default '{}'::jsonb check (pg_column_size(room) < 1000);
 grant insert (room), update (room) on public.profiles to authenticated;
+
+-- Global groundwork (2026-09-30): each user's time zone and language
+-- (spec: docs/superpowers/specs/2026-09-30-global-groundwork-design.md).
+alter table public.profiles
+  add column tz text not null default 'Asia/Seoul' check (char_length(tz) <= 64),
+  add column lang text not null default 'ko' check (lang in ('ko', 'en'));
+grant insert (tz, lang), update (tz, lang) on public.profiles to authenticated; -- profiles writes are column-granted
+
+-- A zone name Postgres doesn't know would make every local-time query fail: reset it to Seoul on write.
+create function public.profiles_tz_guard() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  perform pg_catalog.timezone(new.tz, pg_catalog.now());
+  return new;
+exception when others then
+  new.tz := 'Asia/Seoul';
+  return new;
+end $$;
+revoke execute on function public.profiles_tz_guard() from public, anon, authenticated;
+create trigger profiles_tz_guard before insert or update of tz on public.profiles
+  for each row execute function public.profiles_tz_guard();
+
+-- 9 pm reminders in each person's own time zone: the cron runs hourly and this picks the people at 21:xx local
+-- time with no row in days for their local today. moment: now() from the cron, a fixed time in tests.
+drop function public.remind_targets();
+create function public.remind_targets(moment timestamptz default pg_catalog.now())
+returns table (endpoint text, p256dh text, auth text, lang text)
+language sql stable security definer set search_path = '' as $$
+  select s.endpoint, s.p256dh, s.auth, coalesce(p.lang, 'ko')
+  from public.push_subs s
+  left join public.profiles p on p.id = s.user_id
+  cross join lateral (select moment at time zone coalesce(p.tz, 'Asia/Seoul') as lt) l
+  where extract(hour from l.lt) = 21
+    and not exists (select 1 from public.days d where d.user_id = s.user_id and d.day = l.lt::date)
+$$;
+revoke execute on function public.remind_targets(timestamptz) from public, anon, authenticated;
+grant execute on function public.remind_targets(timestamptz) to service_role;
+
+-- Hourly now (was once at 12:00 UTC = 21:00 KST); scheduling the same name replaces the job.
+select cron.schedule('habit-remind', '0 * * * *', $$
+  select net.http_post(
+    url := 'https://bmghacmswvmrhfiwddie.supabase.co/functions/v1/remind',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
+    body := '{}'::jsonb,
+    timeout_milliseconds := 10000)
+$$);
+
+-- Partner push: "today" is the uploader's local today, and the day goes along so the function can tell
+-- "couple brick done" (my partner has that day too) from a nudge.
+create or replace function public.notify_partner() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if new.photo_path is not null and new.day = (now() at time zone
+      coalesce((select tz from public.profiles where id = new.user_id), 'Asia/Seoul'))::date then
+    perform net.http_post(
+      url := 'https://bmghacmswvmrhfiwddie.supabase.co/functions/v1/remind',
+      headers := jsonb_build_object('Content-Type', 'application/json',
+        'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'cron_secret')),
+      body := jsonb_build_object('partner_of', new.user_id, 'day', new.day),
+      timeout_milliseconds := 10000);
+  end if;
+  return null;
+end $$;
