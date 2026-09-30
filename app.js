@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { localDay, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
+import { localDay, coupleToday, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS, SHOP } from './catalog.js';
 import { balance, placeIn } from './shop.js';
@@ -36,6 +36,7 @@ function App() {
   const [assets, setAssets] = useState(null);
   const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, shop: {}, room: null, loaded: false });
   const [today, setToday] = useState(localDay());
+  const [partnerToday, setPartnerToday] = useState(null); // my partner's local day (their time zone), null when single
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
@@ -60,14 +61,17 @@ function App() {
     localStore().then((l) => l && import('./cloud.js').then((m) => m.openCloud(l, setCloud))).then(setCloudApi, () => {});
   }, []);
   useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
+  // Timers sleep while the phone app is in the background: re-check the date on return too.
+  // My partner's date follows their own time zone (couples can live apart).
+  const partnerTz = cloud?.partner?.tz ?? null;
   useEffect(() => {
-    // Timers sleep while the phone app is in the background: re-check the date on return too.
-    const tick = () => setToday(localDay());
+    const tick = () => { setToday(localDay()); setPartnerToday(partnerTz && localDay(new Date(), partnerTz)); };
+    tick();
     const t = setInterval(tick, 60000);
     const onShow = () => document.visibilityState === 'visible' && tick();
     document.addEventListener('visibilitychange', onShow);
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', onShow); };
-  }, []);
+  }, [partnerTz]);
   // Couple mode syncs on launch and whenever the app comes back to the front.
   useEffect(() => {
     if (!cloudApi) return;
@@ -94,12 +98,15 @@ function App() {
   const coupled = !!partner;
   const pdays = cloud?.partnerDays ?? EMPTY;
   const cdays = useMemo(() => coupleDays(state.days, pdays), [state.days, pdays]);
+  // The couple's day is the earlier of our two local days; my partner's own tower runs on their day.
+  const ctoday = coupleToday(today, partnerToday);
+  const ptoday = partnerToday ?? today;
   // Start-over bookmarks: mine only on my phone; the couple one is shared, and the later of the two wins.
   const cutMe = state.habit?.cutMe ?? null;
   const cutCouple = [state.habit?.cutCouple, partner?.coupleCut].filter(Boolean).sort().at(-1) ?? null;
   const views = useMemo(() => ({
-    me: towers(state.days, today, cutMe), couple: towers(cdays, today, cutCouple), partner: towers(pdays, today),
-  }), [state.days, cdays, pdays, today, cutMe, cutCouple]);
+    me: towers(state.days, today, cutMe), couple: towers(cdays, ctoday, cutCouple), partner: towers(pdays, ptoday),
+  }), [state.days, cdays, pdays, today, ctoday, ptoday, cutMe, cutCouple]);
   const view = coupled ? tab : 'me';
   const { current, past } = views[view];
   const days = { me: state.days, couple: cdays, partner: pdays }[view];
@@ -108,7 +115,7 @@ function App() {
   const badge = (k) => ({ me: { r: got[k] }, couple: { l: got[k], r: gave[k] }, partner: { r: gave[k] } })[view];
   const pending = cloud?.userId ? toUpload(state.days, cloud.mine ?? EMPTY, cloud.userId).length : 0;
   const keys = current?.keys ?? [];
-  const half = view === 'couple' ? halfBrick(state.days, pdays, today) : null;
+  const half = view === 'couple' ? halfBrick(state.days, pdays, ctoday) : null;
   // Finished towers, newest first; a tower topped today counts already.
   const builtTowers = [...(keys.length === TOWER_HEIGHT ? [current] : []), ...past.filter((t) => t.kind === 'built')];
   const built = builtTowers.length;
@@ -188,20 +195,20 @@ function App() {
   const fallChecked = useRef({});
   useEffect(() => {
     if (!state.loaded || !state.habit || anim || fall) return;
-    const check = (scope, d, seen, cut) => {
-      if (fallChecked.current[scope] === today) return null;
-      fallChecked.current[scope] = today;
-      const pf = pendingFall(d, today, seen, cut);
+    const check = (scope, d, seen, cut, day) => {
+      if (fallChecked.current[scope] === day) return null;
+      fallChecked.current[scope] = day;
+      const pf = pendingFall(d, day, seen, cut);
       return pf && { ...pf, scope };
     };
-    const pf = check('me', state.days, state.habit.seenFall, cutMe)
-      ?? (coupled && cloud.synced ? check('couple', cdays, state.habit.seenCoupleFall, cutCouple) : null);
+    const pf = check('me', state.days, state.habit.seenFall, cutMe, today)
+      ?? (coupled && cloud.synced ? check('couple', cdays, state.habit.seenCoupleFall, cutCouple, ctoday) : null);
     if (!pf) return;
     if (coupled) setTab(pf.scope);
     setAnim({ kind: 'fall', keys: pf.keys });
     buzz('fall');
     setTimeout(() => setFall(pf), FALL_MS);
-  }, [state.loaded, state.habit, today, anim, fall, coupled, cloud?.synced, cdays, cutCouple]);
+  }, [state.loaded, state.habit, today, ctoday, anim, fall, coupled, cloud?.synced, cdays, cutCouple]);
 
   // Export is two taps: building the file can take seconds with many photos, and the share sheet
   // only opens right after a tap (Safari is strict), so "저장하기" gets its own fresh tap.
@@ -231,7 +238,7 @@ function App() {
 
   // Shield offer on the collapse notice. The couple tower can only be saved with my shield when I'm the one who missed.
   const shield = (() => {
-    const gap = fall && shieldDay(fall, today);
+    const gap = fall && shieldDay(fall, fall.scope === 'couple' ? ctoday : today);
     if (!gap) return null;
     const missed = !state.days[gap]?.assetId && !state.days[gap]?.shield;
     if (fall.scope === 'couple' && !missed) return { waiting: partnerName };
@@ -299,7 +306,7 @@ function App() {
       if (history.state?.win) history.back(); // closed by ✕: drop the entry we pushed
     };
   }, [!!modal]);
-  const partnerDone = !!pdays[today]?.assetId;
+  const partnerDone = !!pdays[ptoday]?.assetId;
   // Nudge through the phone's share sheet (KakaoTalk etc.); no push server needed. Else copy the text.
   const poke = () => {
     buzz('tap');
@@ -393,7 +400,7 @@ function App() {
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}
     ${modal === 'album' && html`<${Album} current=${current} past=${past} days=${days}
       onPick=${(k, n) => setModal({ key: k, n })} onClose=${() => setModal(null)} />`}
-    ${modal === 'calendar' && html`<${Calendar} view=${view} mine=${state.days} theirs=${pdays} couple=${cdays} today=${today}
+    ${modal === 'calendar' && html`<${Calendar} view=${view} mine=${state.days} theirs=${pdays} couple=${cdays} today=${{ me: today, couple: ctoday, partner: ptoday }[view]}
       names=${[cloud?.name || '나', partnerName]} onPick=${(k) => setModal({ key: k, n: 0 })} onClose=${() => setModal(null)} />`}
     ${modal === 'shelf' && html`<${Shelf} built=${builtTowers} days=${days} onSaveFile=${onSaveFile}
       onCollage=${(t) => import('./collage.js')
