@@ -24,7 +24,7 @@ const key = ([x, y]) => y * SIZE + x;
 const same = (a, b) => a[0] === b[0] && a[1] === b[1];
 const gap = () => ENCOUNTER[0] + Math.random() * (ENCOUNTER[1] - ENCOUNTER[0]);
 
-// pet: {id, shiny, acc}; level: its battle level. day: today (KST). best: today's best ms or null.
+// pet: {id, shiny, acc}; level: its battle level. day: today (local). best: today's best ms or null.
 // capturedToday: a monster was already caught today. onCapture(id, shiny): resolves to {caught, dup, admin}.
 // onClear(ms): resolves to {first, best, admin}.
 export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear, onClose }) {

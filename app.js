@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
-import { todayKST, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
+import { localDay, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS, SHOP } from './catalog.js';
 import { balance, placeIn } from './shop.js';
@@ -32,7 +32,7 @@ function App() {
   const [db, setDb] = useState(undefined); // undefined = connecting, null = unavailable
   const [assets, setAssets] = useState(null);
   const [state, setState] = useState({ habit: null, days: {}, pulls: {}, pets: {}, play: {}, maze: {}, shop: {}, room: null, loaded: false });
-  const [today, setToday] = useState(todayKST());
+  const [today, setToday] = useState(localDay());
   const [toast, setToast] = useState('');
   const [anim, setAnim] = useState(null);   // null | {kind:'stack'} | {kind:'fall', keys}
   const [fall, setFall] = useState(null);   // the fallen tower whose notice is up, with scope 'me' | 'couple'
@@ -59,7 +59,7 @@ function App() {
   useEffect(() => db ? subscribe(db, setState, (e) => setToast('동기화 오류: ' + e.code)) : undefined, [db]);
   useEffect(() => {
     // Timers sleep while the phone app is in the background: re-check the date on return too.
-    const tick = () => setToday(todayKST());
+    const tick = () => setToday(localDay());
     const t = setInterval(tick, 60000);
     const onShow = () => document.visibilityState === 'visible' && tick();
     document.addEventListener('visibilitychange', onShow);

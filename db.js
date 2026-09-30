@@ -1,5 +1,5 @@
 // All persistence goes through here. The page never writes to db or assets directly.
-import { todayKST, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
+import { localDay, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
 import { canBuy, placeOk, placeIn } from './shop.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
@@ -104,7 +104,7 @@ export function makeActions(db, assets, getState) {
   const data = async (ref) => { const s = await ref.get(); return s.exists ? s.data() : {}; };
   const checkPet = (id) => { if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요'); };
   const rnd = (k) => [...crypto.getRandomValues(new Uint32Array(k))].map((n) => n / 2 ** 32);
-  const today = async () => { const ref = db.doc(`play/${todayKST()}`); return [ref, dayFood(await data(ref), rnd(DAILY.food))]; };
+  const today = async () => { const ref = db.doc(`play/${localDay()}`); return [ref, dayFood(await data(ref), rnd(DAILY.food))]; };
   return {
     async setHabit({ title, character }) {
       const s = ready();
@@ -120,7 +120,7 @@ export function makeActions(db, assets, getState) {
     async certify(file, onUploaded) {
       const s = ready();
       if (!assets) throw new Error('사진 저장을 쓸 수 없어요');
-      const key = todayKST();
+      const key = localDay();
       const old = s.days[key]?.assetId;
       const { id } = await assets.upload(await shrink(file), { type: 'image/jpeg' });
       onUploaded?.({ retake: !!old });
@@ -206,7 +206,7 @@ export function makeActions(db, assets, getState) {
       ready();
       checkPet(id);
       return petWrite(async () => {
-        const day = db.doc(`play/${todayKST()}`), g = n > 0 ? grant(await data(day), kind, n) : { n: 0 };
+        const day = db.doc(`play/${localDay()}`), g = n > 0 ? grant(await data(day), kind, n) : { n: 0 };
         const ref = db.doc(`pets/${id}`), p = await data(ref), taste = food && tasteOf(id, food);
         const learn = taste && p.tastes?.[food] !== taste;
         if (!g.n && !learn) return 0;
@@ -222,7 +222,7 @@ export function makeActions(db, assets, getState) {
       ready();
       checkPet(id);
       return petWrite(async () => {
-        const day = db.doc(`play/${todayKST()}`), c = countBattle(await data(day));
+        const day = db.doc(`play/${localDay()}`), c = countBattle(await data(day));
         if (c.counted) {
           await day.set(c.play);
           if (won) { const ref = db.doc(`pets/${id}`), p = await data(ref); await ref.set({ ...p, gained: p.gained ?? 0, lost: p.lost ?? 0, wins: (p.wins ?? 0) + 1 }); }
@@ -236,7 +236,7 @@ export function makeActions(db, assets, getState) {
     async capture(id, shiny) {
       const s = ready();
       if (!ITEMS.get(id)?.base) throw new Error('없는 몬스터예요');
-      const box = `w:${todayKST()}`;
+      const box = `w:${localDay()}`;
       if (s.pulls[box]) return { caught: false };
       const dup = owned(s.pulls, s.pets).has(id + (shiny ? '*' : ''));
       await db.doc(`pulls/${box}`).set({ item: id, shiny: !!shiny, dup, at: new Date().toISOString() });
@@ -261,7 +261,7 @@ export function makeActions(db, assets, getState) {
     async clearMaze(ms) {
       ready();
       if (!(ms > 0)) throw new Error('기록이 이상해요');
-      const ref = db.doc(`maze/${todayKST()}`), old = await data(ref), first = !old.ms;
+      const ref = db.doc(`maze/${localDay()}`), old = await data(ref), first = !old.ms;
       if (first || ms < old.ms) await ref.set({ ms: Math.round(ms), at: new Date().toISOString() });
       return { first, best: Math.min(ms, old.ms ?? ms) };
     },
@@ -296,7 +296,7 @@ const SEEDS = {
 async function seedDev(db, kind) {
   const spans = SEEDS[kind];
   if (!spans) return;
-  const today = todayKST();
+  const today = localDay();
   let n = 0;
   for (const [start, len] of spans) {
     for (let i = 0; i < len; i++) {

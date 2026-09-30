@@ -40,8 +40,8 @@ test('placeOk: furniture I own in a real slot, a building in the building spot, 
   assert.equal(placeOk(bought, 'theme', 0, 'cushion'), false);
 });
 
-test('skyAt: KST morning 6–10, day 10–17, sunset 17–20, night otherwise', () => {
-  const at = (h) => skyAt(new Date(Date.UTC(2026, 8, 29, (h - 9 + 24) % 24)));
+test('skyAt: local morning 6–10, day 10–17, sunset 17–20, night otherwise', () => {
+  const at = (h) => skyAt(new Date(Date.UTC(2026, 8, 29, (h - 9 + 24) % 24)), 'Asia/Seoul');
   assert.equal(at(7), 'morning');
   assert.equal(at(12), 'day');
   assert.equal(at(18), 'sunset');

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { todayKST, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
+import { localDay, coupleToday, addDays, runs, towers, pendingFall, validBackup, coupleDays, photoPath, toUpload, shieldDay, shieldsLeft, toRestore, shieldsToPush, notesToPush, splitReactions,
   monthGrid, addMonths, TOWER_HEIGHT, roll, owned, boxes, shards, titles, pullsToPush, pullsToRestore, halfBrick, glowAt, allOwned } from './logic.js';
 import { MONSTERS, SKINS, TITLES, ITEMS, STARTER, POOL, COUPLE_POOL, TIERS } from './catalog.js';
 
@@ -9,9 +9,19 @@ const run = (start, n) => Array.from({ length: n }, (_, i) => [addDays(start, i)
 const D = (...pairs) => Object.fromEntries(pairs.flat());
 const T = '2026-09-25';
 
-test('todayKST uses Asia/Seoul', () => {
-  assert.equal(todayKST(new Date('2026-09-23T14:59:00Z')), '2026-09-23');
-  assert.equal(todayKST(new Date('2026-09-23T15:00:00Z')), '2026-09-24');
+test('localDay: the given zone, else the phone', () => {
+  assert.equal(localDay(new Date('2026-09-23T14:59:00Z'), 'Asia/Seoul'), '2026-09-23');
+  assert.equal(localDay(new Date('2026-09-23T15:00:00Z'), 'Asia/Seoul'), '2026-09-24');
+  assert.equal(localDay(new Date('2026-09-24T06:59:00Z'), 'America/Los_Angeles'), '2026-09-23');
+  assert.equal(localDay(new Date('2026-09-24T07:00:00Z'), 'America/Los_Angeles'), '2026-09-24');
+  assert.equal(localDay(new Date('2026-09-23T15:00:00Z'), 'Not/AZone'), '2026-09-24'); // unknown name: Seoul
+  assert.equal(localDay(new Date(2026, 8, 23, 12)), '2026-09-23'); // the phone's own noon
+});
+
+test('coupleToday: the earlier of our two local days', () => {
+  assert.equal(coupleToday('2026-09-24', '2026-09-23'), '2026-09-23');
+  assert.equal(coupleToday('2026-09-23', '2026-09-24'), '2026-09-23');
+  assert.equal(coupleToday('2026-09-24', null), '2026-09-24');
 });
 
 test('runs splits consecutive days and ignores docs without a photo', () => {

@@ -63,7 +63,7 @@ export function judge(land, pet) {
   return THROW.bands.find(([, r]) => d <= r)?.[0] ?? 'miss';
 }
 
-// Daily limits (per phone, reset at KST midnight): food pieces, toy hearts, petting hearts.
+// Daily limits (per phone, reset at local midnight): food pieces, toy hearts, petting hearts.
 export const DAILY = { food: 5, toyHearts: 10, pet: 1, battles: 3 };
 
 // Levels: Lv n -> n+1 takes 10 + 5(n − 1) hearts, Lv 1–10 (270 hearts). The star gauge ends at 770 (shiny).
@@ -81,11 +81,13 @@ export function wakeLoss(hearts) {
   return Math.max(0, Math.min(WAKE_LOSS, hearts - floor));
 }
 
-export const hourKST = (now = new Date()) => (now.getUTCHours() + 9) % 24;
+// The hour (0–23) in tz, or on the phone's clock when tz is left out.
+export const localHour = (now = new Date(), tz = undefined) => (tz === undefined ? now.getHours()
+  : Number(new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: 'numeric', hourCycle: 'h23' }).format(now)));
 
-// 23:00–05:59 KST: the pet sleeps.
-export function isNight(now = new Date()) {
-  const h = hourKST(now);
+// 23:00–05:59 local time: the pet sleeps.
+export function isNight(now = new Date(), tz = undefined) {
+  const h = localHour(now, tz);
   return h >= 23 || h < 6;
 }
 

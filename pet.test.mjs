@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MONSTERS } from './catalog.js';
-import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, useFood, grant, heartsOf, accsUnlocked, mergePets, rollFood, dayFood, tasteOf, foodHearts, countBattle } from './pet.js';
+import { THROW, FOOD_HEARTS, flick, spinOf, at, landing, judge, levelOf, levelStart, wakeLoss, isNight, localHour, useFood, grant, heartsOf, accsUnlocked, mergePets, rollFood, dayFood, tasteOf, foodHearts, countBattle } from './pet.js';
 
 const near = (a, b, eps = 1e-9) => assert.ok(Math.abs(a - b) < eps, `${a} ≉ ${b}`);
 
@@ -91,11 +91,18 @@ test('wakeLoss: 3 hearts, never below the level start, never below 770 once reac
   assert.equal(wakeLoss(800), 3);
 });
 
-test('isNight: 23:00–05:59 KST', () => {
-  assert.equal(isNight(new Date('2026-09-29T14:00:00Z')), true);  // 23:00 KST
-  assert.equal(isNight(new Date('2026-09-29T20:59:00Z')), true);  // 05:59 KST
-  assert.equal(isNight(new Date('2026-09-29T21:00:00Z')), false); // 06:00 KST
-  assert.equal(isNight(new Date('2026-09-29T13:59:00Z')), false); // 22:59 KST
+test('isNight: 23:00–05:59 local time', () => {
+  assert.equal(isNight(new Date('2026-09-29T14:00:00Z'), 'Asia/Seoul'), true);  // 23:00
+  assert.equal(isNight(new Date('2026-09-29T20:59:00Z'), 'Asia/Seoul'), true);  // 05:59
+  assert.equal(isNight(new Date('2026-09-29T21:00:00Z'), 'Asia/Seoul'), false); // 06:00
+  assert.equal(isNight(new Date('2026-09-29T13:59:00Z'), 'Asia/Seoul'), false); // 22:59
+});
+
+test('localHour: the given zone, else the phone', () => {
+  assert.equal(localHour(new Date('2026-09-29T14:00:00Z'), 'Asia/Seoul'), 23);
+  assert.equal(localHour(new Date('2026-09-29T15:30:00Z'), 'Asia/Seoul'), 0);
+  assert.equal(localHour(new Date('2026-09-29T14:00:00Z'), 'America/Los_Angeles'), 7);
+  assert.equal(localHour(new Date(2026, 8, 29, 5, 10)), 5);
 });
 
 test('rollFood: apple/meat/fish evenly, cake under 0.1', () => {

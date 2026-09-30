@@ -1,13 +1,23 @@
 // Pure logic for Habit Tower. No DOM, no db — everything here is unit-tested.
-// Day keys are 'YYYY-MM-DD' strings in Korea time. A day counts when it has a photo.
+// Day keys are 'YYYY-MM-DD' strings in the phone's own time zone. A day counts when it has a photo.
 import { TIERS, SHINY_RATE, DUPS_PER_BONUS, STARTER, ITEMS, MONSTERS, SKINS } from './catalog.js';
 import { levelOf, heartsOf, STAR_FULL } from './pet.js';
 
-const kstFormat = new Intl.DateTimeFormat('en-CA', {
-  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit',
-});
-
-export const todayKST = (now = new Date()) => kstFormat.format(now);
+// One formatter per zone. An unknown zone name (my partner's phone may know zones mine doesn't) counts as Seoul.
+const dayFormats = new Map();
+function dayFormat(tz) {
+  if (!dayFormats.has(tz)) {
+    let f;
+    try { f = new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }); }
+    catch { f = dayFormat('Asia/Seoul'); }
+    dayFormats.set(tz, f);
+  }
+  return dayFormats.get(tz);
+}
+// Today's key in tz, or in the phone's own zone when tz is left out.
+export const localDay = (now = new Date(), tz = undefined) => dayFormat(tz).format(now);
+// A couple's today: the earlier of our two local days, so a day isn't over until it is over for both of us.
+export const coupleToday = (mine, theirs) => (theirs && theirs < mine ? theirs : mine);
 
 export function addDays(key, n) {
   const d = new Date(key + 'T00:00:00Z');
