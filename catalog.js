@@ -1,6 +1,7 @@
 // Everything a gacha box can hold, plus the titles. Pure data; logic.js decides, ui/ draws.
 // Monster art lives in ui/monsters.js per base shape; a variant here only recolors it (pal overrides).
 // Original designs and names — a classic side-scroller mood, never a copy of a real game's monsters.
+import { tl } from './i18n.js';
 
 export const REWARDS_FROM = '2026-09-27'; // boxes only for days certified from launch on
 export const SHINY_RATE = 0.03;
@@ -8,10 +9,10 @@ export const DUPS_PER_BONUS = 10;
 export const STARTER = 'snail-green';
 
 export const TIERS = [ // taps: how many taps a box of this tier takes to open
-  { id: 'common', name: '일반', weight: 70, color: '#a7a7a7', taps: 2 },
-  { id: 'rare', name: '레어', weight: 20, color: '#4a9ae8', taps: 5 },
-  { id: 'epic', name: '희귀', weight: 8, color: '#b05ae0', taps: 20 },
-  { id: 'legend', name: '전설', weight: 2, color: '#f2c230', taps: 30 },
+  { id: 'common', name: tl('일반'), weight: 70, color: '#a7a7a7', taps: 2 },
+  { id: 'rare', name: tl('레어'), weight: 20, color: '#4a9ae8', taps: 5 },
+  { id: 'epic', name: tl('희귀'), weight: 8, color: '#b05ae0', taps: 20 },
+  { id: 'legend', name: tl('전설'), weight: 2, color: '#f2c230', taps: 30 },
 ];
 
 // [base, tier, [[variant, name, pal], ...]]
@@ -179,42 +180,42 @@ const grass = (a, b) => `linear-gradient(${a},${b})`;
 
 // Background, brick and flag skins. couple: only from couple boxes, shown on the couple tower.
 const S = [
-  ['bg', 'sunset', '노을', 'common', { sky: 'linear-gradient(#f7a26b,#fbd3a0)', grass: grass('#9bcf7a', '#6fae4f') }],
-  ['bg', 'cloudy', '흐린 날', 'common', { sky: 'linear-gradient(#a8b4c0,#dde3e8)', grass: grass('#8ab87a', '#5f9050') }],
-  ['bg', 'night', '밤하늘', 'rare', { sky: `${stars()},linear-gradient(#0d1530,#2a3a6a)`, grass: grass('#2f4a2a', '#223820') }],
-  ['bg', 'blossom', '벚꽃', 'rare', { sky: `${stars('#ffb0c8')},linear-gradient(#ffd6e4,#fff0f5)`, grass: grass('#b8e0a0', '#88c070') }],
-  ['bg', 'autumn', '가을', 'rare', { sky: 'linear-gradient(#f0c080,#fbe6c0)', grass: grass('#d09040', '#a06a28') }],
-  ['bg', 'snow', '설원', 'epic', { sky: `${stars('#ffffff')},linear-gradient(#b8cfe6,#eef4fa)`, grass: grass('#ffffff', '#dfe8f0') }],
-  ['bg', 'aurora', '오로라', 'epic', { sky: 'linear-gradient(#0a1a2a,#1a6a5a 60%,#3ab08a)', grass: grass('#e8f0f8', '#b8c8d8') }],
-  ['bg', 'space', '우주', 'legend', { sky: `${stars()},radial-gradient(circle at 80% 15%,#ffe8a0 0 18px,transparent 19px),linear-gradient(#050510,#1a0a3a)`, grass: grass('#8a8a9a', '#5a5a6a') }],
-  ['brick', 'wood', '나무 벽돌', 'common', { colors: ['#b07a4a', '#8a5a30', '#d0a060'] }],
-  ['brick', 'moss', '이끼 벽돌', 'common', { colors: ['#7a9a6a', '#5a8a4a', '#a8c870'] }],
-  ['brick', 'ice', '얼음 벽돌', 'rare', { colors: ['#bfe6ff', '#8fd0ff', '#e8f8ff'] }],
-  ['brick', 'candy', '사탕 벽돌', 'rare', { colors: ['#ff9ec0', '#9ee0ff', '#fff09e'] }],
-  ['brick', 'crystal', '수정 벽돌', 'epic', { colors: ['#b88aff', '#8a5ad9', '#e0c8ff'] }],
-  ['brick', 'lava', '용암 벽돌', 'epic', { colors: ['#ff6a2a', '#c83a1a', '#ffc04a'] }],
-  ['brick', 'rainbow', '무지개 벽돌', 'legend', { colors: ['#ff5a5a', '#5ad06a', '#5a9aff'], rainbow: true }],
-  ['brick', 'diamond', '다이아 벽돌', 'legend', { colors: ['#e8f8ff', '#bfefff', '#ffffff'] }],
-  ['flag', 'white', '흰 깃발', 'common', { icon: '🏳️' }],
-  ['flag', 'carp', '잉어 깃발', 'common', { icon: '🎏' }],
-  ['flag', 'star', '별', 'rare', { icon: '⭐' }],
-  ['flag', 'pirate', '해적 깃발', 'rare', { icon: '🏴‍☠️' }],
-  ['flag', 'balloon', '풍선', 'rare', { icon: '🎈' }],
-  ['flag', 'trophy', '트로피', 'epic', { icon: '🏆' }],
-  ['flag', 'fire', '불꽃', 'epic', { icon: '🔥' }],
-  ['flag', 'crown', '왕관', 'legend', { icon: '👑' }],
+  ['bg', 'sunset', tl('노을'), 'common', { sky: 'linear-gradient(#f7a26b,#fbd3a0)', grass: grass('#9bcf7a', '#6fae4f') }],
+  ['bg', 'cloudy', tl('흐린 날'), 'common', { sky: 'linear-gradient(#a8b4c0,#dde3e8)', grass: grass('#8ab87a', '#5f9050') }],
+  ['bg', 'night', tl('밤하늘'), 'rare', { sky: `${stars()},linear-gradient(#0d1530,#2a3a6a)`, grass: grass('#2f4a2a', '#223820') }],
+  ['bg', 'blossom', tl('벚꽃'), 'rare', { sky: `${stars('#ffb0c8')},linear-gradient(#ffd6e4,#fff0f5)`, grass: grass('#b8e0a0', '#88c070') }],
+  ['bg', 'autumn', tl('가을'), 'rare', { sky: 'linear-gradient(#f0c080,#fbe6c0)', grass: grass('#d09040', '#a06a28') }],
+  ['bg', 'snow', tl('설원'), 'epic', { sky: `${stars('#ffffff')},linear-gradient(#b8cfe6,#eef4fa)`, grass: grass('#ffffff', '#dfe8f0') }],
+  ['bg', 'aurora', tl('오로라'), 'epic', { sky: 'linear-gradient(#0a1a2a,#1a6a5a 60%,#3ab08a)', grass: grass('#e8f0f8', '#b8c8d8') }],
+  ['bg', 'space', tl('우주'), 'legend', { sky: `${stars()},radial-gradient(circle at 80% 15%,#ffe8a0 0 18px,transparent 19px),linear-gradient(#050510,#1a0a3a)`, grass: grass('#8a8a9a', '#5a5a6a') }],
+  ['brick', 'wood', tl('나무 벽돌'), 'common', { colors: ['#b07a4a', '#8a5a30', '#d0a060'] }],
+  ['brick', 'moss', tl('이끼 벽돌'), 'common', { colors: ['#7a9a6a', '#5a8a4a', '#a8c870'] }],
+  ['brick', 'ice', tl('얼음 벽돌'), 'rare', { colors: ['#bfe6ff', '#8fd0ff', '#e8f8ff'] }],
+  ['brick', 'candy', tl('사탕 벽돌'), 'rare', { colors: ['#ff9ec0', '#9ee0ff', '#fff09e'] }],
+  ['brick', 'crystal', tl('수정 벽돌'), 'epic', { colors: ['#b88aff', '#8a5ad9', '#e0c8ff'] }],
+  ['brick', 'lava', tl('용암 벽돌'), 'epic', { colors: ['#ff6a2a', '#c83a1a', '#ffc04a'] }],
+  ['brick', 'rainbow', tl('무지개 벽돌'), 'legend', { colors: ['#ff5a5a', '#5ad06a', '#5a9aff'], rainbow: true }],
+  ['brick', 'diamond', tl('다이아 벽돌'), 'legend', { colors: ['#e8f8ff', '#bfefff', '#ffffff'] }],
+  ['flag', 'white', tl('흰 깃발'), 'common', { icon: '🏳️' }],
+  ['flag', 'carp', tl('잉어 깃발'), 'common', { icon: '🎏' }],
+  ['flag', 'star', tl('별'), 'rare', { icon: '⭐' }],
+  ['flag', 'pirate', tl('해적 깃발'), 'rare', { icon: '🏴‍☠️' }],
+  ['flag', 'balloon', tl('풍선'), 'rare', { icon: '🎈' }],
+  ['flag', 'trophy', tl('트로피'), 'epic', { icon: '🏆' }],
+  ['flag', 'fire', tl('불꽃'), 'epic', { icon: '🔥' }],
+  ['flag', 'crown', tl('왕관'), 'legend', { icon: '👑' }],
 ];
 const CS = [
-  ['brick', 'pink', '핑크 벽돌', 'common', { colors: ['#ffb0c8', '#ff8ab0', '#ffd0e0'] }],
-  ['flag', 'heart', '하트 깃발', 'common', { icon: '❤️' }],
-  ['bg', 'heart', '하트 하늘', 'common', { sky: `${stars('#ff8ab0')},linear-gradient(#ffc8dc,#e8d8ff)`, grass: grass('#b8e0a0', '#88c070') }],
-  ['flag', 'bouquet', '꽃다발', 'common', { icon: '💐' }],
-  ['brick', 'ribbon', '리본 벽돌', 'rare', { colors: ['#ff6a8a', '#ffffff', '#ff6a8a'] }],
-  ['bg', 'fireworks', '불꽃놀이', 'rare', { sky: `${stars('#ff6ab0')},${stars('#ffe14d')},linear-gradient(#120a2a,#3a1a5a)`, grass: grass('#2f4a2a', '#223820') }],
-  ['flag', 'letter', '러브레터', 'rare', { icon: '💌' }],
-  ['brick', 'gold', '커플 금벽돌', 'epic', { colors: ['#f2c230', '#ffd86a', '#fff0a0'] }],
-  ['bg', 'meteor', '별똥별', 'epic', { sky: `${stars()},linear-gradient(160deg,transparent 30%,#fff8 31%,transparent 33%),linear-gradient(#0a1030,#2a2060)`, grass: grass('#2f4a2a', '#223820') }],
-  ['flag', 'ring', '반지', 'legend', { icon: '💍' }],
+  ['brick', 'pink', tl('핑크 벽돌'), 'common', { colors: ['#ffb0c8', '#ff8ab0', '#ffd0e0'] }],
+  ['flag', 'heart', tl('하트 깃발'), 'common', { icon: '❤️' }],
+  ['bg', 'heart', tl('하트 하늘'), 'common', { sky: `${stars('#ff8ab0')},linear-gradient(#ffc8dc,#e8d8ff)`, grass: grass('#b8e0a0', '#88c070') }],
+  ['flag', 'bouquet', tl('꽃다발'), 'common', { icon: '💐' }],
+  ['brick', 'ribbon', tl('리본 벽돌'), 'rare', { colors: ['#ff6a8a', '#ffffff', '#ff6a8a'] }],
+  ['bg', 'fireworks', tl('불꽃놀이'), 'rare', { sky: `${stars('#ff6ab0')},${stars('#ffe14d')},linear-gradient(#120a2a,#3a1a5a)`, grass: grass('#2f4a2a', '#223820') }],
+  ['flag', 'letter', tl('러브레터'), 'rare', { icon: '💌' }],
+  ['brick', 'gold', tl('커플 금벽돌'), 'epic', { colors: ['#f2c230', '#ffd86a', '#fff0a0'] }],
+  ['bg', 'meteor', tl('별똥별'), 'epic', { sky: `${stars()},linear-gradient(160deg,transparent 30%,#fff8 31%,transparent 33%),linear-gradient(#0a1030,#2a2060)`, grass: grass('#2f4a2a', '#223820') }],
+  ['flag', 'ring', tl('반지'), 'legend', { icon: '💍' }],
 ];
 export const SKINS = [
   ...C.flatMap(([cls, vs]) => vs.map(([v, name, tier, pal]) => ({ id: `char-${cls}-${v}`, kind: 'char', cls, name, tier, pal }))),
@@ -226,25 +227,25 @@ export const ITEMS = new Map([...MONSTERS, ...SKINS].map((x) => [x.id, x]));
 // Brick colors never drop from boxes (도균님, 2026-09-28); ones already pulled stay wearable.
 export const POOL = [...MONSTERS, ...SKINS.filter((s) => !s.couple && s.kind !== 'brick')];
 export const COUPLE_POOL = SKINS.filter((s) => s.couple && s.kind !== 'brick');
-export const KIND_NAME = { char: '캐릭터 색', bg: '배경', brick: '벽돌', flag: '깃발' };
+export const KIND_NAME = { char: tl('캐릭터 색'), bg: tl('배경'), brick: tl('벽돌'), flag: tl('깃발') };
 
 // Pet food. Each monster base likes one of apple/meat/fish and hates the next one, rotating by the base's order in M,
 // so tastes spread evenly. Everyone likes cake (pet.js tasteOf).
 export const FOODS = [
-  { id: 'apple', icon: '🍎', name: '사과' },
-  { id: 'meat', icon: '🍖', name: '고기' },
-  { id: 'fish', icon: '🐟', name: '물고기' },
-  { id: 'cake', icon: '🍰', name: '케이크' },
+  { id: 'apple', icon: '🍎', name: tl('사과') },
+  { id: 'meat', icon: '🍖', name: tl('고기') },
+  { id: 'fish', icon: '🐟', name: tl('물고기') },
+  { id: 'cake', icon: '🍰', name: tl('케이크') },
 ];
 const PLAIN = ['apple', 'meat', 'fish'];
 export const TASTES = Object.fromEntries(M.map(([base], i) => [base, { like: PLAIN[i % 3], hate: PLAIN[(i + 1) % 3] }]));
 
 // Battles (spec: docs/superpowers/specs/2026-09-29-pet-battle-maze-design.md). Element skills are power 50.
 export const ELEMENTS = {
-  fire: { icon: '🔥', name: '불', skill: '불꽃 발사' }, water: { icon: '💧', name: '물', skill: '물대포' },
-  grass: { icon: '🌿', name: '풀', skill: '잎날 가르기' }, earth: { icon: '🪨', name: '땅', skill: '돌 던지기' },
-  ice: { icon: '❄️', name: '얼음', skill: '얼음 화살' }, dark: { icon: '🌙', name: '어둠', skill: '그림자 할퀴기' },
-  light: { icon: '✨', name: '빛', skill: '빛의 화살' },
+  fire: { icon: '🔥', name: tl('불'), skill: tl('불꽃 발사') }, water: { icon: '💧', name: tl('물'), skill: tl('물대포') },
+  grass: { icon: '🌿', name: tl('풀'), skill: tl('잎날 가르기') }, earth: { icon: '🪨', name: tl('땅'), skill: tl('돌 던지기') },
+  ice: { icon: '❄️', name: tl('얼음'), skill: tl('얼음 화살') }, dark: { icon: '🌙', name: tl('어둠'), skill: tl('그림자 할퀴기') },
+  light: { icon: '✨', name: tl('빛'), skill: tl('빛의 화살') },
 };
 export const BEATS = {
   fire: ['grass', 'ice'], water: ['fire', 'earth'], grass: ['water', 'earth'], earth: ['fire', 'ice'],
@@ -267,88 +268,88 @@ export const ELEMENT = Object.fromEntries(M.flatMap(([base, , vs]) => vs.map(([v
 // first (moves first), self / foe: stat stage changes {atk | def: n}.
 const sig = (name, power, acc, x = {}) => ({ name, power, acc, ...x });
 export const SPECIES = {
-  snail: { strong: 'def', sig: sig('껍질 숨기', 0, 100, { self: { def: 1 } }) },
-  mushroom: { strong: 'hp', sig: sig('포자 뿌리기', 0, 90, { foe: { atk: -1 } }) },
-  slime: { strong: 'hp', sig: sig('말랑 흡수', 40, 95, { drain: true }) },
-  chick: { strong: 'spd', sig: sig('삐약 응원', 0, 100, { self: { atk: 1 } }) },
-  bunny: { strong: 'spd', sig: sig('깡충 발차기', 40, 95, { first: true }) },
-  pig: { strong: 'atk', sig: sig('몸통 박치기', 70, 85) },
-  frog: { strong: null, sig: sig('혀 채찍', 45, 100) },
-  stump: { strong: 'def', sig: sig('뿌리 내리기', 0, 100, { heal: 0.35 }) },
-  bee: { strong: 'spd', sig: sig('윙윙 돌진', 40, 95, { first: true }) },
-  cat: { strong: 'spd', sig: sig('냥냥 펀치', 25, 95, { hits: 2 }) },
-  octopus: { strong: 'hp', sig: sig('먹물 뿌리기', 0, 90, { foe: { atk: -1 } }) },
-  crab: { strong: 'def', sig: sig('집게 가위', 30, 90, { hits: 2 }) },
-  turtle: { strong: 'def', sig: sig('등껍질 방패', 0, 100, { self: { def: 1 } }) },
-  bat: { strong: 'spd', sig: sig('흡혈', 45, 95, { drain: true }) },
-  ghost: { strong: null, sig: sig('깜짝 놀래키기', 30, 95, { stun: 0.3 }) },
-  penguin: { strong: 'spd', sig: sig('배 미끄럼', 45, 95, { first: true }) },
-  fox: { strong: 'spd', sig: sig('여우 홀리기', 35, 95, { stun: 0.25 }) },
-  cactus: { strong: 'def', sig: sig('가시 갑옷', 0, 100, { self: { def: 1 } }) },
-  pumpkin: { strong: 'atk', sig: sig('호박 폭탄', 70, 85) },
-  owl: { strong: null, sig: sig('날카로운 눈', 0, 100, { self: { atk: 1 } }) },
-  snowman: { strong: 'hp', sig: sig('눈덩이 굴리기', 45, 90, { stun: 0.2 }) },
-  skeleton: { strong: 'atk', sig: sig('뼈다귀 던지기', 30, 90, { hits: 2 }) },
-  golem: { strong: 'def', sig: sig('바위 굳히기', 0, 100, { self: { def: 2 } }) },
-  bear: { strong: 'atk', sig: sig('곰 펀치', 75, 85) },
-  wolf: { strong: 'atk', sig: sig('울부짖기', 0, 100, { self: { atk: 1 } }) },
-  knight: { strong: 'def', sig: sig('방패 돌진', 45, 95, { self: { def: 1 } }) },
-  dragon: { strong: 'atk', sig: sig('드래곤 브레스', 90, 85) },
-  phoenix: { strong: null, sig: sig('불사의 날개', 0, 100, { heal: 0.5, once: true }) },
-  unicorn: { strong: null, sig: sig('무지개 뿔', 50, 95, { drain: true }) },
-  kingslime: { strong: 'hp', sig: sig('왕의 명령', 20, 100, { stun: 0.5 }) },
-  kraken: { strong: 'hp', sig: sig('촉수 조이기', 50, 90, { stun: 0.3 }) },
+  snail: { strong: 'def', sig: sig(tl('껍질 숨기'), 0, 100, { self: { def: 1 } }) },
+  mushroom: { strong: 'hp', sig: sig(tl('포자 뿌리기'), 0, 90, { foe: { atk: -1 } }) },
+  slime: { strong: 'hp', sig: sig(tl('말랑 흡수'), 40, 95, { drain: true }) },
+  chick: { strong: 'spd', sig: sig(tl('삐약 응원'), 0, 100, { self: { atk: 1 } }) },
+  bunny: { strong: 'spd', sig: sig(tl('깡충 발차기'), 40, 95, { first: true }) },
+  pig: { strong: 'atk', sig: sig(tl('몸통 박치기'), 70, 85) },
+  frog: { strong: null, sig: sig(tl('혀 채찍'), 45, 100) },
+  stump: { strong: 'def', sig: sig(tl('뿌리 내리기'), 0, 100, { heal: 0.35 }) },
+  bee: { strong: 'spd', sig: sig(tl('윙윙 돌진'), 40, 95, { first: true }) },
+  cat: { strong: 'spd', sig: sig(tl('냥냥 펀치'), 25, 95, { hits: 2 }) },
+  octopus: { strong: 'hp', sig: sig(tl('먹물 뿌리기'), 0, 90, { foe: { atk: -1 } }) },
+  crab: { strong: 'def', sig: sig(tl('집게 가위'), 30, 90, { hits: 2 }) },
+  turtle: { strong: 'def', sig: sig(tl('등껍질 방패'), 0, 100, { self: { def: 1 } }) },
+  bat: { strong: 'spd', sig: sig(tl('흡혈'), 45, 95, { drain: true }) },
+  ghost: { strong: null, sig: sig(tl('깜짝 놀래키기'), 30, 95, { stun: 0.3 }) },
+  penguin: { strong: 'spd', sig: sig(tl('배 미끄럼'), 45, 95, { first: true }) },
+  fox: { strong: 'spd', sig: sig(tl('여우 홀리기'), 35, 95, { stun: 0.25 }) },
+  cactus: { strong: 'def', sig: sig(tl('가시 갑옷'), 0, 100, { self: { def: 1 } }) },
+  pumpkin: { strong: 'atk', sig: sig(tl('호박 폭탄'), 70, 85) },
+  owl: { strong: null, sig: sig(tl('날카로운 눈'), 0, 100, { self: { atk: 1 } }) },
+  snowman: { strong: 'hp', sig: sig(tl('눈덩이 굴리기'), 45, 90, { stun: 0.2 }) },
+  skeleton: { strong: 'atk', sig: sig(tl('뼈다귀 던지기'), 30, 90, { hits: 2 }) },
+  golem: { strong: 'def', sig: sig(tl('바위 굳히기'), 0, 100, { self: { def: 2 } }) },
+  bear: { strong: 'atk', sig: sig(tl('곰 펀치'), 75, 85) },
+  wolf: { strong: 'atk', sig: sig(tl('울부짖기'), 0, 100, { self: { atk: 1 } }) },
+  knight: { strong: 'def', sig: sig(tl('방패 돌진'), 45, 95, { self: { def: 1 } }) },
+  dragon: { strong: 'atk', sig: sig(tl('드래곤 브레스'), 90, 85) },
+  phoenix: { strong: null, sig: sig(tl('불사의 날개'), 0, 100, { heal: 0.5, once: true }) },
+  unicorn: { strong: null, sig: sig(tl('무지개 뿔'), 50, 95, { drain: true }) },
+  kingslime: { strong: 'hp', sig: sig(tl('왕의 명령'), 20, 100, { stun: 0.5 }) },
+  kraken: { strong: 'hp', sig: sig(tl('촉수 조이기'), 50, 90, { stun: 0.3 }) },
 };
 
 // Room shop (spec: docs/superpowers/specs/2026-09-29-encounters-shop-design.md). Coins are derived (shop.js).
 // Furniture sits in the playroom's fixed slots; act = what the pet does there: [face, motion, bubble, word].
 export const FURNITURE = [
-  { id: 'cushion', icon: '🛋️', name: '쿠션', price: 30, act: ['sleepy', 'sway', 'zzz', '쿨쿨'] },
-  { id: 'bowl', icon: '🥣', name: '밥그릇', price: 20, act: ['yum', 'chew', null, '냠냠'] },
-  { id: 'rug', icon: '🧶', name: '러그', price: 25, act: ['joy', 'wiggle', 'heart', '뒹굴뒹굴'] },
-  { id: 'pond', icon: '⛲', name: '연못', price: 60, act: ['excited', 'jump', null, '첨벙!'] },
-  { id: 'flower', icon: '🌷', name: '화분', price: 15, act: ['shy', 'wiggle', 'heart', '킁킁'] },
-  { id: 'lamp', icon: '🏮', name: '등불', price: 25, act: ['surprised', 'hop', 'bang', '반짝!'] },
-  { id: 'toybox', icon: '🧸', name: '장난감 상자', price: 40, act: ['excited', 'bounce', 'heart', '신난다'] },
-  { id: 'tree', icon: '🌳', name: '나무', price: 35, act: ['sleepy', 'sway', 'zzz', '그늘 좋아'] },
-  { id: 'swing', icon: '🎠', name: '회전목마', price: 80, act: ['joy', 'spin', 'heart', '빙글빙글'] },
-  { id: 'campfire', icon: '🔥', name: '모닥불', price: 50, act: ['joy', 'sway', null, '따뜻해'] },
+  { id: 'cushion', icon: '🛋️', name: tl('쿠션'), price: 30, act: ['sleepy', 'sway', 'zzz', tl('쿨쿨')] },
+  { id: 'bowl', icon: '🥣', name: tl('밥그릇'), price: 20, act: ['yum', 'chew', null, tl('냠냠')] },
+  { id: 'rug', icon: '🧶', name: tl('러그'), price: 25, act: ['joy', 'wiggle', 'heart', tl('뒹굴뒹굴')] },
+  { id: 'pond', icon: '⛲', name: tl('연못'), price: 60, act: ['excited', 'jump', null, tl('첨벙!')] },
+  { id: 'flower', icon: '🌷', name: tl('화분'), price: 15, act: ['shy', 'wiggle', 'heart', tl('킁킁')] },
+  { id: 'lamp', icon: '🏮', name: tl('등불'), price: 25, act: ['surprised', 'hop', 'bang', tl('반짝!')] },
+  { id: 'toybox', icon: '🧸', name: tl('장난감 상자'), price: 40, act: ['excited', 'bounce', 'heart', tl('신난다')] },
+  { id: 'tree', icon: '🌳', name: tl('나무'), price: 35, act: ['sleepy', 'sway', 'zzz', tl('그늘 좋아')] },
+  { id: 'swing', icon: '🎠', name: tl('회전목마'), price: 80, act: ['joy', 'spin', 'heart', tl('빙글빙글')] },
+  { id: 'campfire', icon: '🔥', name: tl('모닥불'), price: 50, act: ['joy', 'sway', null, tl('따뜻해')] },
 ];
 export const BUILDINGS = [
-  { id: 'house', icon: '🏠', name: '펫 집', price: 100 },
-  { id: 'tent', icon: '⛺', name: '텐트', price: 60 },
-  { id: 'windmill', icon: '🌬️', name: '풍차', price: 150 },
-  { id: 'lighthouse', icon: '🗼', name: '등대', price: 200 },
-  { id: 'castle', icon: '🏰', name: '작은 성', price: 300 },
+  { id: 'house', icon: '🏠', name: tl('펫 집'), price: 100 },
+  { id: 'tent', icon: '⛺', name: tl('텐트'), price: 60 },
+  { id: 'windmill', icon: '🌬️', name: tl('풍차'), price: 150 },
+  { id: 'lighthouse', icon: '🗼', name: tl('등대'), price: 200 },
+  { id: 'castle', icon: '🏰', name: tl('작은 성'), price: 300 },
 ];
 // ground: the field's grass; deco: small things scattered on it.
 export const THEMES = [
-  { id: 'spring', icon: '🌸', name: '봄', price: 80, ground: 'linear-gradient(#b8e0a0,#88c070)', deco: '🌸' },
-  { id: 'summer', icon: '🏖️', name: '여름', price: 80, ground: 'linear-gradient(#f2dca0,#e0c078)', deco: '🐚' },
-  { id: 'autumn', icon: '🍁', name: '가을', price: 80, ground: 'linear-gradient(#d09040,#a06a28)', deco: '🍁' },
-  { id: 'winter', icon: '☃️', name: '겨울', price: 80, ground: 'linear-gradient(#f4f8fc,#d8e4f0)', deco: '❄️' },
+  { id: 'spring', icon: '🌸', name: tl('봄'), price: 80, ground: 'linear-gradient(#b8e0a0,#88c070)', deco: '🌸' },
+  { id: 'summer', icon: '🏖️', name: tl('여름'), price: 80, ground: 'linear-gradient(#f2dca0,#e0c078)', deco: '🐚' },
+  { id: 'autumn', icon: '🍁', name: tl('가을'), price: 80, ground: 'linear-gradient(#d09040,#a06a28)', deco: '🍁' },
+  { id: 'winter', icon: '☃️', name: tl('겨울'), price: 80, ground: 'linear-gradient(#f4f8fc,#d8e4f0)', deco: '❄️' },
 ];
 export const SHOP = new Map([...FURNITURE.map((x) => [x.id, { ...x, kind: 'furniture' }]),
   ...BUILDINGS.map((x) => [x.id, { ...x, kind: 'building' }]), ...THEMES.map((x) => [x.id, { ...x, kind: 'theme' }])]);
 
 // Pet accessories: open the first time any pet reaches the level (pet.js accsUnlocked). Art in ui/monsters.js.
 export const ACCESSORIES = [
-  { id: 'ribbon', name: '리본', level: 3 },
-  { id: 'hat', name: '모자', level: 6 },
-  { id: 'crown', name: '왕관', level: 9 },
+  { id: 'ribbon', name: tl('리본'), level: 3 },
+  { id: 'hat', name: tl('모자'), level: 6 },
+  { id: 'crown', name: tl('왕관'), level: 9 },
 ];
 
 export const TITLES = [
-  { id: 'first', name: '첫 벽돌', desc: '첫 인증' },
-  { id: 'week', name: '일주일 개근', desc: '7일 연속 인증' },
-  { id: 'tower', name: '건축가', desc: '탑 1개 완성' },
-  { id: 'towers3', name: '마천루 장인', desc: '탑 3개 완성' },
-  { id: 'straight', name: '정면돌파', desc: '방어권 없이 30층' },
-  { id: 'days100', name: '백일의 기적', desc: '누적 인증 100일' },
-  { id: 'comeback', name: '오뚝이', desc: '무너진 뒤 다시 7층' },
-  { id: 'shiny', name: '반짝이 사냥꾼', desc: '이로치 몬스터 획득' },
-  { id: 'legend', name: '전설의 시작', desc: '전설 등급 획득' },
-  { id: 'dex50', name: '수집가', desc: '몬스터 50종 모으기' },
-  { id: 'dex100', name: '몬스터 박사', desc: '몬스터 100종 모으기' },
-  { id: 'couple', name: '환상의 짝꿍', desc: '커플 탑 완성' },
+  { id: 'first', name: tl('첫 벽돌'), desc: tl('첫 인증') },
+  { id: 'week', name: tl('일주일 개근'), desc: tl('7일 연속 인증') },
+  { id: 'tower', name: tl('건축가'), desc: tl('탑 1개 완성') },
+  { id: 'towers3', name: tl('마천루 장인'), desc: tl('탑 3개 완성') },
+  { id: 'straight', name: tl('정면돌파'), desc: tl('방어권 없이 30층') },
+  { id: 'days100', name: tl('백일의 기적'), desc: tl('누적 인증 100일') },
+  { id: 'comeback', name: tl('오뚝이'), desc: tl('무너진 뒤 다시 7층') },
+  { id: 'shiny', name: tl('반짝이 사냥꾼'), desc: tl('이로치 몬스터 획득') },
+  { id: 'legend', name: tl('전설의 시작'), desc: tl('전설 등급 획득') },
+  { id: 'dex50', name: tl('수집가'), desc: tl('몬스터 50종 모으기') },
+  { id: 'dex100', name: tl('몬스터 박사'), desc: tl('몬스터 100종 모으기') },
+  { id: 'couple', name: tl('환상의 짝꿍'), desc: tl('커플 탑 완성') },
 ];

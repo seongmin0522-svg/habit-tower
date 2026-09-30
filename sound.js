@@ -1,12 +1,14 @@
 // BGM and sound effects. Phones allow sound only after a tap, so nothing plays before the first one.
 // Files load as blobs through fetch: the service worker caches a plain 200 response (an <audio> range
 // request it can't), so the second launch plays offline. Settings are per phone (localStorage).
+import { tl } from './i18n.js';
+
 const KEY = 'habit-tower-sound';
 export const TRACKS = [
-  { id: 1, name: '마을', file: 'audio/bgm-town.mp3' },
-  { id: 2, name: '요정의 샘', file: 'audio/bgm-fairy.mp3' },
-  { id: 3, name: '조용한 마을', file: 'audio/bgm-hamlet.mp3' },
-  { id: 4, name: '별빛 도시', file: 'audio/bgm-starlight.mp3' },
+  { id: 1, name: tl('마을'), file: 'audio/bgm-town.mp3' },
+  { id: 2, name: tl('요정의 샘'), file: 'audio/bgm-fairy.mp3' },
+  { id: 3, name: tl('조용한 마을'), file: 'audio/bgm-hamlet.mp3' },
+  { id: 4, name: tl('별빛 도시'), file: 'audio/bgm-starlight.mp3' },
 ];
 const SFX = ['tap', 'shake', 'open', 'common', 'rare', 'epic', 'legend', 'shiny', 'brick', 'top'];
 const DEFAULTS = { bgm: true, sfx: true, vibe: true, track: 1 }; // track: 1-4 or 'random' (picked once per launch)
