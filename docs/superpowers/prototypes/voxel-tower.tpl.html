@@ -1,0 +1,374 @@
+<title>복셀 탑 시범</title>
+<style>
+@font-face { font-family: Galmuri11; src: url(data:font/woff2;base64,__FONT__) format('woff2'); font-display: swap; }
+/* One game world, deliberately single-theme: the app's own sky, HUD and buttons. */
+:root {
+  --sky-top: #6cbfee; --sky-bot: #d4eeff; --ink: #2b1d14; --panel-hi: #4a4a4a; --panel-lo: #2a2a2a; --edge: #777777;
+  --gold: #ffd84a; --blue: #3b8de0; --blue-lo: #2a6ab0; --green: #58b82f; --green-lo: #3f8a1f; --paper: #fffdf6;
+}
+html, body { height: 100%; }
+body { margin: 0; overflow: hidden; background: var(--sky-bot); color: #ffffff;
+  font: 13px/1.4 Galmuri11, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; }
+#app { position: fixed; inset: 0; display: flex; flex-direction: column; background: linear-gradient(var(--sky-top), var(--sky-bot) 75%); }
+.hud { display: flex; align-items: baseline; gap: 10px; padding: calc(8px + env(safe-area-inset-top, 0px)) 16px 8px;
+  background: linear-gradient(var(--panel-hi), var(--panel-lo)); border-bottom: 2px solid var(--edge); }
+.hud b { font-size: 14px; font-weight: normal; }
+.hud .gold { color: var(--gold); font-variant-numeric: tabular-nums; }
+.hud small { margin-left: auto; font-size: 11px; color: #cfcfcf; }
+#stage { position: relative; flex: 1; min-height: 0; overflow: hidden; touch-action: none; cursor: grab; }
+#stage canvas { display: block; width: 100%; height: 100%; }
+.emote { position: absolute; left: 0; top: 0; width: 30px; height: auto; transform: translate(-50%, -100%); image-rendering: pixelated; pointer-events: none; }
+.emote.pop { animation: pop .5s ease-out; }
+@keyframes pop { 0% { transform: translate(-50%, -55%) scale(.3); } 60% { transform: translate(-50%, -112%) scale(1.2); } 100% { transform: translate(-50%, -100%) scale(1); } }
+@media (prefers-reduced-motion: reduce) { .emote.pop { animation: none; } }
+.hint { position: absolute; left: 16px; right: 16px; bottom: 8px; margin: 0; text-align: center; color: var(--ink); font-size: 11px; opacity: .75; pointer-events: none; }
+.bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(var(--panel-hi), var(--panel-lo)); border-top: 2px solid var(--edge); }
+button { font: inherit; font-size: 14px; color: #ffffff; border: 2px solid var(--ink); border-radius: 6px; padding: 8px 14px;
+  background: linear-gradient(var(--blue), var(--blue-lo)); box-shadow: 0 3px 0 var(--ink); cursor: pointer; }
+button.go { background: linear-gradient(var(--green), var(--green-lo)); }
+button:active { transform: translateY(2px); box-shadow: 0 1px 0 var(--ink); }
+button:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+button[disabled] { opacity: .5; cursor: default; }
+.fallback { margin: 0; padding: 24px 16px; color: var(--ink); }
+</style>
+
+<div id="app">
+  <header class="hud"><b>운동 30분</b><span class="gold" id="floors">12/30층</span><small>복셀 시범</small></header>
+  <div id="stage">
+    <img class="emote" id="emote" alt="">
+    <p class="hint" id="hint">좌우로 끌면 한 바퀴 돌아요 · 위로 끌면 탑을 올라가요</p>
+  </div>
+  <nav class="bar">
+    <button class="go" id="stack" type="button">인증하고 쌓기</button>
+    <button id="fall" type="button">무너뜨리기</button>
+    <button id="shape" type="button">모양: 볼록</button>
+  </nav>
+</div>
+
+<script type="module">
+import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.min.js';
+
+// The app's own pixel art (warrior 16x18, green snail 16x16 with three faces), as rows + palette.
+const ART = __ART__;
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const stage = document.getElementById('stage'), emote = document.getElementById('emote');
+const floorsEl = document.getElementById('floors'), stackBtn = document.getElementById('stack');
+const fallBtn = document.getElementById('fall'), shapeBtn = document.getElementById('shape');
+
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+} catch {
+  const p = document.createElement('p');
+  p.className = 'fallback';
+  p.textContent = '이 기기에서는 3D를 쓸 수 없어요. 앱에서는 지금의 2D 화면으로 보여요.';
+  stage.replaceChildren(p);
+  throw new Error('no webgl');
+}
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0xd4eeff, 500, 1400);
+const camera = new THREE.PerspectiveCamera(32, 1, 1, 3000);
+// The camera opens on the crew up close; climbing (drag up) blends it back until the whole tower fits. Sideways drags
+// circle the current subject at a fixed tilt, with a little momentum. w: world units across the screen.
+const HOME = { x: -24, y: 13, z: 12, w: 78 }, TOWER = { x: -14, z: 0, w: 124 }, BLEND = 70;
+let half = 0.3, towerH = 400, yaw = 0.3, spin = 0, homeT;
+const blend = () => Math.min(1, camY / BLEND); // 0 = the crew, 1 = the tower
+function view() {
+  const t = blend(), w = HOME.w + (TOWER.w - HOME.w) * t, d = w / 2 / (half * camera.aspect);
+  return { t, d, h: 2 * half * d };
+}
+scene.add(new THREE.HemisphereLight(0xe2f2ff, 0x5b7a3a, 1.15));
+const sun = new THREE.DirectionalLight(0xfff0d8, 1.7);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -130, right: 130, top: 230, bottom: -200, near: 1, far: 700 });
+sun.shadow.bias = -0.0006;
+scene.add(sun, sun.target);
+
+// ---------- voxel figures: every pixel becomes cubes; "round" makes the middle thicker than the rim ----------
+const CUBE = new THREE.BoxGeometry(1, 1, 1), VOXEL = new THREE.MeshLambertMaterial();
+const N4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+// Ink and white inside a figure are face details; seen from behind they take the most common body colour around them.
+const DETAIL = new Set(['#2b1d14', '#ffffff']);
+function bodyAround(art, x, y, on) {
+  const count = new Map();
+  for (let r = 1; r <= 3; r++) for (const [a, b] of N4) {
+    const nx = x + a * r, ny = y + b * r;
+    if (!on(nx, ny)) continue;
+    const c = art.pal[art.rows[ny][nx]];
+    if (!DETAIL.has(c)) count.set(c, (count.get(c) ?? 0) + 1);
+  }
+  return [...count].sort((p, q) => q[1] - p[1])[0]?.[0];
+}
+function voxels(art, round) {
+  const h = art.rows.length, w = art.rows[0].length;
+  const on = (x, y) => y >= 0 && y < h && x >= 0 && x < w && art.rows[y][x] !== '.';
+  const d = art.rows.map((r) => [...r].map(() => 0)), q = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (on(x, y) && N4.some(([a, b]) => !on(x + a, y + b))) { d[y][x] = 1; q.push([x, y]); }
+  }
+  for (let i = 0; i < q.length; i++) {
+    const [x, y] = q[i];
+    for (const [a, b] of N4) { const nx = x + a, ny = y + b; if (on(nx, ny) && !d[ny][nx]) { d[ny][nx] = d[y][x] + 1; q.push([nx, ny]); } }
+  }
+  const out = [];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    if (!on(x, y)) continue;
+    const half = round ? Math.min(d[y][x], 4) - 1 : 1, col = art.pal[art.rows[y][x]];
+    const back = d[y][x] > 1 && DETAIL.has(col) ? bodyAround(art, x, y, on) ?? col : col;
+    for (let z = -half; z <= half; z++) out.push([x - w / 2 + 0.5, h - y - 0.5, z, z < 0 ? back : col]);
+  }
+  return out;
+}
+function figure(art, round) {
+  const vs = voxels(art, round), mesh = new THREE.InstancedMesh(CUBE, VOXEL, vs.length);
+  const m = new THREE.Matrix4(), c = new THREE.Color();
+  vs.forEach(([x, y, z, col], i) => { mesh.setMatrixAt(i, m.makeTranslation(x, y, z)); mesh.setColorAt(i, c.set(col)); });
+  mesh.castShadow = true;
+  return mesh;
+}
+
+// ---------- ground: grass blocks with a little height and colour noise, a few flowers ----------
+const ground = new THREE.Group();
+{
+  const grassMats = ['#6fb04a', '#67a845', '#79b955', '#5f9e3e'].map((c) => new THREE.MeshLambertMaterial({ color: c }));
+  const dirt = new THREE.MeshLambertMaterial({ color: '#8a5a33' });
+  const top = new THREE.BoxGeometry(10, 2, 10), side = new THREE.BoxGeometry(10, 8, 10);
+  for (let gx = -9; gx <= 9; gx++) for (let gz = -9; gz <= 9; gz++) {
+    const k = Math.abs(gx * 7 + gz * 13) % 4, dip = Math.abs(gx) > 3 && (gx * gz) % 3 === 0 ? -0.8 : 0;
+    const g = new THREE.Mesh(top, grassMats[k]); g.position.set(gx * 10, -1 + dip, gz * 10); g.receiveShadow = true; ground.add(g);
+    const s = new THREE.Mesh(side, dirt); s.position.set(gx * 10, -6 + dip, gz * 10); ground.add(s);
+  }
+  const petal = ['#ff7aa0', '#ffd84a', '#ffffff', '#9ad0ff'];
+  for (let i = 0; i < 40; i++) {
+    const x = ((i * 53) % 170) - 85, z = ((i * 37) % 170) - 85;
+    if (Math.abs(x - 12) < 22 && Math.abs(z) < 14) continue; // keep the tower's plot clear
+    const stem = new THREE.Mesh(CUBE, new THREE.MeshLambertMaterial({ color: '#3f8a2a' })); stem.scale.set(1, 3, 1); stem.position.set(x, 1.5, z);
+    const head = new THREE.Mesh(CUBE, new THREE.MeshLambertMaterial({ color: petal[i % 4] })); head.scale.set(2, 2, 2); head.position.set(x, 4, z);
+    stem.castShadow = head.castShadow = true; ground.add(stem, head);
+  }
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(36, 2, 20), new THREE.MeshLambertMaterial({ color: '#6b4423' }));
+  plank.position.set(12, 1, 0); plank.receiveShadow = plank.castShadow = true; ground.add(plank);
+}
+scene.add(ground);
+
+// ---------- photo bricks: the photo framed on the front, the floor tier's colour on the sides ----------
+const BW = 28, BH = 13, BD = 14, BASE = 2, TOWER_X = 12, MAX = 30;
+const TIER = ['#d9a866', '#bcd468', '#78d06a', '#68d0a0', '#68c8d8', '#6c8cd8', '#8c6cd8', '#c86cd8', '#d86c90', '#d8806c'];
+const tierOf = (n) => TIER[Math.floor(n / 3) % TIER.length];
+function photoTexture(n) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 120;
+  const g = c.getContext('2d'), hue = (n * 47) % 360;
+  g.fillStyle = tierOf(n); g.fillRect(0, 0, 256, 120);
+  const sky = g.createLinearGradient(0, 10, 0, 110);
+  sky.addColorStop(0, `hsl(${hue} 70% 78%)`); sky.addColorStop(1, `hsl(${(hue + 30) % 360} 55% 62%)`);
+  g.fillStyle = sky; g.fillRect(12, 10, 232, 100);
+  g.fillStyle = 'rgba(255,255,255,.9)'; g.beginPath(); g.arc(206, 34, 12, 0, 7); g.fill();
+  g.fillStyle = 'rgba(30,50,20,.28)'; g.beginPath(); g.moveTo(12, 110); g.quadraticCurveTo(80, 52, 160, 110); g.fill();
+  g.fillStyle = '#ffffff'; g.font = '26px Galmuri11, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillText(`10-${String(n + 1).padStart(2, '0')}`, 128, 62);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const brickGeo = new THREE.BoxGeometry(BW, BH, BD);
+function makeBrick(n) {
+  const side = new THREE.MeshLambertMaterial({ color: tierOf(n) }), front = new THREE.MeshLambertMaterial({ map: photoTexture(n) });
+  const mesh = new THREE.Mesh(brickGeo, [side, side, side, side, front, front]);
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
+}
+const restY = (i) => BASE + BH / 2 + i * BH;
+
+// ---------- the crew ----------
+let round = true, hero, pet, petFace = 'snailEx';
+const HERO_AT = new THREE.Vector3(-22, BASE, 10), PET_AT = new THREE.Vector3(-42, BASE, 14);
+function buildCrew() {
+  for (const m of [hero, pet]) if (m) { scene.remove(m); m.dispose(); }
+  hero = figure(ART.warrior, round); hero.position.copy(HERO_AT); scene.add(hero);
+  pet = figure(ART[petFace], round); pet.scale.setScalar(0.85); pet.position.copy(PET_AT); scene.add(pet);
+}
+
+// ---------- state ----------
+let bricks = [], flying = null, dust = [], falling = false;
+let camY = 0, camTarget = 0;
+function reset(n) {
+  for (const b of bricks) scene.remove(b.mesh);
+  bricks = Array.from({ length: n }, (_, i) => {
+    const mesh = makeBrick(i); mesh.position.set(TOWER_X, restY(i), 0); scene.add(mesh);
+    return { mesh, v: new THREE.Vector3(), w: new THREE.Vector3() };
+  });
+  falling = false; setMood('snailEx', 'bang');
+  floorsEl.textContent = `${n}/${MAX}층`;
+  camTarget = 0; // home: the crew
+  stackBtn.disabled = n >= MAX; fallBtn.textContent = '무너뜨리기';
+}
+// Pets don't talk: a face and a little pixel icon over the head.
+const INK = { K: '#2b1d14', R: '#ff5a6e', W: '#ffffff', B: '#5ab4ff', Y: '#ffd84a' };
+const ICONS = {
+  heart: ['.KK...KK.', 'KRRK.KRRK', 'KRWRKRRRK', 'KRRRRRRRK', '.KRRRRRK.', '..KRRRK..', '...KRK...', '....K....'],
+  tear: ['...K...', '..KBK..', '..KBK..', '.KBBBK.', 'KBBWBBK', 'KBWBBBK', 'KBBBBBK', '.KBBBK.', '..KKK..'],
+  bang: ['.KKK.', 'KYYYK', 'KYYYK', '.KYK.', '.KYK.', '..K..', '.KKK.', '.KYK.', '.KKK.'],
+};
+const iconUrl = {};
+for (const [name, rows] of Object.entries(ICONS)) {
+  const c = document.createElement('canvas'); c.width = rows[0].length; c.height = rows.length;
+  const g = c.getContext('2d');
+  rows.forEach((r, y) => [...r].forEach((k, x) => { if (INK[k]) { g.fillStyle = INK[k]; g.fillRect(x, y, 1, 1); } }));
+  iconUrl[name] = c.toDataURL();
+}
+let moodT;
+function setMood(face, icon, ms = 0) {
+  if (face !== petFace || !pet) { petFace = face; buildCrew(); }
+  clearTimeout(moodT);
+  emote.hidden = !icon;
+  if (!icon) return;
+  emote.src = iconUrl[icon]; emote.style.width = `${ICONS[icon][0].length * 3.4}px`;
+  emote.classList.remove('pop'); void emote.offsetWidth; emote.classList.add('pop');
+  if (ms) moodT = setTimeout(() => { emote.hidden = true; }, ms);
+}
+
+// ---------- stacking: the hero tosses a brick in an arc onto the top ----------
+function stack() {
+  if (flying || falling || bricks.length >= MAX) return;
+  const n = bricks.length, mesh = makeBrick(n);
+  const from = new THREE.Vector3(HERO_AT.x + 6, BASE + 22, HERO_AT.z), to = new THREE.Vector3(TOWER_X, restY(n), 0);
+  mesh.position.copy(from); scene.add(mesh);
+  flying = { mesh, from, to, t: 0, dur: REDUCED ? 0.01 : 0.85 };
+  clearTimeout(homeT);
+  camTarget = focusOn(to.y);
+  setMood('snailEx', null);
+}
+function land(mesh) {
+  bricks.push({ mesh, v: new THREE.Vector3(), w: new THREE.Vector3() });
+  floorsEl.textContent = `${bricks.length}/${MAX}층`;
+  stackBtn.disabled = bricks.length >= MAX;
+  mesh.userData.squash = 1;
+  setMood('snailEx', 'heart', 1600);
+  homeT = setTimeout(() => { camTarget = 0; }, 1200); // back to the crew after a look at the new floor
+  if (!REDUCED) for (let i = 0; i < 16; i++) {
+    const p = new THREE.Mesh(CUBE, new THREE.MeshLambertMaterial({ color: '#f3e3c3' }));
+    const a = (i / 16) * Math.PI * 2;
+    p.position.set(TOWER_X + Math.cos(a) * 15, mesh.position.y - BH / 2, Math.sin(a) * 8);
+    p.scale.setScalar(1.6);
+    dust.push({ p, v: new THREE.Vector3(Math.cos(a) * 30, 18 + (i % 3) * 8, Math.sin(a) * 20), life: 0.6 });
+    scene.add(p);
+  }
+}
+
+// ---------- collapse: every brick gets a push and a spin, gravity and a bouncy floor do the rest ----------
+function topple() {
+  if (flying) return;
+  if (falling) { reset(12); return; }
+  falling = true; fallBtn.textContent = '다시 쌓기';
+  bricks.forEach((b, i) => {
+    b.v.set((Math.random() - 0.4) * 70, 30 + Math.random() * 40 + i * 1.5, (Math.random() - 0.5) * 60);
+    b.w.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
+  });
+  camTarget = 0;
+  setMood('snailSad', 'tear');
+}
+
+// ---------- drag up/down to move along the tower (the angle stays fixed) ----------
+let drag = null;
+stage.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, t: performance.now() }; spin = 0; stage.setPointerCapture(e.pointerId); });
+stage.addEventListener('pointermove', (e) => {
+  if (!drag) return;
+  const now = performance.now(), dx = e.clientX - drag.x, turn = (-dx / stage.clientWidth) * Math.PI * 1.6;
+  yaw += turn;
+  spin = turn / Math.max(0.008, (now - drag.t) / 1000); // radians per second, for the glide after letting go
+  clearTimeout(homeT);
+  const top = Math.max(0, restY(Math.max(0, bricks.length - 1)) - towerH * 0.45);
+  camTarget = Math.min(top, Math.max(0, camTarget + (e.clientY - drag.y) * (view().h / stage.clientHeight)));
+  drag = { x: e.clientX, y: e.clientY, t: now };
+});
+const endDrag = () => { drag = null; };
+stage.addEventListener('pointerup', endDrag); stage.addEventListener('pointercancel', endDrag);
+stackBtn.addEventListener('click', stack);
+fallBtn.addEventListener('click', topple);
+shapeBtn.addEventListener('click', () => { round = !round; shapeBtn.textContent = `모양: ${round ? '볼록' : '납작'}`; buildCrew(); });
+
+// ---------- sizing ----------
+function resize() {
+  const w = stage.clientWidth, h = stage.clientHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
+  half = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+  towerH = TOWER.w / camera.aspect;
+}
+// The climb that shows height y in the upper part of the tower view.
+const focusOn = (y) => Math.max(BLEND, y - towerH * 0.62);
+new ResizeObserver(resize).observe(stage);
+
+// ---------- frame loop ----------
+const GRAV = 260, headAt = new THREE.Vector3(), headWorld = new THREE.Vector3(), ray = new THREE.Raycaster();
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000), t = now / 1000; last = now;
+  camY += (camTarget - camY) * Math.min(1, dt * 6);
+  if (!drag && spin) { yaw += spin * dt; spin *= Math.exp(-dt * 3.5); if (Math.abs(spin) < 0.02) spin = 0; }
+  const v = view(), k = v.t, ax = HOME.x + (TOWER.x - HOME.x) * k, az = HOME.z + (TOWER.z - HOME.z) * k;
+  const aimY = camY + HOME.y + (v.h * 0.36 - HOME.y) * k; // the crew's middle at home; the tower view keeps the ground low
+  camera.position.set(ax + Math.sin(yaw) * v.d, aimY + v.d * 0.2, az + Math.cos(yaw) * v.d); camera.lookAt(ax, aimY, az);
+  sun.position.set(80, aimY + 170, 120); sun.target.position.set(0, aimY, 0);
+
+  if (!REDUCED) { // idle life: the pet bobs, the hero breathes
+    pet.position.y = PET_AT.y + Math.abs(Math.sin(t * 2.4)) * 1.4;
+    hero.scale.y = 1 + Math.sin(t * 3) * 0.012;
+  }
+  if (flying) {
+    const f = flying; f.t = Math.min(1, f.t + dt / f.dur);
+    const s = f.t, e = 1 - (1 - s) * (1 - s);
+    f.mesh.position.lerpVectors(f.from, f.to, e);
+    f.mesh.position.y += Math.sin(Math.PI * s) * 38;
+    f.mesh.rotation.y = (1 - e) * Math.PI;
+    hero.position.y = HERO_AT.y + Math.sin(Math.min(1, s * 3) * Math.PI) * 5;
+    if (s >= 1) { f.mesh.rotation.y = 0; hero.position.y = HERO_AT.y; land(f.mesh); flying = null; }
+  }
+  for (const b of bricks) { // landing squash
+    if (b.mesh.userData.squash) {
+      const q = (b.mesh.userData.squash -= dt * 5);
+      if (q <= 0) { b.mesh.userData.squash = 0; b.mesh.scale.set(1, 1, 1); }
+      else b.mesh.scale.set(1 + q * 0.08, 1 - q * 0.14, 1 + q * 0.08);
+    }
+  }
+  dust = dust.filter((d) => {
+    d.life -= dt; d.v.y -= GRAV * 0.5 * dt; d.p.position.addScaledVector(d.v, dt); d.p.scale.setScalar(Math.max(0.01, d.life * 2.6));
+    if (d.life > 0) return true; scene.remove(d.p); return false;
+  });
+  if (falling) {
+    for (const b of bricks) {
+      b.v.y -= GRAV * dt; b.mesh.position.addScaledVector(b.v, dt);
+      b.mesh.rotation.x += b.w.x * dt; b.mesh.rotation.y += b.w.y * dt; b.mesh.rotation.z += b.w.z * dt;
+      const floor = BH / 2 + 1;
+      if (b.mesh.position.y < floor) {
+        b.mesh.position.y = floor; b.v.y = Math.abs(b.v.y) * 0.32; b.v.x *= 0.6; b.v.z *= 0.6; b.w.multiplyScalar(0.55);
+        if (Math.abs(b.v.y) < 6) { b.v.y = 0; b.w.multiplyScalar(0.8); }
+      }
+    }
+  }
+  // the mood icon floats over the pet's head, and hides while the tower is in the way
+  headWorld.set(PET_AT.x, pet.position.y + 16, PET_AT.z);
+  ray.set(camera.position, headWorld.clone().sub(camera.position).normalize());
+  const hit = ray.intersectObjects(bricks.map((b) => b.mesh), false)[0];
+  headAt.copy(headWorld).project(camera);
+  const off = Math.abs(headAt.x) > 1 || headAt.y < -1 || headAt.y > 1.2; // the pet is out of the picture
+  emote.style.visibility = off || (hit && hit.distance < camera.position.distanceTo(headWorld)) ? 'hidden' : 'visible';
+  emote.style.left = `${(headAt.x * 0.5 + 0.5) * stage.clientWidth}px`;
+  emote.style.top = `${(-headAt.y * 0.5 + 0.5) * stage.clientHeight}px`;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+await document.fonts.load('26px Galmuri11').catch(() => {});
+resize();
+buildCrew();
+reset(12);
+camY = camTarget;
+requestAnimationFrame(frame);
+</script>
