@@ -20,7 +20,7 @@ export const loadThree = () => (threeP ??= import(THREE_URL).catch((e) => { thre
 export const canWebGL = (() => { try { return !!document.createElement('canvas').getContext('webgl2'); } catch { return false; } })();
 
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
-const BW = 28, BH = 13, BD = 14, BASE = 2, TOWER_X = 12, GRAV = 260, BLEND = 70;
+const BW = 28, BH = 13, BD = 14, BASE = 2, TOWER_X = 12, GRAV = 260, TILT = 0.2, TILT_MIN = 0.02, TILT_MAX = 1.25;
 const restY = (i) => BASE + BH / 2 + i * BH;
 
 // The imperative world: three.js objects and the frame loop. cb holds the latest callbacks.
@@ -135,7 +135,10 @@ function build(THREE, host, cb) {
   // ---------- state ----------
   let crew = [], homeX = -24, homeW = 78, towerX = -14, towerW = 124, half = 0.3, towerH = 400;
   let bricks = [], halfBrick = null, flag = null, rubble = [], dust = [], flying = null, falling = false, homeT;
-  let camY = 0, camTarget = 0, yaw = 0.3, spin = 0, drag = null, tagEl = null, raf, last = performance.now();
+  // Camera: yaw (sideways), tilt (up/down drag), zoom 0 = the crew up close … 1 = the whole tower (pinch or wheel),
+  // camY = the climb up the tower (two-finger drag), which only shows once zoomed out.
+  let camY = 0, camTarget = 0, yaw = 0.3, spin = 0, tilt = TILT, zoom = 0, zoomTarget = 0, tagEl = null, raf, last = performance.now();
+  const touches = new Map(); let pinch = null, drag = null;
 
   function setCrew(list) { // list: [{cells, pet, mine, face}] left to right
     for (const f of crew) scene.remove(f.mesh);
@@ -196,7 +199,7 @@ function build(THREE, host, cb) {
     mesh.position.copy(from);
     clearTimeout(homeT);
     flying = { mesh, from, to, t: 0, dur: 0.85 };
-    camTarget = focusOn(to.y);
+    zoomTarget = 1; camTarget = focusOn(to.y);
   }
   function landed(mesh) {
     mesh.userData.squash = 1;
@@ -205,7 +208,7 @@ function build(THREE, host, cb) {
       setTimeout(() => { sfx('top'); buzz('top'); }, 300);
       burst(mesh.position, 40, ['#ff5a6e', '#ffd84a', '#5ab4ff', '#78d06a']);
     } else burst(mesh.position, 16, ['#f3e3c3']);
-    homeT = setTimeout(() => { camTarget = 0; setTimeout(() => cb.onDone?.(), 600); }, 1200);
+    homeT = setTimeout(() => { camTarget = 0; zoomTarget = 0; setTimeout(() => cb.onDone?.(), 600); }, 1200);
   }
   function burst(at, n, colors) {
     if (REDUCED) return;
@@ -223,16 +226,16 @@ function build(THREE, host, cb) {
       b.v.set((Math.random() - 0.3) * 70, 30 + Math.random() * 40 + i * 1.5, (Math.random() - 0.5) * 60);
       b.w.set((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6);
     });
-    camTarget = 0;
+    camTarget = 0; zoomTarget = 0.35; // a step back to watch it come down
   }
 
   // ---------- camera: the crew up close at home, climbing blends back to the whole tower ----------
-  const blend = () => Math.min(1, camY / BLEND);
   function view() {
-    const t = blend(), w = homeW + (towerW - homeW) * t, d = w / 2 / (half * camera.aspect);
+    const t = zoom, w = homeW + (towerW - homeW) * t, d = w / 2 / (half * camera.aspect);
     return { t, d, h: 2 * half * d };
   }
-  const focusOn = (y) => Math.max(BLEND, y - towerH * 0.62);
+  const focusOn = (y) => Math.max(0, y - towerH * 0.62);
+  const climbTop = () => Math.max(0, restY(Math.max(0, bricks.length - 1)) - towerH * 0.45);
   function resize() {
     const w = host.clientWidth, h = host.clientHeight;
     if (!w || !h) return;
@@ -243,19 +246,37 @@ function build(THREE, host, cb) {
 
   // ---------- touch: drag to circle and climb, tap a brick or my pet ----------
   const el = renderer.domElement, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
-  el.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false, x0: e.clientX, y0: e.clientY }; spin = 0; el.setPointerCapture?.(e.pointerId); });
+  // One finger: sideways turns (with momentum), up/down tilts. Two fingers: pinch zooms, moving together climbs.
+  const spread = () => { const [a, b] = [...touches.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2 }; };
+  el.addEventListener('pointerdown', (e) => {
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer (synthetic events) */ }
+    spin = 0; clearTimeout(homeT);
+    if (touches.size === 2) { drag = null; const p = spread(); pinch = { d: p.d, y: p.y, zoom: zoomTarget }; return; }
+    drag = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false, x0: e.clientX, y0: e.clientY };
+  });
   el.addEventListener('pointermove', (e) => {
+    if (!touches.has(e.pointerId)) return;
+    touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pinch && touches.size === 2) {
+      const p = spread();
+      zoomTarget = Math.min(1, Math.max(0, pinch.zoom + (pinch.d - p.d) / 220));
+      camTarget = Math.min(climbTop(), Math.max(0, camTarget + (p.y - pinch.y) * (view().h / el.clientHeight)));
+      pinch.y = p.y;
+      return;
+    }
     if (!drag) return;
     if (!drag.moved && Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 6) return;
     drag.moved = true;
     const now = performance.now(), turn = (-(e.clientX - drag.x) / el.clientWidth) * Math.PI * 1.6;
     yaw += turn; spin = turn / Math.max(0.008, (now - drag.t) / 1000);
-    clearTimeout(homeT);
-    const top = Math.max(0, restY(Math.max(0, bricks.length - 1)) - towerH * 0.45);
-    camTarget = Math.min(top, Math.max(0, camTarget + (e.clientY - drag.y) * (view().h / el.clientHeight)));
+    tilt = Math.min(TILT_MAX, Math.max(TILT_MIN, tilt + ((e.clientY - drag.y) / el.clientHeight) * 2.2));
     drag = { ...drag, x: e.clientX, y: e.clientY, t: now };
   });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); zoomTarget = Math.min(1, Math.max(0, zoomTarget + e.deltaY * 0.0015)); }, { passive: false });
   el.addEventListener('pointerup', (e) => {
+    touches.delete(e.pointerId);
+    if (touches.size < 2) pinch = null;
     const tap = drag && !drag.moved;
     drag = null;
     if (!tap || falling || flying) return;
@@ -264,9 +285,9 @@ function build(THREE, host, cb) {
     ray.setFromCamera(ndc, camera);
     const hit = ray.intersectObjects([...bricks.map((b) => b.mesh), ...crew.map((f) => f.mesh)], false)[0]?.object;
     if (hit?.userData.key) cb.onBlock?.(hit.userData.key);
-    else if (hit?.userData.pet && hit.userData.mine) cb.onPet?.();
+    else if (hit?.userData.pet && hit.userData.mine) { const f = crew.find((c) => c.mesh === hit); if (f && !f.hop) f.hop = { t: 0 }; }
   });
-  el.addEventListener('pointercancel', () => { drag = null; });
+  el.addEventListener('pointercancel', (e) => { touches.delete(e.pointerId); pinch = null; drag = null; });
 
   // ---------- frame loop ----------
   const feet = new THREE.Vector3(), probe = new THREE.Raycaster();
@@ -275,13 +296,23 @@ function build(THREE, host, cb) {
     const dt = Math.min(0.05, (now - last) / 1000), time = now / 1000; last = now;
     if (document.hidden) return;
     camY += (camTarget - camY) * Math.min(1, dt * 6);
+    zoom += (zoomTarget - zoom) * Math.min(1, dt * 6);
     if (!drag && spin) { yaw += spin * dt; spin *= Math.exp(-dt * 3.5); if (Math.abs(spin) < 0.02) spin = 0; }
     const v = view(), k = v.t, ax = homeX + (towerX - homeX) * k, az = 12 * (1 - k);
-    const aimY = camY + 13 + (v.h * 0.36 - 13) * k;
-    camera.position.set(ax + Math.sin(yaw) * v.d, aimY + v.d * 0.2, az + Math.cos(yaw) * v.d); camera.lookAt(ax, aimY, az);
+    const aimY = camY * k + 13 + (v.h * 0.36 - 13) * k;
+    const flat = Math.cos(tilt) / Math.cos(TILT); // keep the distance along the ground when tilting
+    camera.position.set(ax + Math.sin(yaw) * v.d * flat, aimY + v.d * Math.sin(tilt) / Math.cos(TILT), az + Math.cos(yaw) * v.d * flat);
+    camera.lookAt(ax, aimY, az);
     sun.position.set(ax + 90, aimY + 170, 120); sun.target.position.set(ax, aimY, 0);
 
-    if (!REDUCED) for (const [i, f] of crew.entries()) {
+    for (const [i, f] of crew.entries()) {
+      if (f.hop) { // tapped: a hop and a full turn, then the playroom opens
+        f.hop.t = REDUCED ? 1 : Math.min(1, f.hop.t + dt / 0.6);
+        f.mesh.position.y = f.at.y + Math.sin(Math.PI * f.hop.t) * 12; f.mesh.rotation.y = f.hop.t * Math.PI * 2;
+        if (f.hop.t >= 1) { f.hop = null; f.mesh.rotation.y = 0; sfx('tap'); cb.onPet?.(); }
+        continue;
+      }
+      if (REDUCED) continue;
       if (f.pet) f.mesh.position.y = f.at.y + Math.abs(Math.sin(time * 2.4 + i)) * 1.4;
       else f.mesh.scale.y = 1 + Math.sin(time * 3 + i) * 0.012;
     }

@@ -370,7 +370,7 @@ function App() {
       backup=${backup} onExport=${onExport} onSaveFile=${onSaveFile} onImport=${onImport} onReset=${onReset}
       cloud=${cloud} cloudApi=${cloudApi} restart=${restart}
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
-    ${modal === 'visit' && rival && html`<${Playroom} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
+    ${modal === 'visit' && rival && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
       bought=${EMPTY} coins=${0} onOpenPlay=${() => {}} onThrowFood=${() => sandbox()} onFeed=${() => sandbox(0)} onWake=${() => sandbox(0)}
       onBuy=${() => sandbox()} onPlace=${() => sandbox()} onClose=${() => setModal('play')} />`}
     ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
@@ -389,7 +389,7 @@ function App() {
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')}
+    ${modal === 'play' && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')}
       room=${myRoom} bought=${bought} coins=${coins}
       onBuy=${(id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
       onPlace=${(where, i, id) => (admin ? sandbox(setAdmin({ room: placeIn(myRoom, where, i, id) }))

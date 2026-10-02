@@ -3,6 +3,7 @@
 // the counts, the pet's face and the judgement pop-up.
 import { html, useState, useEffect, useRef } from './h.js';
 import { Monster } from './monsters.js';
+import { VoxelPet } from './voxelpet.js';
 import { ITEMS, ACCESSORIES, FOODS, FURNITURE } from '../catalog.js';
 import { flick, spinOf, at, landing, judge, foodHearts, tasteOf, isNight, levelOf, levelStart, MAX_LEVEL, STAR_FULL } from '../pet.js';
 import { sfx } from '../sound.js';
@@ -60,7 +61,7 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // Room: room ({slots, building, theme}), bought, coins (null = admin: free), onBuy(id), onPlace(where, i, id).
 // visit: null, or {name} when this is my partner's playroom, looked at read-only (onVisit opens theirs).
 export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze,
-  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose }) {
+  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose, solid }) { // solid: the pet as a voxel model
   const [panel, setPanel] = useState(null); // null | 'shop' | 'decor' | {where, i}
   const roomRef = useRef(room);
   roomRef.current = room;
@@ -336,7 +337,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label=${tl('펫 쓰다듬기')}
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
-        <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
+        <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${solid ? VoxelPet : Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
       </span>
       <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? tl('먹이 던지기') : tl('공 던지기')}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
