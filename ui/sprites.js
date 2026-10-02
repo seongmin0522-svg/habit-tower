@@ -31,17 +31,19 @@ export const CHARACTERS = [
 const BASE = { K: '#2b1d14', S: '#ffdcb8', W: '#ffffff', E: '#2b1d14', B: '#ff9e9e' };
 
 // skin: a catalog 'char-<class>-<variant>' id; it recolors only its own class.
+// [x, y, color] cells of a character as Sprite paints them; the voxel scene turns them into cubes.
+export function spriteCells(id, skin) {
+  const c = CHARACTERS.find((x) => x.id === id) ?? CHARACTERS[0], sk = ITEMS.get(skin);
+  const pal = sk?.cls === c.id ? { ...c.pal, ...sk.pal } : c.pal, out = [];
+  c.map.forEach((row, y) => [...row].forEach((k, x) => { const fill = pal[k] || BASE[k]; if (fill) out.push([x, y, fill]); }));
+  return out;
+}
+
 export function Sprite({ id, px = 3, skin }) {
   const c = CHARACTERS.find((x) => x.id === id) ?? CHARACTERS[0];
-  const sk = ITEMS.get(skin);
-  const pal = sk?.cls === c.id ? { ...c.pal, ...sk.pal } : c.pal;
-  const rects = [];
-  c.map.forEach((row, y) => [...row].forEach((k, x) => {
-    const fill = pal[k] || BASE[k];
-    if (fill) rects.push(html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`);
-  }));
   return html`<svg class="sprite" width=${16 * px} height=${18 * px} viewBox="0 0 16 18"
-    shape-rendering="crispEdges" role="img" aria-label=${c.name}>${rects}</svg>`;
+    shape-rendering="crispEdges" role="img" aria-label=${c.name}>${
+    spriteCells(id, skin).map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
 }
 
 // 16x14 treasure chest. Rows 0-5 are the lid (class "lid", it flies off on open); row 6 is the seam,

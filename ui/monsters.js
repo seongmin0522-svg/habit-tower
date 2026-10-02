@@ -310,14 +310,20 @@ export function paint(id, shiny, face = null) {
 
 // shiny: the rare recolor; the sparkle around it is CSS (.sparkle in index.html).
 // acc: an ACCESSORIES id or null. It may stick out above the 16x16 box (overflow stays visible).
+// Body cells plus the worn accessory's cells (on top of the head, so y may be negative): what Monster draws, and what
+// the voxel scene turns into cubes.
+export function monsterCells(id, shiny = false, face = null, acc = null) {
+  const { m, cells } = paint(id, shiny, face), art = ACC_ART[acc];
+  if (!art) return cells;
+  const [cx, top] = headTop(m.base), ox = cx - Math.floor(art[0].length / 2), oy = top - art.length + 1;
+  return [...cells, ...accCells(acc).map(([x, y, f]) => [ox + x, oy + y, f])];
+}
+
 export function Monster({ id, px = 2, shiny = false, face = null, acc = null }) {
-  const { m, cells } = paint(id, shiny, face);
-  const art = ACC_ART[acc], [cx, top] = art ? headTop(m.base) : [0, 0];
-  const ox = cx - Math.floor((art?.[0].length ?? 0) / 2), oy = top - (art?.length ?? 0) + 1;
+  const m = MONSTERS.find((x) => x.id === id) ?? MONSTERS[0];
   return html`<svg class="monster" width=${16 * px} height=${16 * px} viewBox="0 0 16 16" overflow="visible"
     shape-rendering="crispEdges" role="img" aria-label=${(shiny ? tl('이로치 ') : '') + m.name}>${
-    cells.map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}${
-    art && accCells(acc).map(([x, y, fill]) => html`<rect x=${ox + x} y=${oy + y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
+    monsterCells(id, shiny, face, acc).map(([x, y, fill]) => html`<rect x=${x} y=${y} width="1.02" height="1.02" fill=${fill} />`)}</svg>`;
 }
 
 // An accessory alone, for the bag.
