@@ -11,7 +11,7 @@ export const TRACKS = [
   { id: 4, name: tl('별빛 도시'), file: 'audio/bgm-starlight.mp3' },
 ];
 const SFX = ['tap', 'shake', 'open', 'common', 'rare', 'epic', 'legend', 'shiny', 'brick', 'top'];
-const DEFAULTS = { bgm: true, sfx: true, vibe: true, track: 1 }; // track: 1-4 or 'random' (picked once per launch)
+const DEFAULTS = { bgm: true, sfx: true, vibe: true, flat: false, track: 1 }; // flat: the light 2D tower instead of 3D // track: 1-4 or 'random' (picked once per launch)
 
 let prefs = (() => { try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY)) }; } catch { return { ...DEFAULTS }; } })();
 const listeners = new Set();

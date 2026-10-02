@@ -56,6 +56,11 @@ label.btn { cursor: pointer; } label.btn.off { opacity: .5; cursor: default; }
 .stage { flex: 1; position: relative; overflow-x: hidden; overflow-y: auto; }
 .world { min-height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; padding-top: 56px; }
 .ground { align-self: stretch; flex: none; height: max(48px, 9vh); background: var(--grass); border-top: 2px solid #3f6e2c; }
+.stage.stage3d { overflow: hidden; }
+.scene3d { position: absolute; inset: 0; overflow: hidden; touch-action: none; }
+.scene3d canvas { display: block; width: 100%; height: 100%; }
+.nametag3d { position: absolute; transform: translate(-50%, 0); pointer-events: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .scene { --fd: .6s; position: relative; display: flex; align-items: flex-end; gap: 14px; padding: 0 16px; }
 .crew { position: relative; display: flex; align-items: flex-end; gap: 2px; }
 .crew svg { display: block; }

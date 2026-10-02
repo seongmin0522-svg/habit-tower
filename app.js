@@ -6,6 +6,7 @@ import { balance, placeIn } from './shop.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
+import { Scene3D, canWebGL } from './ui/scene3d.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
@@ -51,6 +52,7 @@ function App() {
   stateRef.current = state;
 
   const [sound, setSound] = useState(getPrefs());
+  const [gl3d, setGl3d] = useState(canWebGL); // false after WebGL fails: 2D for the rest of the launch
   useEffect(() => onPrefs(setSound), []);
   const muted = !sound.bgm && !sound.sfx;
   const [backup, setBackup] = useState(null);
@@ -315,6 +317,16 @@ function App() {
     else navigator.clipboard?.writeText(text).then(() => setToast(tl('문구를 복사했어요 — 카톡에 붙여넣어 주세요')), fail);
   };
   const pokeBtn = coupled && !partnerDone && html`<button class="btn orange sm" onClick=${poke}>${tl('👉 콕 찌르기')}</button>`;
+  // The tower: voxel 3D by default, the 2D scene without WebGL or with the light-screen setting.
+  const sceneProps = state.habit && {
+    character: view === 'partner' ? partner.character : state.habit.character,
+    partnerCharacter: view === 'couple' ? partner.character : null, look, tag: badgeName,
+    keys, days, half, anim, rubble: past[0]?.kind === 'fell', badge,
+    onBlock: (k) => setModal({ key: k, n: keys.indexOf(k) + 1 }),
+    onDone: () => setAnim((a) => (a?.kind === 'stack' ? null : a)), onPet,
+  };
+  const world2d = html`<div class="world">${state.habit && html`<${Scene} key=${view} ...${sceneProps} />`}<div class="ground" /></div>`;
+  const use3d = !!state.habit && gl3d && !sound.flat;
   return html`
     ${db === null && html`<div class="banner">${tl('저장소를 쓸 수 없어요 — 크롬에서 열어주세요')}</div>`}
     <header class="hud">
@@ -339,16 +351,8 @@ function App() {
     ${view === 'couple' && cloud?.coupleReward && html`<div class="reward">${keys.length === TOWER_HEIGHT
       ? tl`🎉 보상 받을 시간! ${cloud.coupleReward}`
       : tl`🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
-    <main class="stage">
-      <div class="world">
-        ${state.habit && html`<${Scene} key=${view}
-          character=${view === 'partner' ? partner.character : state.habit.character}
-          partnerCharacter=${view === 'couple' ? partner.character : null} look=${look} tag=${badgeName}
-          keys=${keys} days=${days} half=${half} anim=${anim} rubble=${past[0]?.kind === 'fell'} badge=${badge}
-          onBlock=${(k) => setModal({ key: k, n: keys.indexOf(k) + 1 })}
-          onDone=${() => setAnim((a) => (a?.kind === 'stack' ? null : a))} onPet=${onPet} />`}
-        <div class="ground" />
-      </div>
+    <main class=${'stage' + (use3d ? ' stage3d' : '')}>
+      ${use3d ? html`<${Scene3D} key=${view} ...${sceneProps} fallback=${world2d} onFail=${() => setGl3d(false)} />` : world2d}
     </main>
     <footer class="bar">
       ${!state.habit ? null

@@ -100,7 +100,7 @@ function SoundBox() {
     onClick=${() => setPrefs({ [key]: !p[key] })}>${label} ${p[key] ? tl('켜짐') : tl('꺼짐')}</button>`;
   return html`<div class="backup">
     <div class="lbl">${tl('소리')}</div>
-    <span>${sw('bgm', tl('🎵 배경음악'))}${sw('sfx', tl('🔔 효과음'))}${sw('vibe', tl('📳 진동'))}
+    <span>${sw('bgm', tl('🎵 배경음악'))}${sw('sfx', tl('🔔 효과음'))}${sw('vibe', tl('📳 진동'))}${sw('flat', tl('가벼운 화면 (2D)'))}
       <button type="button" class="btn sm blue" onClick=${() => setVibeTest(testBuzz())}>${tl('📳 진동 테스트')}</button></span>
     ${vibeTest && html`<p class="muted small">${{
       ok: tl('폰이 진동 요청을 받았어요. 안 떨렸다면 폰 설정 → 소리 및 진동 → 진동 세기에서 터치·시스템 진동을 켜 주세요.'),

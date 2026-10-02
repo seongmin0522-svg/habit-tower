@@ -24,7 +24,7 @@ export const EN = {
   '대결 레벨: Lv {0}': 'Battle level: Lv {0}',
   '켜면 몬스터·이로치·스킨·칭호·악세서리 전부 해금, 먹이·대결·미로 매일 제한 없음. 놀이방·대결·미로 결과는 저장하지 않아요.':
     'Unlocks every monster, shiny, skin, title and accessory, with no daily limits on snacks, battles or the maze. Playroom, battle and maze results aren’t saved.',
-  '소리': 'Sound', '🎵 배경음악': '🎵 Music', '🔔 효과음': '🔔 Effects', '📳 진동': '📳 Vibration', '📳 진동 테스트': '📳 Test vibration',
+  '가벼운 화면 (2D)': 'Light view (2D)', '소리': 'Sound', '🎵 배경음악': '🎵 Music', '🔔 효과음': '🔔 Effects', '📳 진동': '📳 Vibration', '📳 진동 테스트': '📳 Test vibration',
   '폰이 진동 요청을 받았어요. 안 떨렸다면 폰 설정 → 소리 및 진동 → 진동 세기에서 터치·시스템 진동을 켜 주세요.':
     'Your phone got the vibration request. No buzz? Turn on touch/system vibration in your phone’s sound settings.',
   '브라우저가 진동을 막았어요. 이 문구를 캡처해서 알려 주세요.': 'The browser blocked vibration. Please send us a screenshot of this.',
