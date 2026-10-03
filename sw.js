@@ -5,7 +5,7 @@
 // Audio (audio/*.mp3) isn't in SHELL: sound.js fetches it whole on first play and the fetch handler keeps it.
 // Our own files are always revalidated (cache: 'no-cache'): GitHub Pages lets browsers keep them 10 minutes,
 // which right after a deploy could pair a new app.js with an old windows.js and break the page.
-const CACHE = 'habit-tower-v18';
+const CACHE = 'habit-tower-v19';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [

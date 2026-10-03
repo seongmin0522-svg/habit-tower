@@ -53,6 +53,8 @@ function App() {
 
   const [sound, setSound] = useState(getPrefs());
   const [gl3d, setGl3d] = useState(canWebGL); // false after WebGL fails: 2D for the rest of the launch
+  const [spot, setSpot] = useState('tower');   // the 3D island's tab: 'tower' | 'play'
+  const [bridge, setBridge] = useState(null);  // the 3D world's handle for playing on the island
   useEffect(() => onPrefs(setSound), []);
   const muted = !sound.bgm && !sound.sfx;
   const [backup, setBackup] = useState(null);
@@ -165,7 +167,13 @@ function App() {
   // Room shop: coins are derived from records (shop.js), admin mode owns everything for free.
   const bought = admin ? ALL_SHOP : state.shop;
   const coins = admin ? null : balance({ days: state.days, maze: state.maze, pets: state.pets, pulls: state.pulls }, state.shop);
-  const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); setModal('play'); } : null;
+  // 3D: play happens on the island (the 놀기 tab); 2D: in the playroom window.
+  const use3d = !!state.habit && gl3d && !sound.flat;
+  const playing = use3d && spot === 'play' && view !== 'partner' && !anim && !fall;
+  useEffect(() => { if (anim || fall) setSpot('tower'); }, [anim, fall]); // a new floor or a fall: back to the tower
+  const toPlay = () => (use3d ? setSpot('play') : setModal('play'));
+  const backToPlay = () => setModal(use3d ? null : 'play');
+  const onPet = ready && state.habit && view !== 'partner' && !anim && !fall ? () => { sfx('tap'); toPlay(); } : null;
   // The sky and grass follow the tab's background skin.
   useEffect(() => {
     const bg = ITEMS.get(look.bg), st = document.documentElement.style;
@@ -326,7 +334,18 @@ function App() {
     onDone: () => setAnim((a) => (a?.kind === 'stack' ? null : a)), onPet,
   };
   const world2d = html`<div class="world">${state.habit && html`<${Scene} key=${view} ...${sceneProps} />`}<div class="ground" /></div>`;
-  const use3d = !!state.habit && gl3d && !sound.flat;
+  const playProps = {
+    solid: gl3d && !sound.flat, pet: myPet, hearts: petHearts, wins: state.pets[myPet.id]?.wins ?? 0, accs,
+    onBattle: () => setModal('battle'), onMaze: () => setModal('maze'), room: myRoom, bought, coins,
+    onBuy: (id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; }),
+    onPlace: (where, i, id) => (admin ? sandbox(setAdmin({ room: placeIn(myRoom, where, i, id) }))
+      : actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })),
+    onVisit: rival ? () => setModal('visit') : null, food: admin ? ADMIN_FOOD : state.play[today]?.food,
+    tastes: tastes[ITEMS.get(myPet.id)?.base], onOpenPlay: () => admin || actions.openPlay().catch(fail),
+    onThrowFood: (k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; })),
+    onFeed: (n, kind, food) => (admin ? sandbox(n) : actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; })),
+    onWake: () => (admin ? sandbox(3) : actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; })),
+  };
   return html`
     ${db === null && html`<div class="banner">${tl('저장소를 쓸 수 없어요 — 크롬에서 열어주세요')}</div>`}
     <header class="hud">
@@ -352,8 +371,13 @@ function App() {
       ? tl`🎉 보상 받을 시간! ${cloud.coupleReward}`
       : tl`🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
     <main class=${'stage' + (use3d ? ' stage3d' : '')}>
-      ${use3d ? html`<${Scene3D} key=${view} ...${sceneProps} fallback=${world2d} onFail=${() => setGl3d(false)} />` : world2d}
+      ${use3d ? html`<${Scene3D} key=${view} ...${sceneProps} fallback=${world2d} onFail=${() => setGl3d(false)}
+        mode=${playing ? 'play' : 'tower'} onBridge=${setBridge} room=${view === 'partner' ? partner?.room : myRoom} />` : world2d}
+      ${playing && bridge && html`<${Playroom} ...${playProps} bridge=${bridge} />`}
     </main>
+    ${use3d && view !== 'partner' && html`<nav class="tabs" role="tablist">${[['tower', tl('🏰 탑')], ['play', tl('🐾 놀기')]].map(([id, label]) => html`
+      <button key=${id} role="tab" aria-selected=${(playing ? 'play' : 'tower') === id} disabled=${!ready || !!anim || !!fall}
+        onClick=${() => { sfx('tap'); setSpot(id); }}>${label}</button>`)}</nav>`}
     <footer class="bar">
       ${!state.habit ? null
         : view === 'partner'
@@ -372,7 +396,7 @@ function App() {
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
     ${modal === 'visit' && rival && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
       bought=${EMPTY} coins=${0} onOpenPlay=${() => {}} onThrowFood=${() => sandbox()} onFeed=${() => sandbox(0)} onWake=${() => sandbox(0)}
-      onBuy=${() => sandbox()} onPlace=${() => sandbox()} onClose=${() => setModal('play')} />`}
+      onBuy=${() => sandbox()} onPlace=${() => sandbox()} onClose=${backToPlay} />`}
     ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
       onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {
@@ -380,25 +404,16 @@ function App() {
         if (vs === 'partner' && r.counted) cloudApi.recordBattle({ mine: myPet.id, theirs: rival.pet.id, won }).catch(fail); else cloudApi?.sync();
         return r;
       }, (e) => { fail(e); throw e; }))}
-      onClose=${() => setModal('play')} />`}
+      onClose=${backToPlay} />`}
     ${modal === 'maze' && html`<${Maze} pet=${myPet} level=${(admin && adminPrefs.level) || levelOf(petHearts)} day=${today} best=${state.maze[today]?.ms ?? null}
       capturedToday=${!admin && !!state.pulls['w:' + today]}
       onCapture=${(id, shiny) => (admin ? sandbox({ caught: true, admin: true }) : actions.capture(id, shiny).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
       onClear=${(ms) => (admin ? sandbox({ admin: true, best: ms }) : actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
-      onClose=${() => setModal('play')} />`}
+      onClose=${backToPlay} />`}
     ${modal === 'bag' && html`<${Bag} unopened=${unopened} shards=${shards(state.pulls, clears)} have=${have} look=${myLook} accs=${accs} petLv=${petLv} tastes=${tastes}
       character=${state.habit?.character} coupleSkin=${coupled ? cSkin : null} earned=${earned}
       onReveal=${openReveal} onEquip=${onEquip} onEquipCouple=${onEquipCouple} onClose=${() => setModal(null)} />`}
-    ${modal === 'play' && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${myPet} hearts=${petHearts} wins=${state.pets[myPet.id]?.wins ?? 0} accs=${accs} onBattle=${() => setModal('battle')} onMaze=${() => setModal('maze')}
-      room=${myRoom} bought=${bought} coins=${coins}
-      onBuy=${(id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })}
-      onPlace=${(where, i, id) => (admin ? sandbox(setAdmin({ room: placeIn(myRoom, where, i, id) }))
-        : actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; }))}
-      onVisit=${rival ? () => setModal('visit') : null} food=${admin ? ADMIN_FOOD : state.play[today]?.food}
-      tastes=${tastes[ITEMS.get(myPet.id)?.base]} onOpenPlay=${() => admin || actions.openPlay().catch(fail)}
-      onThrowFood=${(k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; }))}
-      onFeed=${(n, kind, food) => (admin ? sandbox(n) : actions.feedPet(myPet.id, n, kind, food).catch((e) => { fail(e); throw e; }))}
-      onWake=${() => (admin ? sandbox(3) : actions.wakePet(myPet.id).catch((e) => { fail(e); throw e; }))} onClose=${() => setModal(null)} />`}
+    ${modal === 'play' && html`<${Playroom} ...${playProps} onClose=${() => setModal(null)} />`}
     ${modal === 'reveal' && revealBox && html`<${BoxReveal} key=${revealBox} box=${revealBox} left=${unopened.filter((b) => b !== revealBox).length}
       shards=${shards(state.pulls, clears)} onOpen=${(b) => actions.openBox(b, boxCdays).then((p) => { cloudApi?.sync(); return p; })}
       onEquip=${wear} onNext=${() => setRevealBox(unopened.find((b) => b !== revealBox))} onClose=${() => setModal(null)} />`}

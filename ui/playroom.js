@@ -61,11 +61,13 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // Room: room ({slots, building, theme}), bought, coins (null = admin: free), onBuy(id), onPlace(where, i, id).
 // visit: null, or {name} when this is my partner's playroom, looked at read-only (onVisit opens theirs).
 export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze,
-  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose, solid }) { // solid: the pet as a voxel model
+  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose, solid, bridge }) { // solid: the pet as a voxel model
+  // bridge: play over the 3D island (ui/scene3d.js) instead of in this window: the same rules, the world draws the pet
+  // and the item; here only the throw spot, an invisible hit box on the pet (petting, its mood icon) and the controls.
   const [panel, setPanel] = useState(null); // null | 'shop' | 'decor' | {where, i}
   const roomRef = useRef(room);
   roomRef.current = room;
-  const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef();
+  const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef(), trayEl = useRef();
   const cb = useRef();
   cb.current = { onThrowFood, onFeed, onWake, food };
   const [kind, setKind] = useState(() => firstFood(food));
@@ -231,6 +233,18 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     const f = field.current;
     if (!f) return;
     const w = f.clientWidth, h = f.clientHeight, p = s.pet, it = s.item;
+    if (bridge) {
+      const pp = bridge.project({ x: p.x, z: p.z }), ie = itemEl.current;
+      Object.assign(petEl.current.style, { width: `${14 * pp.k}px`, height: `${14 * pp.k}px` }); // the 3D pet's size
+      place(petEl.current, pp.left, pp.top, 1);
+      bridge.setPet({ x: p.x, z: p.z, dir: p.face, face: s.look.face, motion: s.look.motion });
+      const inHand = it.mode === 'ready' || it.mode === 'drag';
+      ie.style.visibility = inHand ? 'visible' : 'hidden';
+      if (it.mode === 'ready') place(ie, w / 2, h - 8 - (trayEl.current?.offsetHeight ?? 0), 1);
+      else if (it.mode === 'drag') place(ie, it.fx, it.fy + 30, 1);
+      bridge.setItem(!inHand && it.mode !== 'gone' && it.pos ? { icon: ICON[it.kind], pos: it.pos, mode: it.mode } : null);
+      return;
+    }
     const pp = project(p, w, h);
     place(petEl.current, pp.left, pp.top, -p.face * pp.s, pp.s); // the art faces left
     petEl.current.style.zIndex = String(Math.round(1000 - p.z * 500));
@@ -258,7 +272,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       raf = requestAnimationFrame(frame);
     };
     raf = requestAnimationFrame(frame);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); bridge?.setItem(null); };
   }, []);
 
   const local = (e) => { const r = field.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
@@ -309,6 +323,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
 
   const pick = (k) => { if (s.item.mode === 'ready' && (k === 'ball' || food?.includes(k))) { s.chose = true; setKind(k); sfx('tap'); } };
   const [face, icon, motion] = (emo && typeof emo === 'object' ? [emo.face, emo.icon, emo.motion] : EMO[emo]) ?? [blink ? 'blink' : null, null, null];
+  s.look = { face, motion }; // for draw(), which the frame loop calls outside renders
   const lv = levelOf(hearts), max = lv === MAX_LEVEL;
   const [from, to] = max ? [levelStart(MAX_LEVEL), STAR_FULL] : [levelStart(lv), levelStart(lv + 1)];
   const gauge = html`<span class="pr-lv">${max ? '⭐' : `Lv ${lv}`}
@@ -318,33 +333,34 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     : kind !== 'ball' ? tl('먹이를 잡고 위로 튕겨 던져 보세요') : tl('공을 던지면 물어와요');
 
   const editing = panel === 'decor' || typeof panel === 'object' && panel;
-  return html`<div class=${'playroom sky-' + skyAt()} role="dialog" aria-label=${visit ? tl`${visit.name}의 놀이방` : tl('펫과 놀기')}>
+  return html`<div class=${bridge ? 'playroom pr-island' : 'playroom sky-' + skyAt()} role=${bridge ? 'region' : 'dialog'}
+    aria-label=${visit ? tl`${visit.name}의 놀이방` : tl('펫과 놀기')}>
     <div class="pr-top"><b>${visit ? tl`💞 ${visit.name}의 ` : ''}${ITEMS.get(pet.id)?.name ?? tl('펫')}</b>${!visit && gauge}
       ${!visit && html`<span class="pr-coins">🪙 ${coins ?? '∞'}</span>`}
-      <button class="x" onClick=${onClose} aria-label=${tl('닫기')}>✕</button></div>
+      ${!bridge && html`<button class="x" onClick=${onClose} aria-label=${tl('닫기')}>✕</button>`}</div>
     ${!visit && html`<div class="pr-tools">
       <button class="btn sm orange" onClick=${onBattle} aria-label=${tl('대결')}>${tl('⚔️ 대결')}</button>
       <button class="btn sm orange" onClick=${onMaze} aria-label=${tl('미로')}>${tl('🧩 미로')}</button>
       <button class="btn sm blue" onClick=${() => setPanel('shop')}>${tl('🏪 상점')}</button>
-      <button class=${'btn sm ' + (editing ? 'green' : 'blue')} onClick=${() => setPanel(editing ? null : 'decor')}>🏠 ${editing ? tl('완료') : tl('꾸미기')}</button>
+      ${!bridge && html`<button class=${'btn sm ' + (editing ? 'green' : 'blue')} onClick=${() => setPanel(editing ? null : 'decor')}>🏠 ${editing ? tl('완료') : tl('꾸미기')}</button>`}
       ${onVisit && html`<button class="btn sm blue" onClick=${onVisit}>${tl('💞 놀러가기')}</button>`}
     </div>`}
     <div class="pr-field" ref=${field}>
-      <${RoomLayer} room=${room} editing=${!!editing} onSlot=${(i) => setPanel({ where: 'slot', i })}
-        onBuilding=${() => setPanel({ where: 'building', i: 0 })} />
+      ${!bridge && html`<${RoomLayer} room=${room} editing=${!!editing} onSlot=${(i) => setPanel({ where: 'slot', i })}
+        onBuilding=${() => setPanel({ where: 'building', i: 0 })} />`}
       ${editing && html`<button class="btn sm blue pr-theme" onClick=${() => setPanel({ where: 'theme', i: 0 })}>${tl('🌸 테마 바꾸기')}</button>`}
-      <span class="pr-shadow" ref=${shadowEl} />
+      ${!bridge && html`<span class="pr-shadow" ref=${shadowEl} />`}
       <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label=${tl('펫 쓰다듬기')}
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
         ${icon && html`<span class="pr-bubble" ref=${bubbleEl}><${Icon} name=${icon} /></span>`}
-        <span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${solid ? VoxelPet : Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>
+        ${!bridge && html`<span class=${'pr-body' + (motion ? ' m-' + motion : '')} key=${emo ?? ''}><${solid ? VoxelPet : Monster} id=${pet.id} shiny=${pet.shiny} px=${PET_PX} face=${face} acc=${pet.acc} /></span>`}
       </span>
       <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? tl('먹이 던지기') : tl('공 던지기')}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
       ${pop && html`<p key=${pop.key} class="pr-pop">${pop.text}</p>`}
       <p class="pr-hint">${visit ? tl`${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : editing ? tl('번호 칸을 눌러 가구를 놓아요') : hint}</p>
     </div>
-    ${!visit && html`<div class="pr-tray">
+    ${!visit && html`<div class="pr-tray" ref=${trayEl}>
       ${FOODS.map((f) => {
         const n = food?.filter((k) => k === f.id).length ?? 0, t = tastes?.[f.id];
         return html`<button key=${f.id} class=${'btn sm ' + (kind === f.id ? 'green' : 'blue')} disabled=${!n} onClick=${() => pick(f.id)}

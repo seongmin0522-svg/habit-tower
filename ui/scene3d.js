@@ -6,7 +6,8 @@ import { voxelize, grassOf } from '../voxel.js';
 import { monsterCells } from './monsters.js';
 import { spriteCells } from './sprites.js';
 import { brickColor } from './scene.js';
-import { ITEMS } from '../catalog.js';
+import { ITEMS, SHOP } from '../catalog.js';
+import { SLOTS } from '../shop.js';
 import { TOWER_HEIGHT } from '../logic.js';
 import { photoUrl } from '../db.js';
 import { sfx } from '../sound.js';
@@ -22,6 +23,10 @@ export const canWebGL = (() => { try { return !!document.createElement('canvas')
 const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
 const BW = 28, BH = 13, BD = 14, BASE = 2, TOWER_X = 12, GRAV = 260, TILT = 0.2, TILT_MIN = 0.02, TILT_MAX = 1.25;
 const restY = (i) => BASE + BH / 2 + i * BH;
+// Play (spec: docs/superpowers/specs/2026-10-03-island-design.md): a playroom point {x, y, z} lands on the island at
+// (PX + x·U, y·U, PZ − z·U), in front of the tower; the camera stands behind "my hand".
+// PLAY_W: the half width the camera keeps in view where the pet strolls; PLAY_UP: how steeply it looks down.
+const PX = -10, PZ = 70, U = 45, PLAY_AIM = [PX, 4, PZ - 0.7 * U], PLAY_W = 34, PLAY_UP = 0.5;
 
 // The imperative world: three.js objects and the frame loop. cb holds the latest callbacks.
 function build(THREE, host, cb) {
@@ -139,6 +144,8 @@ function build(THREE, host, cb) {
   // camY = the climb up the tower (two-finger drag), which only shows once zoomed out.
   let camY = 0, camTarget = 0, yaw = 0.3, spin = 0, tilt = TILT, zoom = 0, zoomTarget = 0, tagEl = null, raf, last = performance.now();
   const touches = new Map(); let pinch = null, drag = null;
+  // Play: mode 'play' hands my pet to the playroom (pet: its last setPet), playK blends the camera over.
+  let mode = 'tower', playK = 0, pet = null;
 
   function setCrew(list) { // list: [{cells, pet, mine, face}] left to right
     for (const f of crew) scene.remove(f.mesh);
@@ -191,6 +198,82 @@ function build(THREE, host, cb) {
   }
 
   const hero = () => crew.find((f) => !f.pet);
+  const mine = () => crew.find((f) => f.mine);
+
+  // ---------- play: the playroom moves my pet and the thrown item; furniture stands where it was placed ----------
+  const isle = (p, v = new THREE.Vector3()) => v.set(PX + p.x * U, (p.y ?? 0) * U, PZ - p.z * U);
+  const emojis = new Map(); // icon -> texture
+  const emoji = (ch) => {
+    if (!emojis.has(ch)) {
+      const c = document.createElement('canvas'); c.width = c.height = 64;
+      const g = c.getContext('2d'); g.font = '52px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 32, 36);
+      const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; emojis.set(ch, t);
+    }
+    return emojis.get(ch);
+  };
+  const sprite = (ch, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emoji(ch) })); s.scale.setScalar(size); return s; };
+  const item = sprite('⚾', 7), shadow = new THREE.Mesh(new THREE.CircleGeometry(3, 20),
+    new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
+  shadow.rotation.x = -Math.PI / 2; item.visible = shadow.visible = false; scene.add(item, shadow);
+  // it: {icon, pos (playroom point), mode: 'fly' | 'ground' | 'held'} or null
+  function setItem(it) {
+    item.visible = !!it; shadow.visible = it?.mode === 'fly';
+    if (!it) return;
+    if (item.material.map !== emoji(it.icon)) { item.material.map = emoji(it.icon); item.material.needsUpdate = true; }
+    const size = it.mode === 'held' ? 3.5 : 7;
+    item.scale.setScalar(size); isle(it.pos, item.position).y += size / 2;
+    isle({ ...it.pos, y: 0 }, shadow.position).y = 0.3;
+  }
+  let furniture = [];
+  function setFurniture(list) { // [{icon, x, z}] in playroom units
+    for (const f of furniture) scene.remove(f);
+    furniture = list.map((f) => { const s = sprite(f.icon, 14); isle(f, s.position).y = 7; scene.add(s); return s; });
+  }
+  // p: {x, z, dir (±1), cells (the face's art; rebuilt when it changes), motion}
+  function setPet(p) {
+    const f = mine();
+    if (!f || mode !== 'play') return;
+    if (p.cells !== f.faceCells) {
+      const m = figure(p.cells, true);
+      m.scale.setScalar(0.85); m.position.copy(f.mesh.position); m.userData = f.mesh.userData;
+      scene.remove(f.mesh); f.mesh.dispose(); scene.add(m);
+      f.mesh = m; f.faceCells = p.cells;
+    }
+    f.base ??= f.mesh.position.clone(); f.yaw ??= 0;
+    pet = { ...p, t0: p.motion && p.motion === pet?.motion ? pet.t0 : performance.now() };
+  }
+  function setMode(m) {
+    if (m === mode) return;
+    mode = m; pet = null; setItem(null);
+    const f = mine();
+    if (m !== 'tower' || !f) return;
+    if (f.faceCells) { const n = figure(f.cells, true); n.scale.setScalar(0.85); n.userData = f.mesh.userData; scene.remove(f.mesh); f.mesh.dispose(); scene.add(n); f.mesh = n; }
+    f.faceCells = f.base = f.yaw = undefined;
+    f.mesh.position.copy(f.at); f.mesh.rotation.set(0, 0, 0); f.mesh.scale.setScalar(0.85);
+  }
+  // A playroom point on screen, in the scene's pixels; k = pixels per island unit there.
+  const shot = new THREE.Vector3();
+  function project(p) {
+    const w = host.clientWidth, h = host.clientHeight;
+    isle(p, shot).project(camera);
+    const left = (shot.x * 0.5 + 0.5) * w, top = (-shot.y * 0.5 + 0.5) * h;
+    isle({ ...p, y: (p.y ?? 0) + 10 / U }, shot).project(camera);
+    return { left, top, k: (top - (-shot.y * 0.5 + 0.5) * h) / 10 };
+  }
+  // A short body move for the pet's mood (the playroom's EMO motions), t seconds in.
+  function moveFor(motion, t, o) {
+    if (REDUCED) return;
+    if (motion === 'jump') o.y += Math.abs(Math.sin(t * 9)) * 6;
+    else if (motion === 'bounce') o.y += Math.abs(Math.sin(t * 7)) * 2.5;
+    else if (motion === 'hop') o.y += t < 0.35 ? Math.sin((t / 0.35) * Math.PI) * 5 : 0;
+    else if (motion === 'stomp') o.y += Math.abs(Math.sin(t * 14)) * 1.2;
+    else if (motion === 'spin') o.turn += Math.min(1, t / 0.8) * Math.PI * 2;
+    else if (motion === 'droop') o.sy = 0.88;
+    else if (motion === 'chew') o.sy = 1 + Math.sin(t * 20) * 0.05;
+    else if (motion === 'shake') o.x += Math.sin(t * 40) * 0.8;
+    else if (motion === 'sway') o.roll = Math.sin(t * 2) * 0.12;
+    else if (motion === 'wiggle') o.roll = Math.sin(t * 16) * 0.12;
+  }
   function stack() { // the newest floor (or today's half brick) flies in from the hero
     const mesh = halfBrick ?? bricks.at(-1)?.mesh;
     const h = hero();
@@ -249,6 +332,7 @@ function build(THREE, host, cb) {
   // One finger: sideways turns (with momentum), up/down tilts. Two fingers: pinch zooms, moving together climbs.
   const spread = () => { const [a, b] = [...touches.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2 }; };
   el.addEventListener('pointerdown', (e) => {
+    if (mode === 'play') return; // the camera stays behind the hand while playing
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer (synthetic events) */ }
     spin = 0; clearTimeout(homeT);
@@ -273,7 +357,7 @@ function build(THREE, host, cb) {
     tilt = Math.min(TILT_MAX, Math.max(TILT_MIN, tilt + ((e.clientY - drag.y) / el.clientHeight) * 2.2));
     drag = { ...drag, x: e.clientX, y: e.clientY, t: now };
   });
-  el.addEventListener('wheel', (e) => { e.preventDefault(); zoomTarget = Math.min(1, Math.max(0, zoomTarget + e.deltaY * 0.0015)); }, { passive: false });
+  el.addEventListener('wheel', (e) => { e.preventDefault(); if (mode !== 'play') zoomTarget = Math.min(1, Math.max(0, zoomTarget + e.deltaY * 0.0015)); }, { passive: false });
   el.addEventListener('pointerup', (e) => {
     touches.delete(e.pointerId);
     if (touches.size < 2) pinch = null;
@@ -302,10 +386,25 @@ function build(THREE, host, cb) {
     const aimY = camY * k + 13 + (v.h * 0.36 - 13) * k;
     const flat = Math.cos(tilt) / Math.cos(TILT); // keep the distance along the ground when tilting
     camera.position.set(ax + Math.sin(yaw) * v.d * flat, aimY + v.d * Math.sin(tilt) / Math.cos(TILT), az + Math.cos(yaw) * v.d * flat);
-    camera.lookAt(ax, aimY, az);
+    playK += ((mode === 'play' ? 1 : 0) - playK) * Math.min(1, dt * 4);
+    const e = playK * playK * (3 - 2 * playK), aim = new THREE.Vector3(ax, aimY, az).lerp(shot.set(...PLAY_AIM), e);
+    const pd = PLAY_W / (half * camera.aspect);
+    camera.position.lerp(shot.set(PLAY_AIM[0], PLAY_AIM[1] + pd * Math.sin(PLAY_UP), PLAY_AIM[2] + pd * Math.cos(PLAY_UP)), e);
+    camera.lookAt(aim);
     sun.position.set(ax + 90, aimY + 170, 120); sun.target.position.set(ax, aimY, 0);
 
     for (const [i, f] of crew.entries()) {
+      if (f.mine && mode === 'play') {
+        if (!pet || !f.base) continue;
+        const to = isle(pet, shot), moving = f.base.distanceTo(to) > 0.05;
+        f.base.lerp(to, Math.min(1, dt * 12));
+        f.yaw += ((pet.dir > 0 ? -0.5 : Math.PI + 0.5) - f.yaw) * Math.min(1, dt * 8); // a three-quarter turn to us
+        const o = { x: 0, y: moving && !REDUCED ? Math.abs(Math.sin(time * 10)) * 0.8 : 0, turn: 0, sy: 1, roll: 0 };
+        moveFor(pet.motion, (now - pet.t0) / 1000, o);
+        f.mesh.position.set(f.base.x + o.x, f.base.y + o.y, f.base.z);
+        f.mesh.rotation.set(0, f.yaw + o.turn, o.roll); f.mesh.scale.set(0.85, 0.85 * o.sy, 0.85);
+        continue;
+      }
       if (f.hop) { // tapped: a hop and a full turn, then the playroom opens
         f.hop.t = REDUCED ? 1 : Math.min(1, f.hop.t + dt / 0.6);
         f.mesh.position.y = f.at.y + Math.sin(Math.PI * f.hop.t) * 12; f.mesh.rotation.y = f.hop.t * Math.PI * 2;
@@ -348,7 +447,7 @@ function build(THREE, host, cb) {
       probe.set(camera.position, feet.clone().sub(camera.position).normalize());
       const blocked = probe.intersectObjects(bricks.map((b) => b.mesh), false)[0]?.distance < camera.position.distanceTo(feet);
       const p = feet.clone().project(camera), off = Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
-      tagEl.style.visibility = off || blocked ? 'hidden' : 'visible';
+      tagEl.style.visibility = off || blocked || playK > 0.05 ? 'hidden' : 'visible';
       tagEl.style.left = `${(p.x * 0.5 + 0.5) * host.clientWidth}px`; tagEl.style.top = `${(-p.y * 0.5 + 0.5) * host.clientHeight}px`;
     }
     renderer.render(scene, camera);
@@ -357,7 +456,7 @@ function build(THREE, host, cb) {
   raf = requestAnimationFrame(frame);
 
   return {
-    setGround, setCrew, setTower, setRubble, stack, fall,
+    setGround, setCrew, setTower, setRubble, stack, fall, setMode, setPet, setItem, setFurniture, project,
     setTag(elm) { tagEl = elm; },
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(homeT);
@@ -369,17 +468,33 @@ function build(THREE, host, cb) {
 }
 
 // The 3D scene for props: what Scene draws, as a world. fallback: the 2D scene until three.js is ready.
-export function Scene3D({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half, onPet, fallback, onFail }) {
+// mode: 'tower' | 'play'. onBridge(bridge | null): the playroom's handle on my pet ({setPet, setItem, project}).
+// room: furniture in its slots stands on the island.
+export function Scene3D({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half, onPet, fallback, onFail,
+  mode = 'tower', onBridge, room }) {
   const host = useRef(), tagRef = useRef(), world = useRef(null), [ready, setReady] = useState(false);
   const cb = useRef({}).current; // one object for the world's lifetime, refilled with the latest callbacks each render
-  Object.assign(cb, { onBlock, onDone, onPet, onFail });
+  Object.assign(cb, { onBlock, onDone, onPet, onFail, onBridge, pet: look.monsters[0] });
   useEffect(() => {
     let alive = true;
     loadThree().then((THREE) => {
       if (!alive) return;
-      try { world.current = build(THREE, host.current, cb); setReady(true); } catch { cb.onFail?.(); }
+      try { world.current = build(THREE, host.current, cb); } catch { cb.onFail?.(); return; }
+      setReady(true);
+      // The pet's face picks its art; the art is rebuilt only when the face (or the pet) changes.
+      let art = {};
+      const w = world.current;
+      cb.onBridge?.({
+        setPet({ face, ...p }) {
+          const m = cb.pet;
+          if (!m) return;
+          if (art.m !== m || art.face !== face) art = { m, face, cells: monsterCells(m.id, m.shiny, face, m.acc) };
+          w.setPet({ ...p, cells: art.cells });
+        },
+        setItem: w.setItem, project: w.project,
+      });
     }, () => cb.onFail?.());
-    return () => { alive = false; world.current?.dispose(); world.current = null; };
+    return () => { alive = false; cb.onBridge?.(null); world.current?.dispose(); world.current = null; };
   }, []);
 
   const falling = anim?.kind === 'fall', shown = falling ? anim.keys : keys;
@@ -410,6 +525,11 @@ export function Scene3D({ character, partnerCharacter, look, tag, keys, days, an
     else if (anim.kind === 'fall') world.current.fall();
   }, [ready, anim]);
   useEffect(() => { if (ready) world.current.setTag(tagRef.current); }, [ready, tag]);
+  useEffect(() => { if (ready) world.current.setMode(mode); }, [ready, mode]);
+  const slots = room?.slots ?? [];
+  useEffect(() => {
+    if (ready) world.current.setFurniture(slots.map((id, i) => SHOP.get(id) && { icon: SHOP.get(id).icon, ...SLOTS[i] }).filter(Boolean));
+  }, [ready, slots.join()]);
 
   return html`<div class="scene3d" ref=${host}>
     ${!ready && fallback}

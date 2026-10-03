@@ -447,6 +447,17 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .pr-body { display: block; transform-origin: 50% 100%; }
 .pr-bubble { position: absolute; bottom: 100%; left: 50%; margin-bottom: 6px; background: #fff; border: 6px solid #2b1d14; border-radius: 22px; padding: 8px 10px 4px; line-height: 0; }
 .pr-bubble svg { display: block; }
+/* Play over the 3D island: a see-through layer; only the controls, the throw spot and the pet's hit box take touches */
+.playroom.pr-island { position: absolute; z-index: 1; background: none; pointer-events: none; }
+.pr-island > *, .pr-island .pr-pet, .pr-island .pr-item { pointer-events: auto; }
+.pr-island .pr-field { position: absolute; inset: 0; pointer-events: none; }
+.pr-island .pr-field::before { content: none; }
+.pr-island .pr-top { padding: 6px 14px; background: rgba(0,0,0,.25); }
+.pr-island .pr-tools { padding-top: 6px; }
+.pr-island .pr-tray { margin-top: auto; padding-bottom: 8px; }
+.pr-island .pr-pop { top: 24%; }
+.pr-island .pr-hint { bottom: 140px; }
+.pr-island .pr-bubble { transform: translateX(-50%) scale(.6); transform-origin: 50% 100%; }
 .m-jump { animation: mjump .5s ease-out 2; }
 .m-bounce { animation: mbounce .18s ease-in-out 4 alternate; }
 .m-chew { animation: mchew .14s ease-in-out 5 alternate; }
