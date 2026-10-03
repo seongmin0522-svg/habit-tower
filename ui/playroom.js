@@ -142,6 +142,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     const p = s.pet, taste = tasteOf(pet.id, food);
     s.item = { mode: 'gone' };
     p.waitUntil = now + EAT_MS; walkTo(p.x, p.z, WANDER.walk);
+    bridge?.fx(taste === 'hate' ? 'spit' : 'eat', p, food);
     if (taste === 'hate') {
       emote('spit', 1100); sfx('shake'); buzz('glow');
       say(tl('퉤! 싫어해요'));
@@ -167,7 +168,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     if (p.asleep) { // the first throw at a sleeping pet only wakes it, angry
       p.asleep = false;
       s.item = { mode: 'gone' };
-      emote('angry', 1400);
+      emote('angry', 1400); bridge?.fx('angry', p);
       sfx('shake'); buzz('glow');
       cb.current.onWake().then((n) => n > 0 && say(tl`깼어요! -${n}💗`), () => {});
       p.waitUntil = now + 1400;
@@ -177,13 +178,13 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     const j = judge(it.land, p);
     if (it.kind === 'ball') {
       if (j !== 'miss') {
-        emote('joy', 800); sfx('common'); buzz('tap');
+        emote('joy', 800); sfx('common'); buzz('tap'); bridge?.fx('catch', p);
         feed(1, 'toy').then((n) => (n > 0 ? gave(n, tl('잡았다!')) : say(tl('잡았다!'))), () => {});
         it.pos = { x: p.x, y: 0, z: p.z };
         return pickUp(now);
       }
     } else if (j !== 'miss') { // caught: a moment of joy, then it eats
-      s.item = { mode: 'gone' };
+      s.item = { mode: 'gone' }; bridge?.fx('catch', p);
       emote(j === 'excellent' ? 'excited' : 'joy', 500);
       p.waitUntil = now + 500;
       return setTimeout(() => eat(performance.now(), j, it.paid, it.kind), 500);
@@ -191,6 +192,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     it.mode = 'ground';
     it.pos = { x: clamp(it.land.x, GROUND.x), y: 0, z: clamp(it.land.z, GROUND.z) };
     const close = Math.hypot(it.land.x - p.x, it.land.z - p.z) <= NEAR_MISS;
+    bridge?.fx('land', it.pos);
     emote(close ? 'surprised' : 'sad', 700);
     p.waitUntil = now + 700;
     walkTo(it.pos.x, it.pos.z, WANDER.run);
@@ -245,7 +247,10 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       ie.style.visibility = inHand ? 'visible' : 'hidden';
       if (it.mode === 'ready') place(ie, w / 2, h - 8 - (trayEl.current?.offsetHeight ?? 0), 1);
       else if (it.mode === 'drag') place(ie, it.fx, it.fy + 30, 1);
-      bridge.setItem(!inHand && it.mode !== 'gone' && it.pos ? { icon: ICON[it.kind], pos: it.pos, mode: it.mode } : null);
+      if (inHand) { // the DOM item stays as the invisible thing to grab; the world draws it
+        const tray = trayEl.current?.offsetHeight ?? 0;
+        bridge.setHand(it.mode === 'ready' ? { kind: s.kind, left: w / 2, top: h - 40 - tray } : { kind: it.kind, left: it.fx, top: it.fy - 2 });
+      } else bridge.setItem(it.mode !== 'gone' && it.pos ? { kind: it.kind, pos: it.pos, mode: it.mode } : null);
       return;
     }
     const pp = project(p, w, h);
@@ -319,7 +324,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
     r.dir = dir; r.x = e.clientX;
     if (r.turns < 3) return;
     s.rub = null; s.rubbed = true;
-    emote('shy', 1500); sfx('tap'); buzz('tap');
+    emote('shy', 1500); sfx('tap'); buzz('tap'); bridge?.fx('pet', s.pet);
     feed(1, 'pet').then((n) => gave(n, s.pet.asleep ? tl('쿨쿨…') : tl('헤헤')), () => {});
   };
   const petUp = () => { s.rub = null; };

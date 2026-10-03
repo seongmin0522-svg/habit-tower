@@ -5,12 +5,12 @@
 // Audio (audio/*.mp3) isn't in SHELL: sound.js fetches it whole on first play and the fetch handler keeps it.
 // Our own files are always revalidated (cache: 'no-cache'): GitHub Pages lets browsers keep them 10 minutes,
 // which right after a deploy could pair a new app.js with an old windows.js and break the page.
-const CACHE = 'habit-tower-v22';
+const CACHE = 'habit-tower-v23';
 const fromCache = new Set(); // client (page) ids whose launch fell back to the cache
 const CDN = 'https://cdn.jsdelivr.net/';
 const SHELL = [
   './', 'index.html', 'app.js', 'logic.js', 'catalog.js', 'db.js', 'localdb.js', 'devdb.js', 'cloud.js', 'config.js', 'image.js', 'report.js',
-  'sound.js', 'haptic.js', 'admin.js', 'pet.js', 'battle.js', 'maze.js', 'shop.js', 'collage.js', 'voxel.js', 'ui/scene3d.js', 'ui/voxelpet.js', 'ui/arena3d.js', 'ui/maze3d.js', 'i18n.js', 'lang/en.js', 'manifest.webmanifest', 'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js', 'ui/bag.js', 'ui/playroom.js', 'ui/battle.js', 'ui/maze.js', 'ui/room.js',
+  'sound.js', 'haptic.js', 'admin.js', 'pet.js', 'battle.js', 'maze.js', 'shop.js', 'collage.js', 'voxel.js', 'ui/scene3d.js', 'ui/voxelpet.js', 'ui/arena3d.js', 'ui/maze3d.js', 'ui/vox3d.js', 'i18n.js', 'lang/en.js', 'manifest.webmanifest', 'ui/h.js', 'ui/sprites.js', 'ui/monsters.js', 'ui/scene.js', 'ui/windows.js', 'ui/bag.js', 'ui/playroom.js', 'ui/battle.js', 'ui/maze.js', 'ui/room.js',
   'fonts/Galmuri11.woff2', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
   'https://cdn.jsdelivr.net/npm/htm@3.1.1/preact/standalone.module.js',
 ];

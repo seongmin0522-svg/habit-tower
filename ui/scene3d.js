@@ -8,6 +8,7 @@ import { spriteCells } from './sprites.js';
 import { brickColor } from './scene.js';
 import { ITEMS, SHOP } from '../catalog.js';
 import { roomItems, ISLAND } from '../shop.js';
+import { voxModel, propCells, propColors, particles } from './vox3d.js';
 import { TOWER_HEIGHT } from '../logic.js';
 import { photoUrl } from '../db.js';
 import { sfx } from '../sound.js';
@@ -81,6 +82,17 @@ function build(THREE, host, cb) {
       const head = new THREE.Mesh(CUBE, mat(petal[i % 4])); head.scale.set(2, 2, 2); head.position.set(x, 4, z);
       stem.castShadow = head.castShadow = true; ground.add(stem, head);
     }
+    // grass tufts and pebbles: small cubes scattered on the blocks, so the ground isn't flat colour
+    const tuftN = 420, tufts = new THREE.InstancedMesh(CUBE, new THREE.MeshLambertMaterial(), tuftN), tm = new THREE.Matrix4(), tc = new THREE.Color();
+    const dark = a.clone().offsetHSL(0, 0.08, 0.06); // lighter blades on the blocks
+    for (let i = 0; i < tuftN; i++) {
+      const r = (k) => Math.abs(Math.sin(i * 91.7 + k * 13.1) * 9301.7) % 1, stone = i % 9 === 0;
+      const x = -104 + r(1) * 198, z = -94 + r(2) * 188, hgt = stone ? 0.8 : 0.8 + r(3) * 1.1;
+      tm.compose(new THREE.Vector3(x, hgt / 2, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, r(4) * 3, 0)),
+        new THREE.Vector3(stone ? 1.6 : 0.7, hgt, stone ? 1.2 : 0.7));
+      tufts.setMatrixAt(i, tm); tufts.setColorAt(i, stone ? tc.set('#a8a294') : tc.copy(dark).offsetHSL(0, 0, (r(5) - 0.5) * 0.12));
+    }
+    tufts.receiveShadow = true; ground.add(tufts);
     const plank = new THREE.Mesh(new THREE.BoxGeometry(36, 2, 20), mat('#6b4423'));
     plank.position.set(TOWER_X, 1, 0); plank.receiveShadow = plank.castShadow = true; ground.add(plank);
     scene.add(ground);
@@ -215,17 +227,50 @@ function build(THREE, host, cb) {
     return emojis.get(ch);
   };
   const sprite = (ch, size) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: emoji(ch) })); s.scale.setScalar(size); return s; };
-  const item = sprite('⚾', 7), shadow = new THREE.Mesh(new THREE.CircleGeometry(3, 20),
+  // The thrown item: a voxel model per kind (apple, meat, fish, cake, ball), centred so it can tumble in flight.
+  const shadow = new THREE.Mesh(new THREE.CircleGeometry(3, 20),
     new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.25, depthWrite: false }));
-  shadow.rotation.x = -Math.PI / 2; item.visible = shadow.visible = false; scene.add(item, shadow);
-  // it: {icon, pos (playroom point), mode: 'fly' | 'ground' | 'held'} or null
+  shadow.rotation.x = -Math.PI / 2; shadow.visible = false; scene.add(shadow);
+  const items = new Map();
+  const itemOf = (kind) => {
+    if (!items.has(kind)) {
+      const cells = propCells(kind), h = Math.max(...cells.map((c) => c[1])) + 1, g = new THREE.Group(), m = voxModel(THREE, cells);
+      m.position.y = -h / 2; g.add(m); g.visible = false; g.userData.h = h;
+      scene.add(g); items.set(kind, g);
+    }
+    return items.get(kind);
+  };
+  let item = null;
+  // it: {kind, pos (playroom point), mode: 'fly' | 'ground' | 'held'} or null
   function setItem(it) {
-    item.visible = !!it; shadow.visible = it?.mode === 'fly';
-    if (!it) return;
-    if (item.material.map !== emoji(it.icon)) { item.material.map = emoji(it.icon); item.material.needsUpdate = true; }
-    const size = it.mode === 'held' ? 3.5 : 7;
-    item.scale.setScalar(size); isle(it.pos, item.position).y += size / 2;
+    const g = it ? itemOf(it.kind) : null;
+    if (item && item !== g) item.visible = false;
+    item = g; shadow.visible = it?.mode === 'fly' || it?.mode === 'ground';
+    if (!g) return;
+    const size = it.mode === 'held' ? 4 : 8; // units across
+    g.visible = true; g.scale.setScalar(size / 10); g.userData.spin = it.mode === 'fly'; g.userData.hand = false;
+    isle(it.pos, g.position).y += (size / 10) * (g.userData.h / 2);
     isle({ ...it.pos, y: 0 }, shadow.position).y = 0.3;
+    shadow.scale.setScalar(Math.max(0.4, 1 - (it.pos.y ?? 0) * 0.8));
+  }
+  // The item still in my hand: floating in front of the camera at a screen point (the throw spot or the finger).
+  function setHand(h) {
+    const g = itemOf(h.kind);
+    if (item && item !== g) item.visible = false;
+    item = g; shadow.visible = false; g.visible = true; g.userData.spin = false; g.userData.hand = true;
+    ndc.set((h.left / host.clientWidth) * 2 - 1, -(h.top / host.clientHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+    g.position.copy(ray.ray.origin).addScaledVector(ray.ray.direction, 45); g.scale.setScalar(0.32);
+  }
+  // Play effects at a playroom point: crumbs and hearts when it eats, a sparkle on a catch, dust on a miss.
+  const parts = particles(THREE, scene);
+  function fx(kind, p, food) {
+    const at = isle(p, new THREE.Vector3());
+    if (kind === 'eat') { parts.burst(at.clone().setY(5), { n: 14, colors: propColors(food), speed: 14, up: 18, size: 1.1 }); parts.hearts(at.clone().setY(16), 3); }
+    else if (kind === 'spit') parts.burst(at.clone().setY(5), { n: 10, colors: propColors(food), speed: 30, up: 10 });
+    else if (kind === 'catch') parts.burst(at.clone().setY(9), { n: 14, colors: ['#ffffff', '#ffe27a', '#fff4b8'], speed: 22, up: 20, size: 0.8, gravity: 20, life: 0.5 });
+    else if (kind === 'land') parts.burst(at.clone().setY(1), { n: 10, colors: ['#c8b08a', '#a8d080', '#e8dcc0'], speed: 16, up: 8, size: 1.2, life: 0.5 });
+    else if (kind === 'pet') parts.hearts(at.clone().setY(16), 3);
+    else if (kind === 'angry') parts.burst(at.clone().setY(14), { n: 8, colors: ['#ff4a5a', '#ffffff'], speed: 18, up: 12, size: 0.9 });
   }
   let furniture = [];
   const sizeOf = (s) => s.userData.size * (s.userData.id === sel ? 1.25 : 1);
@@ -477,6 +522,10 @@ function build(THREE, host, cb) {
       m.userData.squash = q - dt * 5;
       if (m.userData.squash <= 0) { m.userData.squash = 0; m.scale.set(1, 1, 1); } else m.scale.set(1 + q * 0.08, 1 - q * 0.14, 1 + q * 0.08);
     }
+    parts.update(dt, time);
+    if (item?.userData.spin && !REDUCED) { item.rotation.x += dt * 9; item.rotation.z += dt * 4; }
+    else if (item?.userData.hand) item.rotation.set(0.3, Math.sin(time * 1.5) * 0.5, 0);
+    else if (item) item.rotation.set(0, 0.5, 0);
     dust = dust.filter((d) => {
       d.life -= dt; d.v.y -= GRAV * 0.5 * dt; d.p.position.addScaledVector(d.v, dt); d.p.scale.setScalar(Math.max(0.01, d.life * 2.6));
       if (d.life > 0) return true; scene.remove(d.p); return false;
@@ -505,7 +554,7 @@ function build(THREE, host, cb) {
   raf = requestAnimationFrame(frame);
 
   return {
-    setGround, setCrew, setTower, setRubble, stack, fall, setMode, setPet, setItem, setFurniture, setSelected, project,
+    setGround, setCrew, setTower, setRubble, stack, fall, setMode, setPet, setItem, setFurniture, setSelected, project, fx, setHand,
     setTag(elm) { tagEl = elm; },
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(homeT);
@@ -541,7 +590,7 @@ export function Scene3D({ character, partnerCharacter, look, tag, keys, days, an
           if (art.m !== m || art.face !== face) art = { m, face, cells: monsterCells(m.id, m.shiny, face, m.acc) };
           w.setPet({ ...p, cells: art.cells });
         },
-        setItem: w.setItem, project: w.project,
+        setItem: w.setItem, setHand: w.setHand, project: w.project, fx: w.fx,
       });
     }, () => cb.onFail?.());
     return () => { alive = false; cb.onBridge?.(null); world.current?.dispose(); world.current = null; };
