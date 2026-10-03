@@ -329,7 +329,6 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .rm-furniture { filter: drop-shadow(0 3px 1px rgba(0,0,0,.25)); pointer-events: none; }
 .rm-empty { display: grid; place-items: center; width: 1.6em; height: 1.6em; font-size: 20px; color: #fff; border: 2px dashed #fff; border-radius: 50%; background: rgba(0,0,0,.2); }
 .rm-item.editing, .rm-empty { pointer-events: auto; cursor: pointer; outline: 2px dashed rgba(255,255,255,.8); outline-offset: 2px; border-radius: 8px; }
-.pr-theme { position: absolute; right: 10px; top: 10px; z-index: 2000; }
 .playroom .overlay { z-index: 3000; } /* windows over the field's pet and furniture */
 .shop-coins { font-size: 18px; font-weight: bold; margin: 0 0 8px; }
 .shop-coins small { display: block; font-size: 10px; font-weight: normal; }
@@ -458,6 +457,14 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 .pr-island .pr-pop { top: 24%; }
 .pr-island .pr-hint { bottom: 140px; }
 .pr-island .pr-bubble { transform: translateX(-50%) scale(.6); transform-origin: 50% 100%; }
+/* Decorating (ui/room.js DecorBar): over the 3D island, or in place of the 2D playroom's tray */
+.decor { display: flex; flex-direction: column; gap: 6px; padding: 8px 12px max(8px, env(safe-area-inset-bottom)); background: rgba(0,0,0,.35); color: #fff; }
+.decor-hint { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 0; font-size: 12px; text-shadow: 0 1px 0 #000; }
+.decor-tray { display: flex; gap: 6px; overflow-x: auto; justify-content: safe center; min-height: 34px; align-items: center; }
+.decor-tray .btn { flex: none; font-size: 18px; }
+.decor-tools { display: flex; gap: 6px; align-items: center; justify-content: center; }
+.decor-island { position: absolute; left: 0; right: 0; bottom: 0; z-index: 1; }
+.playroom .decor { padding-bottom: max(10px, env(safe-area-inset-bottom)); }
 .m-jump { animation: mjump .5s ease-out 2; }
 .m-bounce { animation: mbounce .18s ease-in-out 4 alternate; }
 .m-chew { animation: mchew .14s ease-in-out 5 alternate; }

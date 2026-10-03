@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COIN, income, balance, canBuy, skyAt, placeOk, placeIn, SLOTS } from './shop.js';
+import { COIN, income, balance, canBuy, skyAt, SLOTS, BUILDING_AT, ISLAND, roomItems, arrange, arrangeOk, withTheme, themeOk } from './shop.js';
 
 const rec = {
   days: { '2026-09-27': { assetId: 'a' }, '2026-09-28': { shield: true }, '2026-09-29': { assetId: 'b' } },
@@ -27,17 +27,17 @@ test('canBuy: a shop item I do not own yet and can afford', () => {
   assert.equal(canBuy(rec, {}, 'nope'), false);
 });
 
-test('placeOk: furniture I own in a real slot, a building in the building spot, a theme as the theme', () => {
+test('arrangeOk: furniture or a building I own, at a real spot; themeOk: a theme I own', () => {
   const bought = { cushion: {}, tent: {}, winter: {} };
-  assert.equal(SLOTS.length, 8);
-  assert.equal(placeOk(bought, 'slot', 3, 'cushion'), true);
-  assert.equal(placeOk(bought, 'slot', 3, null), true);
-  assert.equal(placeOk(bought, 'slot', 8, 'cushion'), false);
-  assert.equal(placeOk(bought, 'slot', 0, 'bowl'), false);   // not bought
-  assert.equal(placeOk(bought, 'slot', 0, 'tent'), false);   // a building isn't furniture
-  assert.equal(placeOk(bought, 'building', 0, 'tent'), true);
-  assert.equal(placeOk(bought, 'theme', 0, 'winter'), true);
-  assert.equal(placeOk(bought, 'theme', 0, 'cushion'), false);
+  assert.equal(arrangeOk(bought, 'cushion', { x: 0.3, z: 1 }), true);
+  assert.equal(arrangeOk(bought, 'tent', { x: -1, z: 2 }), true);
+  assert.equal(arrangeOk(bought, 'cushion', null), true);        // taking it away
+  assert.equal(arrangeOk(bought, 'bowl', { x: 0, z: 1 }), false); // not bought
+  assert.equal(arrangeOk(bought, 'winter', { x: 0, z: 1 }), false); // a theme isn't placed
+  assert.equal(arrangeOk(bought, 'cushion', { x: NaN, z: 1 }), false);
+  assert.equal(themeOk(bought, 'winter'), true);
+  assert.equal(themeOk(bought, null), true);
+  assert.equal(themeOk(bought, 'cushion'), false);
 });
 
 test('skyAt: local morning 6–10, day 10–17, sunset 17–20, night otherwise', () => {
@@ -49,12 +49,24 @@ test('skyAt: local morning 6–10, day 10–17, sunset 17–20, night otherwise'
   assert.equal(at(3), 'night');
 });
 
-test('placeIn: one of each furniture, building and theme set by name', () => {
-  let room = placeIn(null, 'slot', 2, 'cushion');
-  assert.deepEqual(room.slots, [null, null, 'cushion', null, null, null, null, null]);
-  room = placeIn(room, 'slot', 5, 'cushion'); // moves it
-  assert.deepEqual(room.slots, [null, null, null, null, null, 'cushion', null, null]);
-  room = placeIn(room, 'building', 0, 'tent');
-  assert.equal(room.building, 'tent');
-  assert.equal(placeIn(room, 'slot', 5, null).slots[5], null);
+test('roomItems reads the new items and old slot rooms at their old spots', () => {
+  assert.deepEqual(roomItems(null), []);
+  assert.deepEqual(roomItems({ items: [['rug', 0.5, 2]] }), [{ id: 'rug', x: 0.5, z: 2 }]);
+  const old = { slots: [null, null, 'cushion', null, null, null, null, null], building: 'tent', theme: 'winter' };
+  assert.deepEqual(roomItems(old), [{ id: 'cushion', ...SLOTS[2] }, { id: 'tent', ...BUILDING_AT }]);
+});
+
+test('arrange: one of each piece, moved or taken away, clamped to the island and rounded', () => {
+  const old = { slots: ['bowl', null, null, null, null, null, null, null], building: null, theme: 'winter' };
+  let room = arrange(old, 'cushion', { x: 0.123456, z: 1.5 });
+  assert.deepEqual(room, { items: [['bowl', SLOTS[0].x, SLOTS[0].z], ['cushion', 0.12, 1.5]], theme: 'winter' });
+  room = arrange(room, 'cushion', { x: 9, z: -3 }); // moves it, kept on the island
+  assert.deepEqual(room.items[1], ['cushion', ISLAND.x[1], ISLAND.z[0]]);
+  assert.equal(room.items.length, 2);
+  assert.deepEqual(arrange(room, 'bowl', null).items, [['cushion', ISLAND.x[1], ISLAND.z[0]]]);
+  assert.deepEqual(withTheme(room, 'spring'), { ...room, theme: 'spring' });
+  // every piece in the shop fits the profile row's 1000-byte limit with room to spare
+  const all = ['cushion', 'bowl', 'rug', 'pond', 'flower', 'lamp', 'toybox', 'tree', 'swing', 'campfire', 'house', 'tent', 'windmill', 'lighthouse', 'castle']
+    .reduce((r, id, i) => arrange(r, id, { x: -1.87 + i * 0.25, z: 3.13 - i * 0.2 }), { theme: 'autumn' });
+  assert.ok(JSON.stringify(all).length < 600, JSON.stringify(all).length);
 });

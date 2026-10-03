@@ -2,7 +2,7 @@ import { html, render, useState, useEffect, useMemo, useRef } from './ui/h.js';
 import { localDay, coupleToday, towers, pendingFall, coupleDays, halfBrick, toUpload, shieldDay, shieldsLeft, TOWER_HEIGHT, boxes, shards, owned, titles, allOwned } from './logic.js';
 import { connect, connectAssets, subscribe, makeActions, localBackup, localStore, MODE, rewardsFrom } from './db.js';
 import { ITEMS, STARTER, TITLES, ACCESSORIES, FOODS, SHOP } from './catalog.js';
-import { balance, placeIn } from './shop.js';
+import { balance, arrange, withTheme } from './shop.js';
 import { initSound, sfx, getPrefs, setPrefs, onPrefs } from './sound.js';
 import { buzz } from './haptic.js';
 import { Scene } from './ui/scene.js';
@@ -10,6 +10,7 @@ import { Scene3D, canWebGL } from './ui/scene3d.js';
 import { Setup, Photo, Album, Shelf, Calendar, FallNotice } from './ui/windows.js';
 import { Bag, BoxReveal } from './ui/bag.js';
 import { Playroom } from './ui/playroom.js';
+import { DecorBar } from './ui/room.js';
 import { Battle } from './ui/battle.js';
 import { Maze } from './ui/maze.js';
 import { battleRecord } from './battle.js';
@@ -53,7 +54,8 @@ function App() {
 
   const [sound, setSound] = useState(getPrefs());
   const [gl3d, setGl3d] = useState(canWebGL); // false after WebGL fails: 2D for the rest of the launch
-  const [spot, setSpot] = useState('tower');   // the 3D island's tab: 'tower' | 'play'
+  const [spot, setSpot] = useState('tower');   // the 3D island's tab: 'tower' | 'play' | 'decor'
+  const [picked, setPicked] = useState(null);  // the piece picked while decorating the island
   const [bridge, setBridge] = useState(null);  // the 3D world's handle for playing on the island
   useEffect(() => onPrefs(setSound), []);
   const muted = !sound.bgm && !sound.sfx;
@@ -169,7 +171,9 @@ function App() {
   const coins = admin ? null : balance({ days: state.days, maze: state.maze, pets: state.pets, pulls: state.pulls }, state.shop);
   // 3D: play happens on the island (the 놀기 tab); 2D: in the playroom window.
   const use3d = !!state.habit && gl3d && !sound.flat;
-  const playing = use3d && spot === 'play' && view !== 'partner' && !anim && !fall;
+  const onIsland = use3d && view !== 'partner' && !anim && !fall;
+  const playing = onIsland && spot === 'play', decorating = onIsland && spot === 'decor';
+  const island = playing ? 'play' : decorating ? 'decor' : 'tower';
   useEffect(() => { if (anim || fall) setSpot('tower'); }, [anim, fall]); // a new floor or a fall: back to the tower
   const toPlay = () => (use3d ? setSpot('play') : setModal('play'));
   const backToPlay = () => setModal(use3d ? null : 'play');
@@ -338,8 +342,10 @@ function App() {
     solid: gl3d && !sound.flat, pet: myPet, hearts: petHearts, wins: state.pets[myPet.id]?.wins ?? 0, accs,
     onBattle: () => setModal('battle'), onMaze: () => setModal('maze'), room: myRoom, bought, coins,
     onBuy: (id) => actions.buy(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; }),
-    onPlace: (where, i, id) => (admin ? sandbox(setAdmin({ room: placeIn(myRoom, where, i, id) }))
-      : actions.place(where, i, id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })),
+    onArrange: (id, at) => (admin ? sandbox(setAdmin({ room: arrange(myRoom, id, at) }))
+      : actions.arrange(id, at).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })),
+    onTheme: (id) => (admin ? sandbox(setAdmin({ room: withTheme(myRoom, id) }))
+      : actions.setTheme(id).then(() => cloudApi?.sync(), (e) => { fail(e); throw e; })),
     onVisit: rival ? () => setModal('visit') : null, food: admin ? ADMIN_FOOD : state.play[today]?.food,
     tastes: tastes[ITEMS.get(myPet.id)?.base], onOpenPlay: () => admin || actions.openPlay().catch(fail),
     onThrowFood: (k) => (admin ? sandbox() : actions.throwFood(k).catch((e) => { fail(e); throw e; })),
@@ -372,11 +378,14 @@ function App() {
       : tl`🎁 ${TOWER_HEIGHT}층 → ${cloud.coupleReward} · ${TOWER_HEIGHT - keys.length}층 남음`}</div>`}
     <main class=${'stage' + (use3d ? ' stage3d' : '')}>
       ${use3d ? html`<${Scene3D} key=${view} ...${sceneProps} fallback=${world2d} onFail=${() => setGl3d(false)}
-        mode=${playing ? 'play' : 'tower'} onBridge=${setBridge} room=${view === 'partner' ? partner?.room : myRoom} />` : world2d}
+        mode=${island} onBridge=${setBridge} room=${view === 'partner' ? partner?.room : myRoom} selected=${decorating ? picked : null}
+        onArrange=${(id, at) => playProps.onArrange(id, at).then(() => setPicked(id), () => {})} onItem=${setPicked} />` : world2d}
       ${playing && bridge && html`<${Playroom} ...${playProps} bridge=${bridge} />`}
+      ${decorating && html`<div class="decor-island"><${DecorBar} room=${myRoom} bought=${bought} coins=${coins} selected=${picked} onSelect=${setPicked}
+        onArrange=${playProps.onArrange} onTheme=${playProps.onTheme} onBuy=${playProps.onBuy} /></div>`}
     </main>
-    ${use3d && view !== 'partner' && html`<nav class="tabs" role="tablist">${[['tower', tl('🏰 탑')], ['play', tl('🐾 놀기')]].map(([id, label]) => html`
-      <button key=${id} role="tab" aria-selected=${(playing ? 'play' : 'tower') === id} disabled=${!ready || !!anim || !!fall}
+    ${use3d && view !== 'partner' && html`<nav class="tabs" role="tablist">${[['tower', tl('🏰 탑')], ['play', tl('🐾 놀기')], ['decor', tl('🏠 꾸미기')]].map(([id, label]) => html`
+      <button key=${id} role="tab" aria-selected=${island === id} disabled=${!ready || !!anim || !!fall}
         onClick=${() => { sfx('tap'); setSpot(id); }}>${label}</button>`)}</nav>`}
     <footer class="bar">
       ${!state.habit ? null
@@ -396,7 +405,7 @@ function App() {
       onSave=${(f) => actions.setHabit(f).then(() => { setModal(null); cloudApi?.sync(); }, fail)} />`}
     ${modal === 'visit' && rival && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
       bought=${EMPTY} coins=${0} onOpenPlay=${() => {}} onThrowFood=${() => sandbox()} onFeed=${() => sandbox(0)} onWake=${() => sandbox(0)}
-      onBuy=${() => sandbox()} onPlace=${() => sandbox()} onClose=${backToPlay} />`}
+      onBuy=${() => sandbox()} onArrange=${() => sandbox()} onTheme=${() => sandbox()} onClose=${backToPlay} />`}
     ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
       onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {

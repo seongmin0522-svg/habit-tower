@@ -23,6 +23,12 @@ passes its checks.
 2. **Island decorating.** Drag furniture anywhere on the island, several of the same, sky decorations (the stage 2
    decorating plan of the pixel-art spec, now in 3D): room data `{items: [{id, x, z}], sky: [{id, x, y}], theme}`,
    copies `shop/<id>.N`, old slot rooms converted, a 40-item limit. Furniture is voxelized from its icon for now.
+   Split by what the server allows today (`purchases.item ~ '^[a-z]{1,20}$'`, `pg_column_size(profiles.room) < 1000`):
+   **2a (no server change):** every owned furniture piece and building placed anywhere on the island, dragged in
+   3D (the 꾸미기 tab: an overview camera, drag on the ground, tap to pick, a drawer of what isn't placed yet) and in
+   the 2D playroom; the theme colours the island's grass. Room data `{items: [[id, x, z]], theme}` (arrays, coordinates
+   rounded to 0.01, so 15 pieces stay well under 1000 bytes); old `{slots, building}` rooms read as items at their old
+   spots. Furniture shows as standing icon sprites. **2b (needs a migration, asked first):** copies and sky items.
 3. **3D battle.** Two voxel pets on a small arena island, the same rules (`battle.js`) and turns; projectiles, hits,
    faint as 3D effects; the HP cards and skill buttons stay as UI.
 4. **3D maze → dungeon.** The room-and-corridor dungeon (puzzle tiles, keys, partner ghost later) built in 3D from the

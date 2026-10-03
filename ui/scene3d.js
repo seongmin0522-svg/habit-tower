@@ -7,7 +7,7 @@ import { monsterCells } from './monsters.js';
 import { spriteCells } from './sprites.js';
 import { brickColor } from './scene.js';
 import { ITEMS, SHOP } from '../catalog.js';
-import { SLOTS } from '../shop.js';
+import { roomItems, ISLAND } from '../shop.js';
 import { TOWER_HEIGHT } from '../logic.js';
 import { photoUrl } from '../db.js';
 import { sfx } from '../sound.js';
@@ -25,8 +25,9 @@ const BW = 28, BH = 13, BD = 14, BASE = 2, TOWER_X = 12, GRAV = 260, TILT = 0.2,
 const restY = (i) => BASE + BH / 2 + i * BH;
 // Play (spec: docs/superpowers/specs/2026-10-03-island-design.md): a playroom point {x, y, z} lands on the island at
 // (PX + x·U, y·U, PZ − z·U), in front of the tower; the camera stands behind "my hand".
-// PLAY_W: the half width the camera keeps in view where the pet strolls; PLAY_UP: how steeply it looks down.
-const PX = -10, PZ = 70, U = 45, PLAY_AIM = [PX, 4, PZ - 0.7 * U], PLAY_W = 34, PLAY_UP = 0.5;
+// Fixed cameras for play and decorate: aim, the half width kept in view there, how steeply it looks down.
+const PX = -10, PZ = 70, U = 45;
+const CAMS = { play: { aim: [PX, 4, PZ - 0.7 * U], w: 34, up: 0.5 }, decor: { aim: [PX, 0, PZ - 1.3 * U], w: 92, up: 0.95 } };
 
 // The imperative world: three.js objects and the frame loop. cb holds the latest callbacks.
 function build(THREE, host, cb) {
@@ -144,8 +145,10 @@ function build(THREE, host, cb) {
   // camY = the climb up the tower (two-finger drag), which only shows once zoomed out.
   let camY = 0, camTarget = 0, yaw = 0.3, spin = 0, tilt = TILT, zoom = 0, zoomTarget = 0, tagEl = null, raf, last = performance.now();
   const touches = new Map(); let pinch = null, drag = null;
-  // Play: mode 'play' hands my pet to the playroom (pet: its last setPet), playK blends the camera over.
-  let mode = 'tower', playK = 0, pet = null;
+  // mode: 'tower' (orbit) | 'play' (my pet is the playroom's: pet = its last setPet) | 'decor' (drag furniture).
+  // A mode change glides the camera from where it was (camFrom) over camT 0 → 1.
+  let mode = 'tower', pet = null, camFrom = null, camT = 1, sel = null, moving = null;
+  const lastAim = new THREE.Vector3();
 
   function setCrew(list) { // list: [{cells, pet, mine, face}] left to right
     for (const f of crew) scene.remove(f.mesh);
@@ -225,10 +228,16 @@ function build(THREE, host, cb) {
     isle({ ...it.pos, y: 0 }, shadow.position).y = 0.3;
   }
   let furniture = [];
-  function setFurniture(list) { // [{icon, x, z}] in playroom units
+  const sizeOf = (s) => s.userData.size * (s.userData.id === sel ? 1.25 : 1);
+  const stand = (s) => { s.scale.setScalar(sizeOf(s)); s.position.y = sizeOf(s) / 2; };
+  function setFurniture(list) { // [{id, icon, x, z, big}] in playroom units
     for (const f of furniture) scene.remove(f);
-    furniture = list.map((f) => { const s = sprite(f.icon, 14); isle(f, s.position).y = 7; scene.add(s); return s; });
+    furniture = list.map((f) => {
+      const s = sprite(f.icon, 1); s.userData = { id: f.id, size: f.big ? 40 : 22 };
+      isle(f, s.position); stand(s); scene.add(s); return s;
+    });
   }
+  function setSelected(id) { sel = id; furniture.forEach(stand); }
   // p: {x, z, dir (±1), cells (the face's art; rebuilt when it changes), motion}
   function setPet(p) {
     const f = mine();
@@ -244,7 +253,8 @@ function build(THREE, host, cb) {
   }
   function setMode(m) {
     if (m === mode) return;
-    mode = m; pet = null; setItem(null);
+    camFrom = { pos: camera.position.clone(), aim: lastAim.clone() }; camT = 0;
+    mode = m; pet = null; moving = null; setItem(null);
     const f = mine();
     if (m !== 'tower' || !f) return;
     if (f.faceCells) { const n = figure(f.cells, true); n.scale.setScalar(0.85); n.userData = f.mesh.userData; scene.remove(f.mesh); f.mesh.dispose(); scene.add(n); f.mesh = n; }
@@ -331,7 +341,22 @@ function build(THREE, host, cb) {
   const el = renderer.domElement, ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
   // One finger: sideways turns (with momentum), up/down tilts. Two fingers: pinch zooms, moving together climbs.
   const spread = () => { const [a, b] = [...touches.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y), y: (a.y + b.y) / 2 }; };
+  const floor = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), onGround = new THREE.Vector3();
+  const aimAt = (e) => {
+    const r = el.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+  };
+  // Decorate: press a piece to pick it up, drag it over the ground, let go to put it there; a tap picks it.
   el.addEventListener('pointerdown', (e) => {
+    if (mode === 'decor') {
+      aimAt(e);
+      const hit = ray.intersectObjects(furniture, false)[0]?.object;
+      if (!hit) return;
+      try { el.setPointerCapture(e.pointerId); } catch { /* synthetic */ }
+      moving = { s: hit, x0: e.clientX, y0: e.clientY, moved: false };
+      return;
+    }
     if (mode === 'play') return; // the camera stays behind the hand while playing
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { el.setPointerCapture(e.pointerId); } catch { /* not a live pointer (synthetic events) */ }
@@ -340,6 +365,16 @@ function build(THREE, host, cb) {
     drag = { x: e.clientX, y: e.clientY, t: performance.now(), moved: false, x0: e.clientX, y0: e.clientY };
   });
   el.addEventListener('pointermove', (e) => {
+    if (moving) {
+      if (!moving.moved && Math.hypot(e.clientX - moving.x0, e.clientY - moving.y0) < 6) return;
+      moving.moved = true;
+      aimAt(e);
+      if (!ray.ray.intersectPlane(floor, onGround)) return;
+      const x = Math.min(ISLAND.x[1], Math.max(ISLAND.x[0], (onGround.x - PX) / U));
+      const z = Math.min(ISLAND.z[1], Math.max(ISLAND.z[0], (PZ - onGround.z) / U));
+      isle({ x, z }, moving.s.position); stand(moving.s); moving.at = { x, z };
+      return;
+    }
     if (!touches.has(e.pointerId)) return;
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     if (pinch && touches.size === 2) {
@@ -359,6 +394,12 @@ function build(THREE, host, cb) {
   });
   el.addEventListener('wheel', (e) => { e.preventDefault(); if (mode !== 'play') zoomTarget = Math.min(1, Math.max(0, zoomTarget + e.deltaY * 0.0015)); }, { passive: false });
   el.addEventListener('pointerup', (e) => {
+    if (moving) {
+      const { s: piece, moved, at } = moving;
+      moving = null;
+      if (moved && at) cb.onArrange?.(piece.userData.id, at); else cb.onItem?.(piece.userData.id);
+      return;
+    }
     touches.delete(e.pointerId);
     if (touches.size < 2) pinch = null;
     const tap = drag && !drag.moved;
@@ -371,7 +412,7 @@ function build(THREE, host, cb) {
     if (hit?.userData.key) cb.onBlock?.(hit.userData.key);
     else if (hit?.userData.pet && hit.userData.mine) { const f = crew.find((c) => c.mesh === hit); if (f && !f.hop) f.hop = { t: 0 }; }
   });
-  el.addEventListener('pointercancel', (e) => { touches.delete(e.pointerId); pinch = null; drag = null; });
+  el.addEventListener('pointercancel', (e) => { touches.delete(e.pointerId); pinch = null; drag = null; moving = null; });
 
   // ---------- frame loop ----------
   const feet = new THREE.Vector3(), probe = new THREE.Raycaster();
@@ -385,12 +426,20 @@ function build(THREE, host, cb) {
     const v = view(), k = v.t, ax = homeX + (towerX - homeX) * k, az = 12 * (1 - k);
     const aimY = camY * k + 13 + (v.h * 0.36 - 13) * k;
     const flat = Math.cos(tilt) / Math.cos(TILT); // keep the distance along the ground when tilting
-    camera.position.set(ax + Math.sin(yaw) * v.d * flat, aimY + v.d * Math.sin(tilt) / Math.cos(TILT), az + Math.cos(yaw) * v.d * flat);
-    playK += ((mode === 'play' ? 1 : 0) - playK) * Math.min(1, dt * 4);
-    const e = playK * playK * (3 - 2 * playK), aim = new THREE.Vector3(ax, aimY, az).lerp(shot.set(...PLAY_AIM), e);
-    const pd = PLAY_W / (half * camera.aspect);
-    camera.position.lerp(shot.set(PLAY_AIM[0], PLAY_AIM[1] + pd * Math.sin(PLAY_UP), PLAY_AIM[2] + pd * Math.cos(PLAY_UP)), e);
-    camera.lookAt(aim);
+    const cam = CAMS[mode], aim = new THREE.Vector3();
+    if (cam) { // fixed: far enough back that cam.w fits across the screen
+      const d = cam.w / (half * camera.aspect);
+      aim.set(...cam.aim); camera.position.set(aim.x, aim.y + d * Math.sin(cam.up), aim.z + d * Math.cos(cam.up));
+    } else {
+      aim.set(ax, aimY, az);
+      camera.position.set(ax + Math.sin(yaw) * v.d * flat, aimY + v.d * Math.sin(tilt) / Math.cos(TILT), az + Math.cos(yaw) * v.d * flat);
+    }
+    camT = Math.min(1, camT + dt * 2.2);
+    if (camFrom && camT < 1) {
+      const e = camT * camT * (3 - 2 * camT);
+      camera.position.lerpVectors(camFrom.pos, camera.position, e); aim.lerpVectors(camFrom.aim, aim, e);
+    }
+    lastAim.copy(aim); camera.lookAt(aim);
     sun.position.set(ax + 90, aimY + 170, 120); sun.target.position.set(ax, aimY, 0);
 
     for (const [i, f] of crew.entries()) {
@@ -447,7 +496,7 @@ function build(THREE, host, cb) {
       probe.set(camera.position, feet.clone().sub(camera.position).normalize());
       const blocked = probe.intersectObjects(bricks.map((b) => b.mesh), false)[0]?.distance < camera.position.distanceTo(feet);
       const p = feet.clone().project(camera), off = Math.abs(p.x) > 1 || Math.abs(p.y) > 1;
-      tagEl.style.visibility = off || blocked || playK > 0.05 ? 'hidden' : 'visible';
+      tagEl.style.visibility = off || blocked || mode !== 'tower' || camT < 1 ? 'hidden' : 'visible';
       tagEl.style.left = `${(p.x * 0.5 + 0.5) * host.clientWidth}px`; tagEl.style.top = `${(-p.y * 0.5 + 0.5) * host.clientHeight}px`;
     }
     renderer.render(scene, camera);
@@ -456,7 +505,7 @@ function build(THREE, host, cb) {
   raf = requestAnimationFrame(frame);
 
   return {
-    setGround, setCrew, setTower, setRubble, stack, fall, setMode, setPet, setItem, setFurniture, project,
+    setGround, setCrew, setTower, setRubble, stack, fall, setMode, setPet, setItem, setFurniture, setSelected, project,
     setTag(elm) { tagEl = elm; },
     dispose() {
       cancelAnimationFrame(raf); ro.disconnect(); clearTimeout(homeT);
@@ -468,13 +517,14 @@ function build(THREE, host, cb) {
 }
 
 // The 3D scene for props: what Scene draws, as a world. fallback: the 2D scene until three.js is ready.
-// mode: 'tower' | 'play'. onBridge(bridge | null): the playroom's handle on my pet ({setPet, setItem, project}).
-// room: furniture in its slots stands on the island.
+// mode: 'tower' | 'play' | 'decor'. onBridge(bridge | null): the playroom's handle on my pet ({setPet, setItem, project}).
+// room: its furniture and buildings stand on the island; in decor, onArrange(id, {x, z}) after a drag, onItem(id) on a
+// tap, selected: the picked piece (drawn bigger).
 export function Scene3D({ character, partnerCharacter, look, tag, keys, days, anim, rubble, onBlock, onDone, badge, half, onPet, fallback, onFail,
-  mode = 'tower', onBridge, room }) {
+  mode = 'tower', onBridge, room, selected = null, onArrange, onItem }) {
   const host = useRef(), tagRef = useRef(), world = useRef(null), [ready, setReady] = useState(false);
   const cb = useRef({}).current; // one object for the world's lifetime, refilled with the latest callbacks each render
-  Object.assign(cb, { onBlock, onDone, onPet, onFail, onBridge, pet: look.monsters[0] });
+  Object.assign(cb, { onBlock, onDone, onPet, onFail, onBridge, onArrange, onItem, pet: look.monsters[0] });
   useEffect(() => {
     let alive = true;
     loadThree().then((THREE) => {
@@ -511,7 +561,8 @@ export function Scene3D({ character, partnerCharacter, look, tag, keys, days, an
   const crewKey = JSON.stringify([character, partnerCharacter, look.monsters, look.hero, look.partnerHero, falling]);
   const towerKey = JSON.stringify([shown, look.brick, look.flag, half, shown.map((k) => [days[k]?.assetId, days[k]?.partnerAssetId, badge?.(k)])]);
 
-  useEffect(() => { if (ready) world.current.setGround(grass()); }, [ready, look.bg]);
+  const theme = SHOP.get(room?.theme); // a bought theme colours the island
+  useEffect(() => { if (ready) world.current.setGround((theme && grassOf(theme.ground)) || grass()); }, [ready, look.bg, theme?.id]);
   useEffect(() => { if (ready) world.current.setCrew(crewList()); }, [ready, crewKey]);
   useEffect(() => {
     if (!ready) return;
@@ -526,10 +577,11 @@ export function Scene3D({ character, partnerCharacter, look, tag, keys, days, an
   }, [ready, anim]);
   useEffect(() => { if (ready) world.current.setTag(tagRef.current); }, [ready, tag]);
   useEffect(() => { if (ready) world.current.setMode(mode); }, [ready, mode]);
-  const slots = room?.slots ?? [];
+  const pieces = roomItems(room).filter((i) => SHOP.get(i.id));
   useEffect(() => {
-    if (ready) world.current.setFurniture(slots.map((id, i) => SHOP.get(id) && { icon: SHOP.get(id).icon, ...SLOTS[i] }).filter(Boolean));
-  }, [ready, slots.join()]);
+    if (ready) world.current.setFurniture(pieces.map((i) => ({ ...i, icon: SHOP.get(i.id).icon, big: SHOP.get(i.id).kind === 'building' })));
+  }, [ready, JSON.stringify(pieces)]);
+  useEffect(() => { if (ready) world.current.setSelected(selected); }, [ready, selected]);
 
   return html`<div class="scene3d" ref=${host}>
     ${!ready && fallback}

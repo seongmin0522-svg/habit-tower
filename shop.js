@@ -23,20 +23,28 @@ export function income({ days, maze, pets, pulls }) {
 export const balance = (rec, bought) => income(rec) - Object.keys(bought).reduce((a, id) => a + (SHOP.get(id)?.price ?? 0), 0);
 export const canBuy = (rec, bought, id) => !!SHOP.get(id) && !bought[id] && balance(rec, bought) >= SHOP.get(id).price;
 
-// where: 'slot' (i = 0–7, furniture), 'building' or 'theme'. id null empties it.
-export function placeOk(bought, where, i, id) {
-  if (where === 'slot' && !(i >= 0 && i < SLOTS.length)) return false;
-  if (id == null) return true;
-  const kind = { slot: 'furniture', building: 'building', theme: 'theme' }[where];
-  return !!bought[id] && SHOP.get(id)?.kind === kind;
-}
+// Rooms (spec: docs/superpowers/specs/2026-10-03-island-design.md part 2a): {items: [[id, x, z]], theme}, one of each
+// furniture piece or building, anywhere on the island (playroom units; arrays and 0.01 steps keep the cloud copy small).
+// Old rooms {slots, building} read as items at their old spots.
+export const BUILDING_AT = { x: 0, z: 1.6 };
+export const ISLAND = { x: [-1.9, 1.9], z: [0, 3.2] };
+const PLACED = new Set(['furniture', 'building']);
+const clampTo = (v, [a, b]) => Math.round(Math.min(b, Math.max(a, v)) * 100) / 100;
 
-// The room after putting id (or null) there. A piece of furniture sits in one slot at a time: placing it moves it.
-export function placeIn(room, where, i, id) {
-  const r = { slots: Array(SLOTS.length).fill(null), building: null, theme: null, ...room };
-  if (where !== 'slot') return { ...r, [where]: id };
-  return { ...r, slots: r.slots.map((x, j) => (j === i ? id : id && x === id ? null : x)) };
+export function roomItems(room) {
+  if (Array.isArray(room?.items)) return room.items.map(([id, x, z]) => ({ id, x, z }));
+  return [...(room?.slots ?? []).map((id, i) => id && { id, ...SLOTS[i] }), room?.building && { id: room.building, ...BUILDING_AT }].filter(Boolean);
 }
+export const arrangeOk = (bought, id, at) => !!bought[id] && PLACED.has(SHOP.get(id)?.kind)
+  && (at == null || (Number.isFinite(at.x) && Number.isFinite(at.z)));
+export const themeOk = (bought, id) => id == null || (!!bought[id] && SHOP.get(id)?.kind === 'theme');
+// The room with id moved to at, or taken away (at null).
+export function arrange(room, id, at) {
+  const items = roomItems(room).filter((i) => i.id !== id).map((i) => [i.id, i.x, i.z]);
+  if (at) items.push([id, clampTo(at.x, ISLAND.x), clampTo(at.z, ISLAND.z)]);
+  return { items, theme: room?.theme ?? null };
+}
+export const withTheme = (room, id) => ({ ...arrange(room, null, null), theme: id });
 
 // The playroom sky follows the phone's local hour.
 export function skyAt(now = new Date(), tz = undefined) {

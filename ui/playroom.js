@@ -9,8 +9,8 @@ import { flick, spinOf, at, landing, judge, foodHearts, tasteOf, isNight, levelO
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
 
-import { RoomLayer, Shop, PlaceSheet, HORIZON, HAND } from './room.js';
-import { SLOTS, skyAt } from '../shop.js';
+import { RoomLayer, Shop, DecorBar, HORIZON, HAND } from './room.js';
+import { roomItems, skyAt } from '../shop.js';
 import { tl } from '../i18n.js';
 const PET_PX = 9;                  // monster pixel size at z = 0
 const WANDER = { x: 0.6, z: [0.45, 0.85], walk: 0.15, run: 0.6 }; // where the pet strolls, speeds in units/s
@@ -58,13 +58,14 @@ const place = (el, left, top, sx, sy = Math.abs(sx)) => {
 // monster has shown. onThrowFood(kind): one piece leaves the tray. onFeed(n, kind, food): resolves to the hearts given
 // after today's limits, and records a taste. wins: the pet's ⚔️ wins. onBattle(): open the battle screen.
 // onWake(): woken at night, resolves to the hearts lost.
-// Room: room ({slots, building, theme}), bought, coins (null = admin: free), onBuy(id), onPlace(where, i, id).
+// Room: room ({items, theme}), bought, coins (null = admin: free), onBuy(id), onArrange(id, {x, z} | null), onTheme(id).
 // visit: null, or {name} when this is my partner's playroom, looked at read-only (onVisit opens theirs).
 export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, onThrowFood, onFeed, onWake, onBattle, onMaze,
-  room, bought, coins, onBuy, onPlace, visit, onVisit, onClose, solid, bridge }) { // solid: the pet as a voxel model
+  room, bought, coins, onBuy, onArrange, onTheme, visit, onVisit, onClose, solid, bridge }) { // solid: the pet as a voxel model
   // bridge: play over the 3D island (ui/scene3d.js) instead of in this window: the same rules, the world draws the pet
   // and the item; here only the throw spot, an invisible hit box on the pet (petting, its mood icon) and the controls.
-  const [panel, setPanel] = useState(null); // null | 'shop' | 'decor' | {where, i}
+  const [panel, setPanel] = useState(null); // null | 'shop' | 'decor'
+  const [sel, setSel] = useState(null);      // the piece picked while decorating
   const roomRef = useRef(room);
   roomRef.current = room;
   const field = useRef(), petEl = useRef(), bubbleEl = useRef(), itemEl = useRef(), shadowEl = useRef(), trayEl = useRef();
@@ -213,7 +214,9 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
         if (face) { emote({ face, motion, icon: bubble }, 2600); say(word); p.waitUntil = now + 2600; return; }
       }
       // Now and then the pet heads for a piece of furniture instead of a random spot.
-      const placed = (roomRef.current?.slots ?? []).map((id, i) => id && { id, ...SLOTS[i] }).filter(Boolean);
+      // (on the island only pieces the play camera shows)
+      const placed = roomItems(roomRef.current).filter((f) => FURNITURE.some((x) => x.id === f.id)
+        && (!bridge || (Math.abs(f.x) <= 0.75 && f.z >= 0.2 && f.z <= 1.6)));
       if (placed.length && Math.random() < 0.35) {
         const f = placed[Math.floor(Math.random() * placed.length)];
         p.visit = f.id;
@@ -332,7 +335,7 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
   const hint = s.pet.asleep ? tl('쿨쿨 자는 중… 던지면 깨요 (쓰다듬기는 괜찮아요)')
     : kind !== 'ball' ? tl('먹이를 잡고 위로 튕겨 던져 보세요') : tl('공을 던지면 물어와요');
 
-  const editing = panel === 'decor' || typeof panel === 'object' && panel;
+  const editing = panel === 'decor';
   return html`<div class=${bridge ? 'playroom pr-island' : 'playroom sky-' + skyAt()} role=${bridge ? 'region' : 'dialog'}
     aria-label=${visit ? tl`${visit.name}의 놀이방` : tl('펫과 놀기')}>
     <div class="pr-top"><b>${visit ? tl`💞 ${visit.name}의 ` : ''}${ITEMS.get(pet.id)?.name ?? tl('펫')}</b>${!visit && gauge}
@@ -346,9 +349,8 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       ${onVisit && html`<button class="btn sm blue" onClick=${onVisit}>${tl('💞 놀러가기')}</button>`}
     </div>`}
     <div class="pr-field" ref=${field}>
-      ${!bridge && html`<${RoomLayer} room=${room} editing=${!!editing} onSlot=${(i) => setPanel({ where: 'slot', i })}
-        onBuilding=${() => setPanel({ where: 'building', i: 0 })} />`}
-      ${editing && html`<button class="btn sm blue pr-theme" onClick=${() => setPanel({ where: 'theme', i: 0 })}>${tl('🌸 테마 바꾸기')}</button>`}
+      ${!bridge && html`<${RoomLayer} room=${room} editing=${editing} selected=${sel} onItem=${setSel}
+        onArrange=${(id, at) => onArrange(id, at).then(() => setSel(id), () => {})} />`}
       ${!bridge && html`<span class="pr-shadow" ref=${shadowEl} />`}
       <span class=${'pr-pet' + (pet.shiny ? ' sparkle' : '')} ref=${petEl} role="img" aria-label=${tl('펫 쓰다듬기')}
         onPointerDown=${petDown} onPointerMove=${petMove} onPointerUp=${petUp} onPointerCancel=${petUp}>
@@ -358,9 +360,11 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       <span class="pr-item" hidden=${!!visit} ref=${itemEl} role="button" aria-label=${kind !== 'ball' ? tl('먹이 던지기') : tl('공 던지기')}
         onPointerDown=${down} onPointerMove=${move} onPointerUp=${up} onPointerCancel=${cancel}>${ICON[s.item.kind ?? kind]}</span>
       ${pop && html`<p key=${pop.key} class="pr-pop">${pop.text}</p>`}
-      <p class="pr-hint">${visit ? tl`${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : editing ? tl('번호 칸을 눌러 가구를 놓아요') : hint}</p>
+      ${!editing && html`<p class="pr-hint">${visit ? tl`${visit.name}의 펫이 놀고 있어요 (구경만 할 수 있어요)` : hint}</p>`}
     </div>
-    ${!visit && html`<div class="pr-tray" ref=${trayEl}>
+    ${editing && html`<${DecorBar} room=${room} bought=${bought} coins=${coins} selected=${sel} onSelect=${setSel}
+      onArrange=${onArrange} onTheme=${onTheme} onBuy=${onBuy} />`}
+    ${!visit && !editing && html`<div class="pr-tray" ref=${trayEl}>
       ${FOODS.map((f) => {
         const n = food?.filter((k) => k === f.id).length ?? 0, t = tastes?.[f.id];
         return html`<button key=${f.id} class=${'btn sm ' + (kind === f.id ? 'green' : 'blue')} disabled=${!n} onClick=${() => pick(f.id)}
@@ -369,8 +373,5 @@ export function Playroom({ pet, hearts, wins, accs, food, tastes, onOpenPlay, on
       <button class=${'btn sm ' + (kind === 'ball' ? 'green' : 'blue')} onClick=${() => pick('ball')}>${tl('⚾ 공')}</button>
     </div>`}
     ${panel === 'shop' && html`<${Shop} coins=${coins} bought=${bought} onBuy=${onBuy} onClose=${() => setPanel(null)} />`}
-    ${panel?.where && html`<${PlaceSheet} where=${panel.where} index=${panel.i} bought=${bought}
-      current=${panel.where === 'slot' ? room?.slots?.[panel.i] : room?.[panel.where]}
-      onPick=${(id) => onPlace(panel.where, panel.i, id).then(() => setPanel('decor'), () => {})} onClose=${() => setPanel('decor')} />`}
   </div>`;
 }

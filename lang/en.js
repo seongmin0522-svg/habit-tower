@@ -26,6 +26,8 @@ export const EN = {
     'Unlocks every monster, shiny, skin, title and accessory, with no daily limits on snacks, battles or the maze. Playroom, battle and maze results aren’t saved.',
   '가벼운 화면 (2D)': 'Light view (2D)', '소리': 'Sound', '🎵 배경음악': '🎵 Music', '🔔 효과음': '🔔 Effects', '📳 진동': '📳 Vibration', '📳 진동 테스트': '📳 Test vibration',
   '🏰 탑': '🏰 Tower', '🐾 놀기': '🐾 Play',
+  '🏠 꾸미기': '🏠 Decorate', '{0} {1} · 끌어서 옮겨요': '{0} {1} · drag to move', '{0} 놓기': 'Place {0}',
+  '가구를 끌어서 옮기고, 눌러서 골라요': 'Drag furniture to move it, tap to pick it', '치우기': 'Put away', '다 놓았어요': 'All placed',
   '폰이 진동 요청을 받았어요. 안 떨렸다면 폰 설정 → 소리 및 진동 → 진동 세기에서 터치·시스템 진동을 켜 주세요.':
     'Your phone got the vibration request. No buzz? Turn on touch/system vibration in your phone’s sound settings.',
   '브라우저가 진동을 막았어요. 이 문구를 캡처해서 알려 주세요.': 'The browser blocked vibration. Please send us a screenshot of this.',
@@ -86,10 +88,10 @@ export const EN = {
   '{0}의 놀이방': '{0}’s playroom', '펫과 놀기': 'Play with your pet', '💞 {0}의 ': '💞 {0}’s ', '펫': 'Pet', '대결': 'Battle',
   '⚔️ 대결': '⚔️ Battle', '미로': 'Maze', '🧩 미로': '🧩 Maze', '🏪 상점': '🏪 Shop', '완료': 'Done', '💞 놀러가기': '💞 Visit',
   '🌸 테마 바꾸기': '🌸 Change theme', '펫 쓰다듬기': 'Pet your pet', '먹이 던지기': 'Throw a snack', '공 던지기': 'Throw the ball',
-  '{0}의 펫이 놀고 있어요 (구경만 할 수 있어요)': '{0}’s pet is playing (look only)', '번호 칸을 눌러 가구를 놓아요': 'Tap a numbered spot to place furniture',
+  '{0}의 펫이 놀고 있어요 (구경만 할 수 있어요)': '{0}’s pet is playing (look only)',
   '{0} {1}개': '{0} ×{1}', ' · 좋아함': ' · loves it', ' · 싫어함': ' · hates it', '⚾ 공': '⚾ Ball',
   // ui/room.js
-  '건물 자리': 'Building spot', '{0}번 자리': 'Spot {0}', '🛋️ 가구': '🛋️ Furniture', '🏠 건물': '🏠 Buildings', '🌸 테마': '🌸 Themes',
+  '🛋️ 가구': '🛋️ Furniture', '🏠 건물': '🏠 Buildings', '🌸 테마': '🌸 Themes',
   ' · 인증 {0} · 미로 {1} · 대결 승리 {2} · 중복 {3} · 펫 레벨업 {4}': ' · check-in {0} · maze {1} · battle win {2} · repeat {3} · pet level-up {4}',
   '보유': 'Owned', '산 건 🏠 꾸미기에서 놓을 수 있어요. 가구 근처에 가면 펫이 쉬거나 놀아요.': 'Place what you buy in 🏠 Decorate. Your pet rests or plays near furniture.',
   '테마': 'Theme', '비우기': 'Clear', '아직 산 게 없어요. 🏪 상점에서 사 오세요.': 'Nothing bought yet. Get some in the 🏪 shop.',

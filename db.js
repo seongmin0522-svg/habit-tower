@@ -1,6 +1,6 @@
 // All persistence goes through here. The page never writes to db or assets directly.
 import { localDay, addDays, shieldsLeft, boxes, roll, owned } from './logic.js';
-import { canBuy, placeOk, placeIn } from './shop.js';
+import { canBuy, arrangeOk, arrange, themeOk, withTheme } from './shop.js';
 import { REWARDS_FROM, POOL, COUPLE_POOL, ITEMS, TITLES, MONSTERS, SKINS } from './catalog.js';
 import { CHARACTERS } from './ui/sprites.js';
 import { shrink } from './image.js';
@@ -250,11 +250,16 @@ export function makeActions(db, assets, getState) {
       if (!canBuy({ days: s.days, maze: s.maze, pets: s.pets, pulls: s.pulls }, s.shop, id)) throw new Error(tl('코인이 모자라거나 이미 있어요'));
       await db.doc(`shop/${id}`).set({ at: new Date().toISOString() });
     },
-    // room/me = {slots: [8 furniture ids or null], building, theme}. where: 'slot' | 'building' | 'theme'.
-    async place(where, i, id) {
+    // room/me = {items: [[id, x, z]], theme} (shop.js). at: {x, z} on the island, or null to take it away.
+    async arrange(id, at) {
       const s = ready();
-      if (!placeOk(s.shop, where, i, id)) throw new Error(tl('놓을 수 없어요'));
-      await db.doc('room/me').set(placeIn(s.room, where, i, id));
+      if (!arrangeOk(s.shop, id, at)) throw new Error(tl('놓을 수 없어요'));
+      await db.doc('room/me').set(arrange(s.room, id, at));
+    },
+    async setTheme(id) {
+      const s = ready();
+      if (!themeOk(s.shop, id)) throw new Error(tl('놓을 수 없어요'));
+      await db.doc('room/me').set(withTheme(s.room, id));
     },
 
     // Today's maze escaped in ms. The first clear of a day is a shard (the day's maze/<day> doc); a faster
