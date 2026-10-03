@@ -6,8 +6,9 @@
 import { html, useState, useEffect, useRef, useMemo } from './h.js';
 import { Monster } from './monsters.js';
 import { Battle } from './battle.js';
+import { Maze3D } from './maze3d.js';
 import { ITEMS } from '../catalog.js';
-import { SIZE, mazeOf, step, isOpen, inSight, checkpoints } from '../maze.js';
+import { SIZE, DIRS, mazeOf, step, isOpen, inSight, checkpoints } from '../maze.js';
 import { wildRoll } from '../battle.js';
 import { sfx } from '../sound.js';
 import { buzz } from '../haptic.js';
@@ -24,10 +25,12 @@ const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) 
 const key = ([x, y]) => y * SIZE + x;
 const same = (a, b) => a[0] === b[0] && a[1] === b[1];
 const gap = () => ENCOUNTER[0] + Math.random() * (ENCOUNTER[1] - ENCOUNTER[0]);
+const BACK = { up: 'down', right: 'left', down: 'up', left: 'right' };
+const SWIPE = 24; // px: a shorter drag is a tap
 
 // pet: {id, shiny, acc}; level: its battle level. day: today (local). best: today's best ms or null.
 // capturedToday: a monster was already caught today. onCapture(id, shiny): resolves to {caught, dup, admin}.
-// onClear(ms): resolves to {first, best, admin}.
+// onClear(ms): resolves to {first, best, admin}. solid: the maze in 3D (ui/maze3d.js).
 export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear, onClose, solid }) {
   const maze = useMemo(() => mazeOf(day), [day]);
   const cps = useMemo(() => checkpoints(maze), [maze]);
@@ -43,6 +46,9 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
   const [toast, setToast] = useState(null);
   const [flash, setFlash] = useState(false);
   const [wild, setWild] = useState(null);    // the monster being fought
+  const [dir, setDir] = useState(null);      // the way the pet last walked (it faces it in 3D)
+  const [flat, setFlat] = useState(!solid), [ready3d, setReady3d] = useState(false);
+  const swipe = useRef(null);
   // Refs, not state, for what the held-button interval reads: its closure is from the render that started it.
   const p = useRef(maze.start), hold = useRef(null), began = useRef(null), over = useRef(false), fighting = useRef(false);
   const paused = useRef(0), pauseAt = useRef(0), nextFoe = useRef(gap()), caught = useRef(capturedToday), lost = useRef(false);
@@ -98,6 +104,7 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
   const walk = (dir) => {
     if (over.current || fighting.current) return;
     const q = step(maze, p.current, dir);
+    setDir(dir);
     if (!q) { setBump((b) => b + 1); buzz('tap'); return; }
     if (!began.current) { began.current = performance.now(); setT0(began.current); }
     p.current = q;
@@ -119,6 +126,30 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
   };
   const press = (dir) => { walk(dir); clearInterval(hold.current); hold.current = setInterval(() => walk(dir), REPEAT_MS); };
   const release = () => clearInterval(hold.current);
+  // A swipe runs along the corridor, round its bends, and stops where it branches or ends (or anything happens).
+  const dash = (first) => {
+    clearInterval(hold.current);
+    let d = first;
+    const tick = () => {
+      const from = p.current;
+      walk(d);
+      if (p.current === from || over.current || fighting.current) return clearInterval(hold.current);
+      const ways = Object.keys(DIRS).filter((w) => w !== BACK[d] && isOpen(maze, p.current, w));
+      if (ways.length !== 1 || cps.some((c) => same(c, p.current))) return clearInterval(hold.current);
+      d = ways[0];
+    };
+    tick();
+    hold.current = setInterval(tick, REPEAT_MS);
+  };
+  const swipeDown = (e) => { swipe.current = { x: e.clientX, y: e.clientY }; };
+  const swipeUp = (e) => {
+    const s = swipe.current;
+    swipe.current = null;
+    if (!s) return;
+    const dx = e.clientX - s.x, dy = e.clientY - s.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE) return;
+    dash(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up');
+  };
   const restart = () => {
     p.current = maze.start; began.current = null; over.current = false; paused.current = 0; nextFoe.current = gap();
     setPos(maze.start); setSeen(new Set(around(maze.start))); setReached(0); setT0(null); setDone(null);
@@ -153,11 +184,13 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
       <b class=${done ? 'on' : reached === 3 ? 'next' : ''}>🚩</b>
       ${!done && html`<span class="mz-arrow" title=${tl('다음 목표 방향')} style=${{ transform: `rotate(${angle}deg)` }}>➤</span>`}
     </div>
-    <div class="mz-field">
-      <svg class="mz-map" viewBox=${`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet" aria-label=${tl('미로')}>
+    <div class="mz-field" onPointerDown=${swipeDown} onPointerUp=${swipeUp} onPointerCancel=${() => { swipe.current = null; }}>
+      ${!flat && html`<${Maze3D} maze=${maze} cps=${cps} pos=${pos} dir=${dir} seen=${seen} reached=${reached} pet=${pet} face=${done ? 'excited' : null}
+        bump=${bump} done=${!!done} onReady=${() => setReady3d(true)} onFail=${() => { setFlat(true); setReady3d(false); }} />`}
+      ${!ready3d && html`<svg class="mz-map" viewBox=${`0 0 ${VIEW} ${VIEW}`} preserveAspectRatio="xMidYMid meet" aria-label=${tl('미로')}>
         <g class="mz-rooms" style=${{ transform: shift }}>${rooms}</g>
       </svg>
-      <span class=${'mz-pet' + (done ? ' win' : '')} key=${'b' + bump}><${Monster} id=${pet.id} shiny=${pet.shiny} acc=${pet.acc} px=${3} face=${done ? 'excited' : null} /></span>
+      <span class=${'mz-pet' + (done ? ' win' : '')} key=${'b' + bump}><${Monster} id=${pet.id} shiny=${pet.shiny} acc=${pet.acc} px=${3} face=${done ? 'excited' : null} /></span>`}
       <svg class="mz-mini" viewBox=${`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
         ${[...seen].map((k) => html`<rect key=${k} x=${k % SIZE} y=${Math.floor(k / SIZE)} width="1" height="1" />`)}
         ${cps.map((c, i) => seen.has(key(c)) && html`<rect key=${'c' + i} x=${c[0]} y=${c[1]} width="1" height="1" class=${i < reached ? 'cpdone' : 'cp'} />`)}
@@ -167,7 +200,7 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
       ${toast && html`<p class="pr-pop" key=${toast}>${toast}</p>`}
       ${done ? html`<div class="mz-done"><b>${tl`탈출! ${clock(done.ms)}`}</b>${done.note && html`<small>${done.note}</small>`}
         <div class="bt-row"><button class="btn green" onClick=${restart}>${tl('다시')}</button><button class="btn blue" onClick=${onClose}>${tl('닫기')}</button></div></div>`
-        : html`<p class="mz-hint">${tl('①→②→③→🚩 순서로! 화살표가 다음 목표 방향 · 풀숲에서 야생 몬스터가 튀어나와요')}</p>`}
+        : html`<p class="mz-hint">${tl('①→②→③→🚩 순서로! 밀면 갈림길까지 달려요 · 풀숲에서 야생 몬스터가 튀어나와요')}</p>`}
     </div>
     <div class="mz-pad">${PADS.map(([dir, label]) => html`<button key=${dir} class=${'btn blue mz-' + dir} aria-label=${dir}
       onPointerDown=${(e) => { e.preventDefault(); press(dir); }} onPointerUp=${release} onPointerLeave=${release} onPointerCancel=${release}

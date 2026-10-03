@@ -118,7 +118,7 @@ export const EN = {
   '이겼다!': 'You won!', '{0} 통과!': '{0} passed!', '🧩 상자 조각 +1': '🧩 Box shard +1',
   '오늘 조각은 이미 받았어요 · 최고 {0}': 'Today’s shard is already yours · best {0}', '안개 미로': 'Fog maze', '🧩 오늘의 미로': '🧩 Today’s maze',
   ' · 최고 {0}': ' · best {0}', '체크포인트 {0}/3': 'Checkpoint {0}/3', '다음 목표 방향': 'Direction to the next goal', '탈출! {0}': 'Escaped! {0}',
-  '①→②→③→🚩 순서로! 화살표가 다음 목표 방향 · 풀숲에서 야생 몬스터가 튀어나와요': 'Go ①→②→③→🚩! The arrow points to the next goal · wild monsters jump out of the grass',
+  '①→②→③→🚩 순서로! 밀면 갈림길까지 달려요 · 풀숲에서 야생 몬스터가 튀어나와요': 'Go ①→②→③→🚩! Swipe to run to the next fork · wild monsters jump out of the grass',
   '도망쳤다! +5초': 'Got away! +5 s',
   // app.js
   '동기화 오류: {0}': 'Sync error: {0}', '우리 탑': 'Our tower', '해빗 타워': 'Habit Tower', '🛠 장착 (저장 안 함)': '🛠 Equipped (not saved)',
