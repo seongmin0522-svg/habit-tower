@@ -28,7 +28,7 @@ const gap = () => ENCOUNTER[0] + Math.random() * (ENCOUNTER[1] - ENCOUNTER[0]);
 // pet: {id, shiny, acc}; level: its battle level. day: today (local). best: today's best ms or null.
 // capturedToday: a monster was already caught today. onCapture(id, shiny): resolves to {caught, dup, admin}.
 // onClear(ms): resolves to {first, best, admin}.
-export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear, onClose }) {
+export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear, onClose, solid }) {
   const maze = useMemo(() => mazeOf(day), [day]);
   const cps = useMemo(() => checkpoints(maze), [maze]);
   const [pos, setPos] = useState(maze.start);
@@ -173,7 +173,7 @@ export function Maze({ pet, level, day, best, capturedToday, onCapture, onClear,
       onPointerDown=${(e) => { e.preventDefault(); press(dir); }} onPointerUp=${release} onPointerLeave=${release} onPointerCancel=${release}
       onContextMenu=${(e) => e.preventDefault()}>${label}</button>`)}</div>
     ${flash && html`<i class="mz-flash" />`}
-    ${wild && html`<${Battle} me=${{ ...pet, level }} wild=${wild} onRecord=${(won) => onWild(won)}
+    ${wild && html`<${Battle} solid=${solid} me=${{ ...pet, level }} wild=${wild} onRecord=${(won) => onWild(won)}
       onFlee=${() => { setToast(tl('도망쳤다! +5초')); endFight(FLEE_MS); }} onClose=${() => endFight()} />`}
   </div>`;
 }

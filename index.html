@@ -400,6 +400,11 @@ select.track { display: block; margin-top: 6px; font: inherit; border: 1px solid
 @keyframes btshot { from { transform: translate(calc(var(--x0) - 50%), calc(var(--y0) - 50%)); } to { transform: translate(calc(var(--x1) - 50%), calc(var(--y1) - 50%)); } }
 @keyframes btspin { to { rotate: 720deg; } }
 .bt-pet svg { display: block; }
+.arena3d { position: absolute; inset: 0; pointer-events: none; }
+.arena3d canvas { display: block; width: 100%; height: 100%; }
+.bt-field.solid::before { content: none; }
+.bt-field.solid .bt-me { left: 14%; }
+.bt-field.solid .bt-pet svg { visibility: hidden; } /* the 3D pet stands in this box */
 .bt-me .bt-pet svg { transform: scaleX(-1); } /* the art faces left; mine faces the foe */
 .bt-pet.lunge { animation: btlunge .35s ease-out; }
 .bt-me .bt-pet.lunge { --dx: 24px; --dy: -16px; }

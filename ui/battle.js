@@ -4,6 +4,7 @@
 // heal sparkles, stun stars, entry and faint.
 import { html, useState, useRef, useEffect } from './h.js';
 import { Monster } from './monsters.js';
+import { Arena3D } from './arena3d.js';
 import { ITEMS, MONSTERS, ELEMENTS } from '../catalog.js';
 import { fighter, start, turn, aiPick } from '../battle.js';
 import { sfx } from '../sound.js';
@@ -34,7 +35,8 @@ function effectText(k) {
 // fresh = their challenges to me since I last looked. onSeen(at): I've seen up to `at`.
 // wild: null | {id, shiny, level} — a maze encounter: no picker, a run-away button, onFlee().
 // onRecord(won, vs): saves the result; resolves to {counted, left, admin, note}.
-export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose }) {
+// solid: the field in 3D (ui/arena3d.js); the 2D pets stay as invisible boxes the 3D ones stand in.
+export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose, solid }) {
   const [phase, setPhase] = useState('pick'); // pick | fight | end
   const [st, setSt] = useState(null);         // battle.js state after the last full turn
   const [shown, setShown] = useState(null);   // {me: hp, foe: hp} while events replay
@@ -47,6 +49,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
   const [round, setRound] = useState(0);      // bumps per battle: replays the entry animation
   const foeInfo = useRef(null);               // {id, shiny, acc, level, label, vs}
   const timers = useRef([]), field = useRef(), pets = { me: useRef(), foe: useRef() };
+  const arena = useRef(null), [shown3d, setShown3d] = useState(false), [flat, setFlat] = useState(!solid);
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const fresh = useRef(partner?.record.fresh ?? []); // kept for this visit after it's marked seen
   useEffect(() => {
@@ -85,6 +88,7 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
     return f && p ? [p.left - f.left + p.width / 2, p.top - f.top + p.height / 2] : [0, 0];
   };
   const shot = (from, to, icon, cls) => {
+    if (arena.current) return arena.current.shot(from, to, icon);
     const [x0, y0] = center(from), [x1, y1] = center(to);
     addFx({ kind: 'shot', icon, cls, x0, y0, x1, y1 }, 700);
   };
@@ -195,7 +199,10 @@ export function Battle({ me, partner, wild, onRecord, onSeen, onFlee, onClose })
       ${fresh.current.slice(0, 3).map((f) => html`<p key=${f.at} class="bt-news">💞 ${tl`${partner.name}이(가) 도전해 왔어요`} — ${f.won ? tl('내 펫이 이겼어요! 🎉') : tl('내 펫이 졌어요… 복수하러 가요!')}</p>`)}
       ${partner && html`<button class="btn green bt-partner" onClick=${() => begin({ ...partner.pet, label: partner.name, vs: 'partner' })}>
         💞 ${tl`${partner.name}의 ${nameOf(partner.pet.id)} Lv ${partner.pet.level}`}<br /><small>${tl`전적 ${partner.record.win}승 ${partner.record.lose}패`}</small></button>`}
-    </div>` : html`<div class="bt-field" ref=${field}><div class="bt-stage">
+    </div>` : html`<div class=${'bt-field' + (shown3d ? ' solid' : '')} ref=${field}>
+      ${!flat && html`<${Arena3D} key=${round} boxes=${pets} api=${arena} onReady=${() => setShown3d(true)} onFail=${() => { setFlat(true); setShown3d(false); }}
+        sides=${{ me: { id: me.id, shiny: me.shiny, acc: me.acc, face: faces.me }, foe: foe && { id: foe.id, shiny: foe.shiny, acc: foe.acc, face: faces.foe } }} />`}
+      <div class="bt-stage">
       ${pet('foe', foe, foe.level)}
       ${pet('me', me, me.level)}
       ${fxs.filter((f) => f.kind === 'shot').map((f) => html`<i key=${f.id} class=${'bt-shot ' + f.cls}

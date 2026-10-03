@@ -406,7 +406,7 @@ function App() {
     ${modal === 'visit' && rival && html`<${Playroom} solid=${gl3d && !sound.flat} pet=${rival.pet} hearts=${0} wins=${0} accs=${accs} room=${partner.room} visit=${{ name: partnerName }}
       bought=${EMPTY} coins=${0} onOpenPlay=${() => {}} onThrowFood=${() => sandbox()} onFeed=${() => sandbox(0)} onWake=${() => sandbox(0)}
       onBuy=${() => sandbox()} onArrange=${() => sandbox()} onTheme=${() => sandbox()} onClose=${backToPlay} />`}
-    ${modal === 'battle' && html`<${Battle} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
+    ${modal === 'battle' && html`<${Battle} solid=${gl3d && !sound.flat} me=${{ ...myPet, level: (admin && adminPrefs.level) || levelOf(petHearts) }} partner=${rival}
       onSeen=${(at) => actions.mark('seenBattle', at).catch(fail)}
       onRecord=${(won, vs) => (admin ? sandbox({ admin: true }) : actions.recordBattle(myPet.id, won).then((r) => {
         // Only the day's counted battles go on our shared record, so rematches can't flood it.
@@ -414,7 +414,7 @@ function App() {
         return r;
       }, (e) => { fail(e); throw e; }))}
       onClose=${backToPlay} />`}
-    ${modal === 'maze' && html`<${Maze} pet=${myPet} level=${(admin && adminPrefs.level) || levelOf(petHearts)} day=${today} best=${state.maze[today]?.ms ?? null}
+    ${modal === 'maze' && html`<${Maze} solid=${gl3d && !sound.flat} pet=${myPet} level=${(admin && adminPrefs.level) || levelOf(petHearts)} day=${today} best=${state.maze[today]?.ms ?? null}
       capturedToday=${!admin && !!state.pulls['w:' + today]}
       onCapture=${(id, shiny) => (admin ? sandbox({ caught: true, admin: true }) : actions.capture(id, shiny).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
       onClear=${(ms) => (admin ? sandbox({ admin: true, best: ms }) : actions.clearMaze(ms).then((r) => { cloudApi?.sync(); return r; }, (e) => { fail(e); throw e; }))}
